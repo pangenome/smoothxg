@@ -490,13 +490,13 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
             if (e.source_name.empty()) return;
             uint64_t from_rank = r_iv[std::stol(e.source_name)-min_id];
-            handle_t from_handle = handlegraph::number_bool_packing::pack(from_rank, !e.source_orientation_forward);
+            handle_t from_handle = number_bool_packing::pack(from_rank, !e.source_orientation_forward);
             uint64_t to_rank = r_iv[std::stol(e.source_name)-min_id];
-            handle_t to_handle = handlegraph::number_bool_packing::pack(to_rank, !e.sink_orientation_forward);
+            handle_t to_handle = number_bool_packing::pack(to_rank, !e.sink_orientation_forward);
             edge_from_to_mm.append(as_integer(from_handle), as_integer(to_handle));
             edge_to_from_mm.append(as_integer(to_handle), as_integer(from_handle));
         });
-    handle_t max_handle = get_handle(max_id, true);
+    handle_t max_handle = number_bool_packing::pack(max_id, true);
     edge_from_to_mm.index(as_integer(max_handle));
     edge_to_from_mm.index(as_integer(max_handle));
 
@@ -507,10 +507,19 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     sdsl::util::assign(g_iv, sdsl::int_vector<>(g_iv_size));
     sdsl::util::assign(g_bv, sdsl::bit_vector(g_iv_size));
 
+    auto temp_get_handle = [&](const nid_t& id, bool orientation) {
+        uint64_t handle_rank = r_iv[id-min_id];
+        return number_bool_packing::pack(handle_rank, orientation);
+    };
+    auto temp_get_id = [&](const handle_t& h) {
+        return i_iv[number_bool_packing::unpack_number(h)];
+    };
+    
     int64_t g = 0; // pointer into g_iv and g_bv
     for (int64_t i = 0; i < node_count; ++i) {
         nid_t id = i_iv[i];
-        handle_t handle = get_handle(id, false);
+        //std::cerr << "id is " << id << std::endl;
+        handle_t handle = temp_get_handle(id, false);
         g_bv[g] = 1; // mark record start for later query
         g_iv[g++] = id;
         g_iv[g++] = node_start(id);
@@ -522,20 +531,20 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         // write the edges in id-based format
         // we will next convert these into relative format
         for (auto orientation : { false, true }) {
-            handle_t to = get_handle(id, orientation);
+            handle_t to = temp_get_handle(id, orientation);
             edge_to_from_mm.for_unique_values_of(as_integer(to), [&](const uint64_t& _from) {
                     handle_t from = as_handle(_from);
-                    g_iv[g++] = get_id(from);
+                    g_iv[g++] = temp_get_id(from);
                     g_iv[g++] = edge_type(from, to);
                     ++to_edge_count;
                 });
         }
         g_iv[to_edge_count_idx] = to_edge_count;
         for (auto orientation : { false, true }) {
-            handle_t from = get_handle(id, orientation);
+            handle_t from = temp_get_handle(id, orientation);
             edge_to_from_mm.for_unique_values_of(as_integer(from), [&](const uint64_t& _to) {
                     handle_t to = as_handle(_to);
-                    g_iv[g++] = get_id(to);
+                    g_iv[g++] = temp_get_id(to);
                     g_iv[g++] = edge_type(from, to);
                     ++from_edge_count;
                 });
@@ -656,7 +665,7 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     // todo... implement this again??
     //index_component_path_sets();
 
-    bool print_graph = true;
+    bool print_graph = false;
     if (print_graph) {
         cerr << "printing graph" << endl;
         // we have to print the relativistic graph manually because the default sdsl printer assumes unsigned integers are stored in it

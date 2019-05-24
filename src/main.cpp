@@ -56,6 +56,11 @@ int main(int argc, char** argv) {
         graph.from_gfa(args::get(gfa_in));
     }
 
+    if (!args::get(xg_out).empty()) {
+        std::ofstream out(args::get(xg_out));
+        graph.serialize(out);
+    }
+    
     /*
     unique_ptr<XG> graph;
     //string file_name = argv[optind];
