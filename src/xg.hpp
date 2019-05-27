@@ -200,6 +200,8 @@ public:
     // Use a memory-mapped GFA file to build the index in low memory
     void from_gfa(const std::string& gfa_filename, std::string basename = "");
 
+    void to_gfa(std::ostream& out) const;
+
     // Use an existing handle graph to build the index
     //void from_path_handle_graph(const PathHandleGraph& other);
                

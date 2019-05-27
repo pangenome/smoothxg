@@ -113,10 +113,11 @@ void XG::load(std::istream& in) {
         case 7:
         case 8:
         case 9:
+        case 10:
             std::cerr << "warning:[XG] Loading an out-of-date XG format."
                       << "For better performance over repeated loads, consider recreating this XG index." << std::endl;
             // Fall through
-        case 10:
+        case 11:
             {
                 sdsl::read_member(seq_length, in);
                 sdsl::read_member(node_count, in);
@@ -384,9 +385,9 @@ size_t XG::serialize_and_measure(ostream& out, sdsl::structure_tree_node* s, std
     paths_written += sdsl::write_member(paths.size(), out, paths_child, "path_count");    
     for (size_t i = 0; i < paths.size(); i++) {
         XGPath* path = paths[i];
-        paths_written += path->serialize(out, paths_child, "path:" + get_path_name(as_path_handle(i)));
+        paths_written += path->serialize(out, paths_child, "path:" + get_path_name(as_path_handle(i+1)));
     }
-    
+
     paths_written += np_iv.serialize(out, paths_child, "node_path_mapping");
     paths_written += np_bv.serialize(out, paths_child, "node_path_mapping_starts");
     paths_written += np_bv_rank.serialize(out, paths_child, "node_path_mapping_starts_rank");
@@ -429,8 +430,12 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
             ++edge_count;
         });
     // path count
-    gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name_raw, const std::string& node_id, bool is_rev, const std::string& cigar) {
-            ++path_count;
+    std::string pname;
+    gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name, const std::string& node_id, bool is_rev, const std::string& cigar) {
+            if (path_name != pname) {
+                ++path_count;
+            }
+            pname = path_name;
         });
 
 #ifdef VERBOSE_DEBUG
@@ -443,7 +448,7 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     // set up our compressed representation
     sdsl::int_vector<> i_iv;
     sdsl::util::assign(s_iv, sdsl::int_vector<>(seq_length, 0, 3));
-    sdsl::util::assign(s_bv, sdsl::bit_vector(seq_length));
+    sdsl::util::assign(s_bv, sdsl::bit_vector(seq_length+1));
     sdsl::util::assign(i_iv, sdsl::int_vector<>(node_count));
     sdsl::util::assign(r_iv, sdsl::int_vector<>(max_id-min_id+1)); // note: possibly discontiguous
     
@@ -465,14 +470,16 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     sdsl::util::bit_compress(r_iv);
 
     // then make s_bv and s_iv
+    size_t j = 0;
     gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
             nid_t id = std::stol(s.name);
-            size_t i = r_iv[id-min_id]-1;
-            s_bv[i] = 1; // record node start
+            //size_t i = r_iv[id-min_id]-1;
+            s_bv[j] = 1; // record node start
             for (auto c : s.sequence) {
-                s_iv[i++] = dna3bit(c); // store sequence
+                s_iv[j++] = dna3bit(c); // store sequence
             }
         });
+    s_bv[seq_length] = 1;
 
     // to label the paths we'll need to compress and index our vectors
     sdsl::util::bit_compress(s_iv);
@@ -481,6 +488,22 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     
     // now that we've set up our sequence indexes, we can build the locally traversable graph storage
 
+    auto temp_get_handle = [&](const nid_t& id, bool orientation) {
+        uint64_t handle_rank = r_iv[id-min_id];
+        return number_bool_packing::pack(handle_rank, orientation);
+    };
+    auto temp_node_size = [&](const nid_t& id) {
+        uint64_t handle_rank = r_iv[id-min_id];
+        return s_bv_select(handle_rank+1)-s_bv_select(handle_rank);
+    };
+    auto temp_get_id = [&](const handle_t& h) {
+        return i_iv[number_bool_packing::unpack_number(h)-1];
+    };
+
+#ifdef VERBOSE_DEBUG
+    cerr << "collecting edges " << endl;
+#endif
+    
     // first, we need to collect the edges for each node
     // we use the mmmultimap here to reduce in-memory costs to a minimum
     std::string edge_f_t_idx = basename + ".from_to.mm";
@@ -489,10 +512,8 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     multimap<uint64_t, uint64_t> edge_to_from_mm(edge_t_f_idx);
     gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
             if (e.source_name.empty()) return;
-            uint64_t from_rank = r_iv[std::stol(e.source_name)-min_id];
-            handle_t from_handle = number_bool_packing::pack(from_rank, !e.source_orientation_forward);
-            uint64_t to_rank = r_iv[std::stol(e.source_name)-min_id];
-            handle_t to_handle = number_bool_packing::pack(to_rank, !e.sink_orientation_forward);
+            handle_t from_handle = temp_get_handle(std::stol(e.source_name), !e.source_orientation_forward);
+            handle_t to_handle = temp_get_handle(std::stol(e.sink_name), !e.sink_orientation_forward);
             edge_from_to_mm.append(as_integer(from_handle), as_integer(to_handle));
             edge_to_from_mm.append(as_integer(to_handle), as_integer(from_handle));
         });
@@ -507,23 +528,21 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     sdsl::util::assign(g_iv, sdsl::int_vector<>(g_iv_size));
     sdsl::util::assign(g_bv, sdsl::bit_vector(g_iv_size));
 
-    auto temp_get_handle = [&](const nid_t& id, bool orientation) {
-        uint64_t handle_rank = r_iv[id-min_id];
-        return number_bool_packing::pack(handle_rank, orientation);
-    };
-    auto temp_get_id = [&](const handle_t& h) {
-        return i_iv[number_bool_packing::unpack_number(h)];
-    };
+#ifdef VERBOSE_DEBUG
+    cerr << "computing graph vector " << endl;
+#endif
     
     int64_t g = 0; // pointer into g_iv and g_bv
     for (int64_t i = 0; i < node_count; ++i) {
         nid_t id = i_iv[i];
-        //std::cerr << "id is " << id << std::endl;
+#ifdef VERBOSE_DEBUG
+        if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
+#endif
         handle_t handle = temp_get_handle(id, false);
         g_bv[g] = 1; // mark record start for later query
         g_iv[g++] = id;
         g_iv[g++] = node_start(id);
-        g_iv[g++] = get_sequence(handle).size();
+        g_iv[g++] = temp_node_size(id);
         size_t to_edge_count = 0;
         size_t from_edge_count = 0;
         size_t to_edge_count_idx = g++;
@@ -532,8 +551,11 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         // we will next convert these into relative format
         for (auto orientation : { false, true }) {
             handle_t to = temp_get_handle(id, orientation);
+            //std::cerr << "looking at to handle " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
             edge_to_from_mm.for_unique_values_of(as_integer(to), [&](const uint64_t& _from) {
                     handle_t from = as_handle(_from);
+                    //std::cerr << "edge to " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from)
+                    //<< " -> " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
                     g_iv[g++] = temp_get_id(from);
                     g_iv[g++] = edge_type(from, to);
                     ++to_edge_count;
@@ -542,8 +564,11 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         g_iv[to_edge_count_idx] = to_edge_count;
         for (auto orientation : { false, true }) {
             handle_t from = temp_get_handle(id, orientation);
-            edge_to_from_mm.for_unique_values_of(as_integer(from), [&](const uint64_t& _to) {
+            //std::cerr << "looking at from handle " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from) << std::endl;
+            edge_from_to_mm.for_unique_values_of(as_integer(from), [&](const uint64_t& _to) {
                     handle_t to = as_handle(_to);
+                    //std::cerr << "edge from " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from)
+                    //<< " -> " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
                     g_iv[g++] = temp_get_id(to);
                     g_iv[g++] = edge_type(from, to);
                     ++from_edge_count;
@@ -552,13 +577,21 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         g_iv[from_edge_count_idx] = from_edge_count;
     }
 
+#ifdef VERBOSE_DEBUG
+    std::cerr << endl;
+#endif
+
     // cleanup our mmmultimap
     std::remove(edge_f_t_idx.c_str());
     std::remove(edge_t_f_idx.c_str());
-    
+
     // set up rank and select supports on g_bv so we can locate nodes in g_iv
     sdsl::util::assign(g_bv_rank, sdsl::rank_support_v<1>(&g_bv));
     sdsl::util::assign(g_bv_select, sdsl::bit_vector::select_1_type(&g_bv));
+
+#ifdef VERBOSE_DEBUG
+    cerr << "making graph vector relativistic " << endl;
+#endif
 
     // convert the edges in g_iv to relativistic form
     for (int64_t i = 0; i < node_count; ++i) {
@@ -595,6 +628,9 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     bool curr_is_circular = false; // TODO, use TP:Z:circular tag... we'll have to fish this out of the file
 
     auto build_accumulated_path = [&](void) {
+#ifdef VERBOSE_DEBUG
+        cerr << "adding path " << curr_path_name << endl;
+#endif
         size_t unique_member_count = 0;
         path_names += start_marker + curr_path_name + end_marker;
         XGPath* path = new XGPath(curr_path_name, curr_path_steps,
@@ -613,13 +649,15 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
                 // build the last path we've accumulated
                 build_accumulated_path();
                 curr_path_steps.clear();
-                curr_path_name = path_name;
             }
+            curr_path_name = path_name;
             curr_path_steps.push_back(get_handle(stol(node_id), is_rev));
         });
     // build the last path
     build_accumulated_path();
     curr_path_steps.clear();
+
+    //std::cerr << "path names " << path_names << std::endl;
 
     // handle path names
     sdsl::util::assign(pn_iv, sdsl::int_vector<>(path_names.size()));
@@ -639,6 +677,10 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     sdsl::store_to_file((const char*)path_names.c_str(), path_name_file);
     sdsl::construct(pn_csa, path_name_file, 1);
 
+#ifdef VERBOSE_DEBUG
+    cerr << "computing node to path membership" << endl;
+#endif
+    
     // node -> paths
     sdsl::util::assign(np_iv, sdsl::int_vector<>(path_node_count+node_count));
     sdsl::util::assign(np_bv, sdsl::bit_vector(path_node_count+node_count));
@@ -665,7 +707,7 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     // todo... implement this again??
     //index_component_path_sets();
 
-    bool print_graph = false;
+    bool print_graph = true;
     if (print_graph) {
         cerr << "printing graph" << endl;
         // we have to print the relativistic graph manually because the default sdsl printer assumes unsigned integers are stored in it
@@ -692,6 +734,7 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
                 cerr << rank_to_id(g_bv_rank(g+g_iv[j])+1) << " ";
                 j += 2;
             }
+            cerr << " to ";
             for (int64_t j = f; j < f + G_EDGE_LENGTH * edges_from_count; ) {
                 cerr << rank_to_id(g_bv_rank(g+g_iv[j])+1) << " ";
                 j += 2;
@@ -707,7 +750,6 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         for (size_t i = 0; i < paths.size(); i++) {
             // Go through paths by number, so we can determine rank
             XGPath* path = paths[i];
-            
             cerr << get_path_name(as_path_handle(i + 1)) << endl;
             // manually print IDs because simplified wavelet tree doesn't support ostream for some reason
             for (size_t j = 0; j + 1 < path->ids.size(); j++) {
@@ -730,7 +772,47 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     // TODO check if we've made a valid graph
     //
 }
-    
+
+void XG::to_gfa(std::ostream& out) const {
+    out << "H\tVN:Z:1.0" << std::endl;
+    // for each node
+    for_each_handle([&out,this](const handle_t& h) {
+            nid_t node_id = get_id(h);
+            out << "S\t" << node_id << "\t" << get_sequence(h) << std::endl;
+            follow_edges(h, false, [&](const handle_t& o) {
+                    out << "L\t" << node_id << "\t"
+                        << (get_is_reverse(h)?"-":"+")
+                        << "\t" << get_id(o) << "\t"
+                        << (get_is_reverse(o)?"-":"+")
+                        << "\t0M" << std::endl;
+                });
+            follow_edges(h, true, [&](const handle_t& o) {
+                    if (get_is_reverse(o) || h == o) {
+                        out << "L\t" << node_id << "\t"
+                            << (get_is_reverse(h)?"-":"+")
+                            << "\t" << get_id(o) << "\t"
+                            << (get_is_reverse(o)?"-":"+")
+                            << "\t0M" << std::endl;
+                    }
+                });
+        });
+    for_each_path_handle([&out,this](const path_handle_t& p) {
+            //step_handle_t step = path_begin(p);
+            out << "P\t" << get_path_name(p) << "\t";
+            for_each_step_in_path(p, [this,&out](const step_handle_t& step) {
+                    handle_t h = get_handle_of_step(step);
+                    out << get_id(h) << (get_is_reverse(h)?"-":"+");
+                    if (has_next_step(step)) out << ",";
+                });
+            out << "\t";
+            for_each_step_in_path(p, [this,&out](const step_handle_t& step) {
+                    out << get_length(get_handle_of_step(step)) << "M";
+                    if (has_next_step(step)) out << ",";
+                });
+            out << std::endl;
+        });
+}
+
 char XG::pos_char(nid_t id, bool is_rev, size_t off) const {
     assert(off < get_length(id));
     if (!is_rev) {
@@ -789,7 +871,7 @@ std::string XG::pos_substr(nid_t id, bool is_rev, size_t off, size_t len) const 
 size_t XG::id_to_rank(const nid_t& id) const {
     size_t x = id-min_id;
     if (x < 0 || x >= r_iv.size()) return 0;
-    return r_iv[id-min_id];
+    return r_iv[x];
 }
 
 nid_t XG::rank_to_id(const size_t& rank) const {

@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> xg_out(parser, "FILE", "write the resulting xg index to this file", {'o', "out"});
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
-    args::ValueFlag<std::string> gfa_out(parser, "FILE", "write the graph in GFA to FILE", {'G', "gfa-out"});
+    args::Flag gfa_out(parser, "FILE", "write the graph in GFA to stdout", {'G', "gfa-out"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
     try {
@@ -59,6 +59,10 @@ int main(int argc, char** argv) {
     if (!args::get(xg_out).empty()) {
         std::ofstream out(args::get(xg_out));
         graph.serialize(out);
+    }
+
+    if (args::get(gfa_out)) {
+        graph.to_gfa(std::cout);
     }
     
     /*
