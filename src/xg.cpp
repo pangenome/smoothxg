@@ -411,15 +411,13 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     seq_length = 0;
     edge_count = 0;
     path_count = 0;
+    min_id = std::numeric_limits<int64_t>::max();
+    max_id = 0;
     // get information about graph size and id ranges
     gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
             nid_t id = std::stol(s.name);
             // min id starts at 0
-            if (min_id) {
-                min_id = std::min(min_id, id);
-            } else {
-                min_id = id;
-            }
+            min_id = std::min(min_id, id);
             max_id = std::max(max_id, id);
             seq_length += s.sequence.size();
             ++node_count;
@@ -707,7 +705,57 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     // todo... implement this again??
     //index_component_path_sets();
 
-    bool print_graph = true;
+//#define DEBUG_CONSTRUCTION
+#ifdef DEBUG_CONSTRUCTION
+    cerr << "|g_iv| = " << size_in_mega_bytes(g_iv) << endl;
+    cerr << "|g_bv| = " << size_in_mega_bytes(g_bv) << endl;
+    cerr << "|s_iv| = " << size_in_mega_bytes(s_iv) << endl;
+
+    cerr << "|r_iv| = " << size_in_mega_bytes(r_iv) << endl;
+
+    cerr << "|s_bv| = " << size_in_mega_bytes(s_bv) << endl;
+    
+    long double paths_mb_size = 0;
+    cerr << "|pn_iv| = " << size_in_mega_bytes(pn_iv) << endl;
+    paths_mb_size += size_in_mega_bytes(pn_iv);
+    cerr << "|pn_csa| = " << size_in_mega_bytes(pn_csa) << endl;
+    paths_mb_size += size_in_mega_bytes(pn_csa);
+    cerr << "|pn_bv| = " << size_in_mega_bytes(pn_bv) << endl;
+    paths_mb_size += size_in_mega_bytes(pn_bv);
+    paths_mb_size += size_in_mega_bytes(pn_bv_rank);
+    paths_mb_size += size_in_mega_bytes(pn_bv_select);
+    paths_mb_size += size_in_mega_bytes(pi_iv);
+    cerr << "|np_iv| = " << size_in_mega_bytes(np_iv) << endl;
+    paths_mb_size += size_in_mega_bytes(np_iv);
+    cerr << "|np_bv| = " << size_in_mega_bytes(np_bv) << endl;
+    paths_mb_size += size_in_mega_bytes(np_bv);
+    paths_mb_size += size_in_mega_bytes(np_bv_rank);
+    paths_mb_size += size_in_mega_bytes(np_bv_select);
+    cerr << "total paths size " << paths_mb_size << endl;
+
+    float path_ids_mb_size=0;
+    float path_dir_mb_size=0;
+    float path_pos_mb_size=0;
+    float path_ranks_mb_size=0;
+    float path_offsets_mb_size=0;
+    for (size_t i = 0; i < paths.size(); i++) {
+        // Go through paths by number, so we can determine rank
+        XGPath* path = paths[i];
+        path_ids_mb_size += size_in_mega_bytes(path->ids);
+        path_dir_mb_size += size_in_mega_bytes(path->directions);
+        path_pos_mb_size += size_in_mega_bytes(path->positions);
+        path_ranks_mb_size += size_in_mega_bytes(path->ranks);
+        path_offsets_mb_size += size_in_mega_bytes(path->offsets);
+    }
+    cerr << "path ids size " << path_ids_mb_size << endl;
+    cerr << "path directions size " << path_dir_mb_size << endl;
+    cerr << "path positions size " << path_pos_mb_size << endl;
+    cerr << "path ranks size " << path_ranks_mb_size << endl;
+    cerr << "path offsets size " << path_offsets_mb_size << endl;
+
+#endif
+
+    bool print_graph = false;
     if (print_graph) {
         cerr << "printing graph" << endl;
         // we have to print the relativistic graph manually because the default sdsl printer assumes unsigned integers are stored in it
@@ -1395,8 +1443,8 @@ std::pair<pos_t, int64_t> XG::next_path_position(const pos_t& pos, const int64_t
     handle_t h_rev = get_handle(id(pos), !is_rev(pos));
     int64_t fwd_seen = offset(pos);
     int64_t rev_seen = get_length(h_fwd) - offset(pos);
-    std::pair<pos_t, int64_t> fwd_next = make_pair(make_pos_t(0,false,0), numeric_limits<int64_t>::max());
-    std::pair<pos_t, int64_t> rev_next = make_pair(make_pos_t(0,false,0), numeric_limits<int64_t>::max());
+    std::pair<pos_t, int64_t> fwd_next = make_pair(make_pos_t(0,false,0), std::numeric_limits<int64_t>::max());
+    std::pair<pos_t, int64_t> rev_next = make_pair(make_pos_t(0,false,0), std::numeric_limits<int64_t>::max());
     follow_edges(h_fwd, false, [&](const handle_t& n) {
             nid_t id = get_id(n);
             if (!paths_of_node(id).empty()) {

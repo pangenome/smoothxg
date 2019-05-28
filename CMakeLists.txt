@@ -76,7 +76,7 @@ set(sdsl-lite-divsufsort_LIB "${INSTALL_DIR}/src/sdsl-lite-build/external/libdiv
 # mmmultimap (memory mapped multimap)
 ExternalProject_Add(mmmultimap
   GIT_REPOSITORY "https://github.com/ekg/mmmultimap.git"
-  GIT_TAG "fb8914912b1cb04874a71f1dc5042c2f5c8a0836"
+  GIT_TAG "a396f462b0962857a0c24c10ae1cacca349684a6"
   BUILD_COMMAND ""
   UPDATE_COMMAND ""
   INSTALL_COMMAND "")
