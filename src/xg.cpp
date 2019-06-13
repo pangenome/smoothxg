@@ -1,5 +1,6 @@
 #include "xg.hpp"
 
+//#include "ips4o.hpp"
 #include "mmmultimap.hpp"
 
 #include <bitset>
@@ -160,11 +161,11 @@ void XG::load(std::istream& in) {
                     path->load(in);
                     paths.push_back(path);
                 }
-                np_iv.load(in);
                 np_bv.load(in);
-                np_bv_rank.load(in, &np_bv);
                 np_bv_select.load(in, &np_bv);
-                
+                np_iv.load(in);
+                nr_iv.load(in);
+                nx_iv.load(in);
             }
             break;
         default:
@@ -185,11 +186,8 @@ void XG::load(std::istream& in) {
 }
 
 void XGPath::load(std::istream& in) {
-    sdsl::read_member(min_node_id, in);
-    ids.load(in);
-    directions.load(in);
-    ranks.load(in);
-    positions.load(in);
+    sdsl::read_member(min_handle, in);
+    handles.load(in);
     offsets.load(in);
     offsets_rank.load(in, &offsets);
     offsets_select.load(in, &offsets);
@@ -201,11 +199,8 @@ size_t XGPath::serialize(std::ostream& out,
                          std::string name) const {
     sdsl::structure_tree_node* child = sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
     size_t written = 0;
-    written += sdsl::write_member(min_node_id, out, child, "min_node_id" + name);
-    written += ids.serialize(out, child, "path_node_ids_" + name);
-    written += directions.serialize(out, child, "path_node_directions_" + name);
-    written += ranks.serialize(out, child, "path_mapping_ranks_" + name);
-    written += positions.serialize(out, child, "path_node_offsets_" + name);
+    written += sdsl::write_member(min_handle, out, child, "min_handle" + name);
+    written += handles.serialize(out, child, "path_handles_" + name);
     written += offsets.serialize(out, child, "path_node_starts_" + name);
     written += offsets_rank.serialize(out, child, "path_node_starts_rank_" + name);
     written += offsets_select.serialize(out, child, "path_node_starts_select_" + name);
@@ -217,92 +212,68 @@ size_t XGPath::serialize(std::ostream& out,
 XGPath::XGPath(const std::string& path_name,
                const std::vector<handle_t>& path,
                bool is_circular,
-               XG& graph,
-               size_t* unique_member_count_out) {
+               XG& graph) {
 
     // The circularity flag is just a normal bool
     this->is_circular = is_circular;
 
     // node ids, the literal path
-    sdsl::int_vector<> ids_iv;
-    sdsl::util::assign(ids_iv, sdsl::int_vector<>(path.size()));
+    sdsl::int_vector<> handles_iv;
+    sdsl::util::assign(handles_iv, sdsl::int_vector<>(path.size()));
     // directions of traversal (typically forward, but we allow backwards
     sdsl::bit_vector directions_bv;
     sdsl::util::assign(directions_bv, sdsl::bit_vector(path.size()));
-    // node positions in path
-    sdsl::util::assign(positions, sdsl::int_vector<>(path.size()));
-    // mapping ranks in path
-    sdsl::util::assign(ranks, sdsl::int_vector<>(path.size()));
 
     size_t path_off = 0;
     size_t members_off = 0;
     size_t positions_off = 0;
     size_t path_length = 0;
-    min_node_id = std::numeric_limits<int64_t>::max();
+    min_handle = as_handle(std::numeric_limits<int64_t>::max());
 
     // determine min node id
     for (size_t i = 0; i < path.size(); ++i) {
-        auto node_id = graph.get_id(path[i]);
-        min_node_id = std::min(min_node_id, node_id);
+        min_handle = as_handle(std::min(as_integer(min_handle), as_integer(path[i])));
     }
     // determine total length and record node ids
     for (size_t i = 0; i < path.size(); ++i) {
         const handle_t& handle = path[i];
-        nid_t node_id = graph.get_id(handle);
         path_length += graph.get_length(handle);
-        ids_iv[i] = local_id(node_id);
+        handles_iv[i] = as_integer(local_handle(handle));
         // we will explode if the node isn't in the graph
     }
+    sdsl::util::assign(handles, sdsl::enc_vector<>(handles_iv));
 
     // make the bitvector for path offsets
-    sdsl::util::assign(offsets, sdsl::bit_vector(path_length));
+    sdsl::bit_vector offsets_bv;
+    sdsl::util::assign(offsets_bv, sdsl::bit_vector(path_length));
+
     std::set<int64_t> uniq_nodes;
     //cerr << "path " << path_name << " has " << path.size() << endl;
     for (size_t i = 0; i < path.size(); ++i) {
         //cerr << i << endl;
         auto& handle = path[i];
-        auto node_id = graph.get_id(handle);
-        bool is_reverse = graph.get_is_reverse(handle);
-        // record direction of passage through node
-        directions_bv[i] = is_reverse;
-        // and the external rank of the mapping
-        ranks[i] = number_bool_packing::unpack_number(handle);
-        // we've seen another entity
-        uniq_nodes.insert(node_id);
-        // and record node offset in path
-        positions[positions_off++] = path_off;
         // record position of node
-        offsets[path_off] = 1;
+        offsets_bv[path_off] = 1;
         // and update the offset counter
         path_off += graph.get_length(handle);
     }
-    //cerr << uniq_nodes.size() << " vs " << path.size() << endl;
-    if(unique_member_count_out) {
-        // set member count as the unique entities that are in the path
-        // We don't need it but our caller might
-        *unique_member_count_out = uniq_nodes.size();
-    }
-    // and traversal information
-    sdsl::util::assign(directions, sdsl::sd_vector<>(directions_bv));
-    // handle entity lookup structure (wavelet tree)
-    sdsl::util::bit_compress(ids_iv);
-    sdsl::construct_im(ids, ids_iv);
-    // bit compress the positional offset info
-    sdsl::util::bit_compress(positions);
-    // bit compress mapping ranks
-    sdsl::util::bit_compress(ranks);
-
+    // and path offsets
+    sdsl::util::assign(offsets, sdsl::rrr_vector<>(offsets_bv));
     // and set up rank/select dictionary on them
-    sdsl::util::assign(offsets_rank, sdsl::rank_support_v<1>(&offsets));
-    sdsl::util::assign(offsets_select, sdsl::bit_vector::select_1_type(&offsets));
+    sdsl::util::assign(offsets_rank, sdsl::rrr_vector<>::rank_1_type(&offsets));
+    sdsl::util::assign(offsets_select, sdsl::rrr_vector<>::select_1_type(&offsets));
 }
 
-nid_t XGPath::node(size_t offset) const {
-    return external_id(ids[offset]);
+handle_t XGPath::handle(size_t offset) const {
+    return external_handle(as_handle(handles[offset]));
 }
     
-nid_t XGPath::node_at_position(size_t pos) const {
-    return node(offset_at_position(pos));
+handle_t XGPath::handle_at_position(size_t pos) const {
+    return handle(offset_at_position(pos));
+}
+
+size_t XGPath::handle_start(size_t offset) const {
+    return offsets_select(offset+1);
 }
 
 size_t XGPath::offset_at_position(size_t pos) const {
@@ -310,19 +281,19 @@ size_t XGPath::offset_at_position(size_t pos) const {
 }
 
 bool XGPath::is_reverse(size_t offset) const {
-    return directions[offset];
+    return number_bool_packing::unpack_bit(as_handle(handles[offset]));
 }
 
-nid_t XGPath::local_id(nid_t id) const {
-    if (id < min_node_id) {
-        return std::numeric_limits<int64_t>::max();
+handle_t XGPath::local_handle(const handle_t& handle) const {
+    if (as_integer(handle) < as_integer(min_handle)) {
+        return as_handle(std::numeric_limits<int64_t>::max());
     } else {
-        return id-min_node_id+1;
+        return as_handle(as_integer(handle)-as_integer(min_handle));
     }
 }
 
-nid_t XGPath::external_id(nid_t id) const {
-    return id+min_node_id-1;
+handle_t XGPath::external_handle(const handle_t& handle) const {
+    return as_handle(as_integer(handle)+as_integer(min_handle));
 }
     
 void XG::serialize(ostream& out) const {
@@ -388,10 +359,11 @@ size_t XG::serialize_and_measure(ostream& out, sdsl::structure_tree_node* s, std
         paths_written += path->serialize(out, paths_child, "path:" + get_path_name(as_path_handle(i+1)));
     }
 
-    paths_written += np_iv.serialize(out, paths_child, "node_path_mapping");
     paths_written += np_bv.serialize(out, paths_child, "node_path_mapping_starts");
-    paths_written += np_bv_rank.serialize(out, paths_child, "node_path_mapping_starts_rank");
     paths_written += np_bv_select.serialize(out, paths_child, "node_path_mapping_starts_select");
+    paths_written += np_iv.serialize(out, paths_child, "node_path_mapping");
+    paths_written += nr_iv.serialize(out, paths_child, "node_path_rank");
+    paths_written += nx_iv.serialize(out, paths_child, "node_path_position");
     
     sdsl::structure_tree::add_size(paths_child, paths_written);
     written += paths_written;
@@ -506,8 +478,8 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     // we use the mmmultimap here to reduce in-memory costs to a minimum
     std::string edge_f_t_idx = basename + ".from_to.mm";
     std::string edge_t_f_idx = basename + ".to_from.mm";
-    multimap<uint64_t, uint64_t> edge_from_to_mm(edge_f_t_idx);
-    multimap<uint64_t, uint64_t> edge_to_from_mm(edge_t_f_idx);
+    mmmulti::map<uint64_t, uint64_t> edge_from_to_mm(edge_f_t_idx);
+    mmmulti::map<uint64_t, uint64_t> edge_to_from_mm(edge_t_f_idx);
     gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
             if (e.source_name.empty()) return;
             handle_t from_handle = temp_get_handle(std::stol(e.source_name), !e.source_orientation_forward);
@@ -618,7 +590,6 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
 #endif
     // paths
     string path_names;
-    size_t path_node_count = 0; // count of node path memberships
 
     std::string curr_path_name;
     std::vector<handle_t> curr_path_steps;
@@ -633,9 +604,8 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         path_names += start_marker + curr_path_name + end_marker;
         XGPath* path = new XGPath(curr_path_name, curr_path_steps,
                                   curr_is_circular,
-                                  *this, &unique_member_count);
+                                  *this);
         paths.push_back(path);
-        path_node_count += unique_member_count;
     };
 
     // todo ... is it circular?
@@ -680,30 +650,54 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
 #endif
     
     // node -> paths
-    sdsl::util::assign(np_iv, sdsl::int_vector<>(path_node_count+node_count));
-    sdsl::util::assign(np_bv, sdsl::bit_vector(path_node_count+node_count));
-    size_t np_off = 0;
-    for (size_t i = 0; i < node_count; ++i) {
-        np_bv[np_off] = 1;
-        np_iv[np_off] = 0; // null so we can detect entities with no path membership
-        ++np_off;
-        nid_t id = rank_to_id(i+1);
-        for (size_t j = 1; j <= paths.size(); ++j) {
-            if (node_occs_in_path(id, as_path_handle(j)) > 0) {
-                np_iv[np_off++] = j;
-            }
+    // use the mmmultimap...
+    std::string node_path_idx = basename + ".node_path.mm";
+    mmmulti::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> node_path_mm(node_path_idx);
+    uint64_t path_step_count = 0;
+    // for each path...
+    // could be done in parallel
+    for (size_t i = 1; i <= paths.size(); ++i) {
+        // Go through paths by number, so we can determine rank
+        path_handle_t path_handle = as_path_handle(i);
+        const XGPath& path = *paths[i-1];
+        uint64_t pos = 0;
+        for (size_t j = 0; j < path.handles.size(); ++j) {
+            handle_t handle = as_handle(path.handles[i]);
+            uint64_t handle_length = get_length(handle);
+            bool is_rev = number_bool_packing::unpack_bit(handle);
+            // and record the relative orientation by packing it into the position
+            uint64_t path_and_rev = as_integer(number_bool_packing::pack(as_integer(path_handle), is_rev));
+            // determine the path relative position on the forward strand
+            uint64_t adj_pos = is_rev ? pos + handle_length : pos;
+            node_path_mm.append(number_bool_packing::unpack_number(handle)+1,
+                                std::make_tuple(path_and_rev, j, adj_pos));
+            ++path_step_count;
+            pos += handle_length;
         }
     }
-
+    node_path_mm.index(as_integer(max_handle));
+    sdsl::util::assign(np_iv, sdsl::int_vector<>(node_count + path_step_count));
+    sdsl::util::assign(nr_iv, sdsl::int_vector<>(node_count + path_step_count));
+    sdsl::util::assign(nx_iv, sdsl::int_vector<>(node_count + path_step_count));
+    sdsl::util::assign(np_bv, sdsl::bit_vector(node_count + path_step_count));
+    // now we need to map this into a new data structure for node->path position mappings
+    uint64_t np_offset = 0;
+    for (int64_t i = 0; i < node_count; ++i) {
+        np_bv[i] = 1; // mark node start
+        ++np_offset; // skip over null entry
+        node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
+                np_iv[np_offset] = std::get<0>(v); // packed path and rev
+                nr_iv[np_offset] = std::get<1>(v); // rank of step in path
+                nx_iv[np_offset] = std::get<2>(v); // offset from path start on forward handle
+                ++np_offset;
+            });
+    }
+    std::remove(node_path_idx.c_str());
+    // TODO, evaluate if these should be compressed more intensely
     sdsl::util::bit_compress(np_iv);
-    //cerr << ep_off << " " << path_entities << " " << entity_count << endl;
-    assert(np_off <= path_node_count+node_count);
-    sdsl::util::assign(np_bv_rank, sdsl::rank_support_v<1>(&np_bv));
+    sdsl::util::bit_compress(nr_iv);
+    sdsl::util::bit_compress(nx_iv);
     sdsl::util::assign(np_bv_select, sdsl::bit_vector::select_1_type(&np_bv));
-
-    // memoize which paths co-occur on connected components
-    // todo... implement this again??
-    //index_component_path_sets();
 
 //#define DEBUG_CONSTRUCTION
 #ifdef DEBUG_CONSTRUCTION
@@ -729,7 +723,6 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     paths_mb_size += size_in_mega_bytes(np_iv);
     cerr << "|np_bv| = " << size_in_mega_bytes(np_bv) << endl;
     paths_mb_size += size_in_mega_bytes(np_bv);
-    paths_mb_size += size_in_mega_bytes(np_bv_rank);
     paths_mb_size += size_in_mega_bytes(np_bv_select);
     cerr << "total paths size " << paths_mb_size << endl;
 
@@ -800,20 +793,18 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
             XGPath* path = paths[i];
             cerr << get_path_name(as_path_handle(i + 1)) << endl;
             // manually print IDs because simplified wavelet tree doesn't support ostream for some reason
-            for (size_t j = 0; j + 1 < path->ids.size(); j++) {
-                cerr << path->node(j) << " ";
+            for (size_t j = 0; j + 1 < path->handles.size(); j++) {
+                cerr << get_id(path->handle(j)) << " ";
             }
-            if (path->ids.size() > 0) {
-                cerr << path->node(path->ids.size() - 1);
+            if (path->handles.size() > 0) {
+                cerr << get_id(path->handle(path->handles.size() - 1));
             }
             cerr << endl;
-            cerr << path->ranks << endl;
-            cerr << path->directions << endl;
-            cerr << path->positions << endl;
             cerr << path->offsets << endl;
         }
         cerr << np_bv << endl;
         cerr << np_iv << endl;
+        cerr << nx_iv << endl;
         
     }
 
@@ -1134,16 +1125,16 @@ bool XG::for_each_handle_impl(const function<bool(const handle_t&)>& iteratee, b
     // This shared flag lets us bail early even when running in parallel
     bool stop_early = false;
     if (parallel) {
-        #pragma omp parallel
+#pragma omp parallel
         {
-            #pragma omp single 
+#pragma omp single 
             {
                 // We need to do a serial scan of the g vector because each entry is variable size.
                 for (size_t g = 0; g < g_iv.size() && !stop_early;) {
                     // Make it into a handle, packing it as the node ID and using 0 for orientation
                     handle_t handle = handlegraph::number_bool_packing::pack(g, false);
                 
-                    #pragma omp task firstprivate(handle)
+#pragma omp task firstprivate(handle)
                     {
                         // Run the iteratee
                         if (!iteratee(handle)) {
@@ -1214,7 +1205,15 @@ path_handle_t XG::get_path_handle(const std::string& path_name) const {
 }
     
 std::string XG::get_path_name(const path_handle_t& path_handle) const {
-    return path_name(as_integer(path_handle));
+    uint64_t rank = as_integer(path_handle);
+    size_t start = pn_bv_select(rank)+1; // step past '#'
+    size_t end = rank == path_count ? pn_iv.size() : pn_bv_select(rank+1);
+    end -= 1;  // step before '$'
+    string name; name.resize(end-start);
+    for (size_t i = start; i < end; ++i) {
+        name[i-start] = pn_iv[i];
+    }
+    return name;
 }
 
 bool XG::get_is_circular(const path_handle_t& path_handle) const {
@@ -1222,7 +1221,7 @@ bool XG::get_is_circular(const path_handle_t& path_handle) const {
 }
 
 size_t XG::get_step_count(const path_handle_t& path_handle) const {
-    return paths[as_integer(path_handle) - 1]->ids.size();
+    return paths[as_integer(path_handle) - 1]->handles.size();
 }
     
 size_t XG::get_path_length(const path_handle_t& path_handle) const {
@@ -1231,8 +1230,7 @@ size_t XG::get_path_length(const path_handle_t& path_handle) const {
 
 handle_t XG::get_handle_of_step(const step_handle_t& step_handle) const {
     const auto& xgpath = *paths[as_integer(get_path_handle_of_step(step_handle)) - 1];
-    size_t idx = as_integers(step_handle)[1];
-    return get_handle(xgpath.node(idx), xgpath.is_reverse(idx));
+    return xgpath.handle(as_integers(step_handle)[1]);
 }
 
 path_handle_t XG::get_path_handle_of_step(const step_handle_t& step_handle) const {
@@ -1318,20 +1316,39 @@ bool XG::for_each_path_handle_impl(const function<bool(const path_handle_t&)>& i
 }
 
 bool XG::for_each_step_on_handle_impl(const handle_t& handle, const function<bool(const step_handle_t&)>& iteratee) const {
-    
-    std::vector<std::pair<path_handle_t, std::vector<std::pair<size_t, bool>>>> oriented_paths = oriented_paths_of_node(get_id(handle));
-    
-    for (const std::pair<path_handle_t, std::vector<std::pair<size_t, bool>>>& path_occs : oriented_paths) {
-        for (const std::pair<size_t, bool>& oriented_occ : path_occs.second) {
-            step_handle_t step_handle;
-            as_integers(step_handle)[0] = as_integer(path_occs.first);
-            as_integers(step_handle)[1] = oriented_occ.first;
-            if (!iteratee(step_handle)) {
-                return false;
-            }
+    uint64_t rank = number_bool_packing::unpack_number(handle)+1;
+    size_t off = np_bv_select(rank);
+    assert(np_bv[off++]);
+    while (off < np_bv.size() ? np_bv[off] == 0 : false) {
+        step_handle_t step_handle;
+        as_integers(step_handle)[0] = number_bool_packing::unpack_number(as_handle(np_iv[off]));
+        as_integers(step_handle)[1] = nr_iv[off];
+        if (!iteratee(step_handle)) {
+            return false;
         }
+        ++off;
     }
-    
+    return true;
+}
+
+bool XG::for_each_step_and_position_on_handle(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const {
+    return for_each_step_and_position_on_handle_impl(handle, iteratee);
+}
+
+bool XG::for_each_step_and_position_on_handle_impl(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const {
+    uint64_t rank = number_bool_packing::unpack_number(handle)+1;
+    size_t off = np_bv_select(rank);
+    assert(np_bv[off++]);
+    while (off < np_bv.size() ? np_bv[off] == 0 : false) {
+        handle_t path_and_rev = as_handle(np_iv[off]);
+        step_handle_t step_handle;
+        as_integers(step_handle)[0] = number_bool_packing::unpack_number(path_and_rev);
+        as_integers(step_handle)[1] = nr_iv[off];
+        if (!iteratee(step_handle, number_bool_packing::unpack_bit(path_and_rev), nx_iv[off])) {
+            return false;
+        }
+        ++off;
+    }
     return true;
 }
 
@@ -1346,7 +1363,6 @@ nid_t XG::min_node_id() const {
 nid_t XG::max_node_id() const {
     return max_id;
 }
-
 
 size_t XG::max_node_rank(void) const {
     return s_bv_rank(s_bv.size());
@@ -1364,78 +1380,21 @@ size_t XG::node_graph_idx(const nid_t& id) const {
     return g_bv_select(id_to_rank(id));
 }
 
-const XGPath& XG::get_path(const std::string& name) const {
-    return *paths[as_integer(get_path_handle(name))-1];
+bool XG::path_contains_handle(const std::string& name, const handle_t& handle) const {
+    for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
+            path_handle_t path = as_path_handle(as_integers(step)[0]);
+            if (get_path_name(path) == name) return true;
+        });
+    return false;
 }
 
-std::vector<size_t> XG::path_ranks_by_prefix(const std::string& prefix) const {
-    // find the name in the csa
-    std::string query = start_marker + prefix;
-    auto occs = locate(pn_csa, query);
-    std::vector<size_t> ranks;
-    for (size_t i = 0; i < occs.size(); ++i) {
-        ranks.push_back(pn_bv_rank(occs[i])+1); // step past '#'
-    }
-    return ranks;
-}
-
-std::vector<std::string> XG::path_names_by_prefix(const std::string& prefix) const {
-    std::vector<std::string> names;
-    for (auto& rank : path_ranks_by_prefix(prefix)) {
-        names.push_back(path_name(rank));
-    }
-    return names;
-}
-
-std::string XG::path_name(const size_t& rank) const {
-    size_t start = pn_bv_select(rank)+1; // step past '#'
-    size_t end = rank == path_count ? pn_iv.size() : pn_bv_select(rank+1);
-    end -= 1;  // step before '$'
-    string name; name.resize(end-start);
-    for (size_t i = start; i < end; ++i) {
-        name[i-start] = pn_iv[i];
-    }
-    return name;
-}
-
-bool XG::path_contains_node(const std::string& name, const nid_t& id) const {
-    return node_occs_in_path(id, name) > 0;
-}
-
-std::vector<path_handle_t> XG::paths_of_node(const nid_t& id) const {
-    auto rank = id_to_rank(id);
-    if (rank == 0) {
-        throw runtime_error("Tried to get paths of nonexistent node " + to_string(id));
-    }
-    size_t off = np_bv_select(rank);
-    assert(np_bv[off++]);
+std::vector<path_handle_t> XG::paths_of_handle(const handle_t& handle) const {
     std::vector<path_handle_t> path_handles;
-    while (off < np_bv.size() ? np_bv[off] == 0 : false) {
-        path_handles.push_back(as_path_handle(np_iv[off++]));
-    }
+    for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
+            path_handles.push_back(as_path_handle(as_integers(step)[0]));
+            return true;
+        });
     return path_handles;
-}
-
-std::vector<std::pair<path_handle_t, std::vector<std::pair<size_t, bool>>>> XG::oriented_paths_of_node(const nid_t& id) const {
-    std::vector<path_handle_t> node_paths = paths_of_node(id);
-    return oriented_occurrences_on_paths(id, node_paths);
-}
-    
-std::vector<std::pair<size_t, bool>> XG::oriented_occurrences_on_path(const nid_t& id, const path_handle_t& path) const {
-    std::vector<std::pair<size_t, bool>> occurrences;
-    for (size_t i : node_ranks_in_path(id, path)) {
-        occurrences.emplace_back(i, paths[as_integer(path)-1]->directions[i]);
-    }
-    return occurrences;
-}
-    
-std::vector<std::pair<path_handle_t, std::vector<std::pair<size_t, bool>>>>
-XG::oriented_occurrences_on_paths(const nid_t& id, std::vector<path_handle_t>& paths) const {
-    std::vector<std::pair<path_handle_t, std::vector<std::pair<size_t, bool>>>> path_occurrences;
-    for (auto& path_handle : paths) {
-        path_occurrences.emplace_back(path_handle, oriented_occurrences_on_path(id, path_handle));
-    }
-    return path_occurrences;
 }
 
 std::pair<pos_t, int64_t> XG::next_path_position(const pos_t& pos, const int64_t& max_search) const {
@@ -1447,7 +1406,7 @@ std::pair<pos_t, int64_t> XG::next_path_position(const pos_t& pos, const int64_t
     std::pair<pos_t, int64_t> rev_next = make_pair(make_pos_t(0,false,0), std::numeric_limits<int64_t>::max());
     follow_edges(h_fwd, false, [&](const handle_t& n) {
             nid_t id = get_id(n);
-            if (!paths_of_node(id).empty()) {
+            if (!paths_of_handle(n).empty()) {
                 fwd_next = make_pair(make_pos_t(id, get_is_reverse(n), 0), fwd_seen);
                 return false;
             } else {
@@ -1457,7 +1416,7 @@ std::pair<pos_t, int64_t> XG::next_path_position(const pos_t& pos, const int64_t
         });
     follow_edges(h_rev, false, [&](const handle_t& n) {
             nid_t id = get_id(n);
-            if (!paths_of_node(id).empty()) {
+            if (!paths_of_handle(n).empty()) {
                 rev_next = make_pair(make_pos_t(id, !get_is_reverse(n), 0), rev_seen);
                 return false;
             } else {
@@ -1483,7 +1442,7 @@ std::pair<nid_t, std::vector<path_handle_t> > XG::nearest_path_node(const nid_t&
         for (auto& id : todo) {
             if (seen.count(id)) continue;
             seen.insert(id);
-            std::vector<path_handle_t> path_ids = paths_of_node(id);
+            std::vector<path_handle_t> path_ids = paths_of_handle(get_handle(id, false));
             if (!path_ids.empty()) {
                 // if we found a node on a path, return
                 return make_pair(id, path_ids);
@@ -1516,9 +1475,11 @@ int64_t XG::min_approx_path_distance(const nid_t& id1, const nid_t& id2) const {
         for (auto& i : near2.second) paths[i]++;
         for (auto& i : paths) {
             if (i.second < 2) continue;
-            auto name = get_path_name(i.first);
-            for (auto& p1 : position_in_path(near1.first, name)) {
-                for (auto& p2 : position_in_path(near2.first, name)) {
+            //auto name = get_path_name(i.first);
+            auto pos1s = position_in_path(get_handle(near1.first, false), i.first);
+            auto pos2s = position_in_path(get_handle(near2.first, false), i.first);
+            for (auto& p1 : pos1s) {
+                for (auto& p2 : pos2s) {
                     int64_t distance = abs((int64_t)p1 - (int64_t)p2);
                     min_distance = min(distance, min_distance);
                 }
@@ -1529,7 +1490,7 @@ int64_t XG::min_approx_path_distance(const nid_t& id1, const nid_t& id2) const {
 }
 
 void XG::for_path_range(const std::string& name, int64_t start, int64_t stop,
-                        std::function<void(int64_t, bool)> lambda, bool is_rev) const {
+                        std::function<void(handle_t)> lambda, bool is_rev) const {
     // what is the node at the start, and at the end
     auto& path = *paths[as_integer(get_path_handle(name))-1];
     size_t plen = path.offsets.size();
@@ -1544,90 +1505,53 @@ void XG::for_path_range(const std::string& name, int64_t start, int64_t stop,
     size_t pr2 = path.offsets_rank(stop+1)-1;
     // Grab the IDs visited in order along the path
     for (size_t i = pr1; i <= pr2; ++i) {
-        lambda(path.node(i), path.is_reverse(i));
+        lambda(path.handle(i));
     }
 }
 
-size_t XG::node_occs_in_path(const nid_t& id, const std::string& name) const {
-    return node_occs_in_path(id, get_path_handle(name));
-}
-
-size_t XG::node_occs_in_path(const nid_t& id, const path_handle_t& path) const {
-    size_t p = as_integer(path)-1;
-    auto& pi_wt = paths[p]->ids;
-    int64_t local_id = paths[p]->local_id(id);
-    return pi_wt.rank(pi_wt.size(), local_id);
-}
-
-std::vector<size_t> XG::node_ranks_in_path(const nid_t& id, const std::string& name) const {
-    return node_ranks_in_path(id, get_path_handle(name));
-}
-
-std::vector<size_t> XG::node_ranks_in_path(const nid_t& id, const path_handle_t& path) const {
-    std::vector<size_t> ranks;
-    size_t p = as_integer(path)-1;
-    size_t occs = node_occs_in_path(id, path);
-    int64_t local_id = paths[p]->local_id(id);
-    for (size_t i = 1; i <= occs; ++i) {
-        ranks.push_back(paths[p]->ids.select(i, local_id));
-    }
-    return ranks;
-}
-
-std::vector<size_t> XG::position_in_path(const nid_t& id, const std::string& name) const {
-    return position_in_path(id, get_path_handle(name));
-}
-
-std::vector<size_t> XG::position_in_path(const nid_t& id, const path_handle_t& path) const {
-    auto& _path = *paths[as_integer(path)-1];
+std::vector<size_t> XG::position_in_path(const handle_t& handle, const path_handle_t& path) const {
     std::vector<size_t> pos_in_path;
-    for (auto i : node_ranks_in_path(id, path)) {
-        pos_in_path.push_back(_path.positions[i]);
-    }
+    size_t path_length = get_path_length(path);
+    for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
+            path_handle_t path_handle = as_path_handle(as_integers(step)[0]);
+            if (path_handle == path) {
+                pos_in_path.push_back(get_is_reverse(handle) ? path_length - pos - get_length(handle) : pos);
+            }
+            return true;
+        });
     return pos_in_path;
 }
 
-std::map<std::string, std::vector<size_t> > XG::position_in_paths(const nid_t& id, bool is_rev, const size_t& offset) const {
-    std::map<std::string, std::vector<size_t> > positions;
-    for (auto& prank : paths_of_node(id)) {
-        auto& path = *paths[as_integer(prank)-1];
-        auto& pos_in_path = positions[get_path_name(prank)];
-        for (auto i : node_ranks_in_path(id, prank)) {
-            size_t pos = offset + (is_rev ?
-                                   // Account for the reverse-strand offset
-                                   get_path_length(prank) - path.positions[i] - get_length(get_handle(id, false))
-                                   : path.positions[i]);
-            pos_in_path.push_back(pos);
-        }
-    }
+std::unordered_map<path_handle_t, std::vector<size_t> > XG::position_in_paths(const handle_t& handle, const size_t& offset) const {
+    std::unordered_map<path_handle_t, std::vector<size_t> > positions;
+    for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
+            path_handle_t path = as_path_handle(as_integers(step)[0]);
+            size_t path_length = get_path_length(path);
+            positions[path].push_back(get_is_reverse(handle) ? path_length - pos - get_length(handle) : pos);
+            return true;
+        });
     return positions;
 }
 
-std::map<std::string, std::vector<std::pair<size_t, bool> > > XG::offsets_in_paths(pos_t pos) const {
-    std::map<std::string, std::vector<std::pair<size_t, bool> > > positions;
-    nid_t node_id = id(pos);
-    for (auto& prank : paths_of_node(node_id)) {
-        auto& path = *paths[as_integer(prank)-1];
-        auto& pos_in_path = positions[get_path_name(prank)];
-        for (auto i : node_ranks_in_path(node_id, prank)) {
-            // relative direction to this traversal
-            bool dir = path.directions[i] != is_rev(pos);
-            // Make sure to interpret the pos_t offset on the correct strand.
-            // Normalize to a forward strand offset.
-            size_t node_forward_strand_offset = is_rev(pos) ? (get_length(get_handle(node_id, false)) - offset(pos) - 1) : offset(pos);
-            // Then go forward or backward along the path as appropriate. If
-            // the node is on the path in reverse we have where its end landed
-            // and have to flip the forward strand offset around again.
-            size_t off = path.positions[i] + (path.directions[i] ?
-                                              (get_length(get_handle(node_id, false)) - node_forward_strand_offset - 1) :
-                                              node_forward_strand_offset);
-            pos_in_path.push_back(make_pair(off, dir));
-        }
-    }
+std::unordered_map<path_handle_t, std::vector<std::pair<size_t, bool> > > XG::offsets_in_paths(const pos_t& gpos) const {
+    std::unordered_map<path_handle_t, std::vector<std::pair<size_t, bool> > > positions;
+    handle_t handle = get_handle(id(gpos), is_rev(gpos));
+    size_t handle_length = get_length(handle);
+    for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& rev, const uint64_t& pos) {
+            path_handle_t path = as_path_handle(as_integers(step)[0]);
+            size_t path_length = get_path_length(path);
+            bool dir = rev != is_rev(gpos);
+            size_t node_forward_strand_offset = is_rev(gpos) ? (handle_length - offset(gpos) - 1) : offset(gpos);
+            size_t off = pos + (rev ?
+                                (handle_length - node_forward_strand_offset - 1) :
+                                node_forward_strand_offset);
+            positions[path].push_back(std::make_pair(off, dir));
+            return true;
+        });
     return positions;
 }
 
-std::map<std::string, std::vector<std::pair<size_t, bool> > > XG::nearest_offsets_in_paths(const pos_t& pos, int64_t max_search) const {
+std::unordered_map<path_handle_t, std::vector<std::pair<size_t, bool> > > XG::nearest_offsets_in_paths(const pos_t& pos, int64_t max_search) const {
     std::pair<pos_t, int64_t> pz = next_path_position(pos, max_search);
     auto& path_pos = pz.first;
     auto& diff = pz.second;
@@ -1641,71 +1565,28 @@ std::map<std::string, std::vector<std::pair<size_t, bool> > > XG::nearest_offset
         }
         return offsets;
     } else {
-        std::map<std::string, std::vector<std::pair<size_t, bool> > > empty;
+        std::unordered_map<path_handle_t, std::vector<std::pair<size_t, bool> > > empty;
         return empty;
     }
 }
 
-std::map<std::string, std::vector<size_t> > XG::distance_in_paths(const nid_t& id1, bool is_rev1, const size_t& offset1,
-                                                                  const nid_t& id2, bool is_rev2, const size_t& offset2) const {
-    auto pos1 = position_in_paths(id1, is_rev1, offset1);
-    auto pos2 = position_in_paths(id2, is_rev2, offset2);
-    std::map<std::string, std::vector<size_t> > dist;
-    // position in a path is undefined in inversion
-    if (is_rev1 != is_rev2) {
-        return dist;
-    }
-    for (auto& c1 : pos1) {
-        auto c2 = pos2.find(c1.first);
-        if (c2 != pos2.end()) {
-            auto& d = dist[c1.first];
-            // distances are a cross of the points
-            for (auto o1 : c1.second) {
-                for (auto o2 : c2->second) {
-                    d.push_back(o1-o2);
-                }
-            }
-        }
-    }
-    return dist;
+handle_t XG::handle_at_path_position(const path_handle_t& path, size_t pos) const {
+    return paths[as_integer(path)]->handle_at_position(pos);
 }
 
-int64_t XG::min_distance_in_paths(const nid_t& id1, bool is_rev1, const size_t& offset1,
-                                  const nid_t& id2, bool is_rev2, const size_t& offset2) const {
-    auto dist = distance_in_paths(id1, is_rev1, offset1,
-                                  id2, is_rev2, offset2);
-    size_t min_dist = std::numeric_limits<size_t>::max();
-    for (auto& c : dist) {
-        for (auto& o : c.second) {
-            if (o <  min_dist) {
-                min_dist = o;
-            }
-        }
-    }
-    return min_dist;
-}
-
-nid_t XG::node_at_path_position(const std::string& name, size_t pos) const {
-    return paths[as_integer(get_path_handle(name))]->node_at_position(pos);
-}
-
-size_t XG::node_start_at_path_position(const std::string& name, size_t pos) const {
-    size_t p = as_integer(get_path_handle(name))-1;
+size_t XG::node_start_at_path_position(const path_handle_t& path, size_t pos) const {
+    size_t p = as_integer(path);
     size_t position_rank = paths[p]->offsets_rank(pos+1);
     return paths[p]->offsets_select(position_rank);
 }
 
-pos_t XG::graph_pos_at_path_position(const std::string& name, size_t path_pos) const {
-    auto& path = get_path(name);
-    path_pos = min((size_t)path.offsets.size()-1, path_pos);
-    size_t trav_idx = path.offsets_rank(path_pos+1)-1;
-    // Get the offset along the node in its path direction.
-    // If the node is forward along the path, we get the forward strand offset on the node, and return a forward pos_t.
-    // If the node is backward along the path, we get the reverse strand offset automatically, and return a reverse pos_t.
-    int64_t offset = path_pos - path.positions[trav_idx];
-    nid_t node_id = path.node(trav_idx);
-    bool is_rev = path.directions[trav_idx];
-    return make_pos_t(node_id, is_rev, offset);
+pos_t XG::graph_pos_at_path_position(const path_handle_t& path_handle, size_t path_pos) const {
+    auto& path = *paths[as_integer(path_handle)];
+    //handle_t path.handle_at_position(path_pos);
+    // what's the path offset in the path?
+    size_t x = path.offset_at_position(path_pos);
+    handle_t handle = path.handle(x);
+    return make_pos_t(get_id(handle), get_is_reverse(handle), path_pos - path.handle_start(x));
 }
 
 }

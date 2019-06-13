@@ -38,7 +38,6 @@ namespace xg {
 
 using namespace handlegraph;
 using nid_t = handlegraph::nid_t;
-using mmmultimap::multimap;
 
 typedef std::tuple<nid_t, bool, size_t> pos_t;
 inline pos_t make_pos_t(const nid_t& id, bool is_rev, const size_t& off) {
@@ -335,6 +334,9 @@ public:
     bool for_each_path_handle_impl(const std::function<bool(const path_handle_t&)>& iteratee) const;
     /// Executes a function on each step of a handle in any path.
     bool for_each_step_on_handle_impl(const handle_t& handle, const std::function<bool(const step_handle_t&)>& iteratee) const;
+    /// Unpack the path position and orientation information alongside the steps
+    bool for_each_step_and_position_on_handle(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const;
+    bool for_each_step_and_position_on_handle_impl(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const;
     
     ////////////////////////////////////////////////////////////////////////////
     // Higher-level graph API
@@ -353,31 +355,20 @@ public:
     std::string path_name(const size_t& rank) const;
     std::vector<size_t> path_ranks_by_prefix(const std::string& prefix) const;
     std::vector<std::string> path_names_by_prefix(const std::string& prefix) const;
-    bool path_contains_node(const std::string& name, const nid_t& id) const;
-    std::vector<path_handle_t> paths_of_node(const nid_t& id) const;
-    std::vector<std::pair<path_handle_t, std::vector<std::pair<size_t, bool>>>> oriented_paths_of_node(const nid_t& id) const;
-    std::vector<std::pair<size_t, bool>> oriented_occurrences_on_path(const nid_t& id, const path_handle_t& path) const;   
-    std::vector<std::pair<path_handle_t, std::vector<std::pair<size_t, bool>>>> oriented_occurrences_on_paths(const nid_t& id, std::vector<path_handle_t>& paths) const;
+    std::vector<path_handle_t> paths_of_handle(const handle_t& handle) const;
+    bool path_contains_handle(const std::string& name, const handle_t& handle) const;
     std::pair<pos_t, int64_t> next_path_position(const pos_t& pos, const int64_t& max_search) const;
     std::pair<nid_t, std::vector<path_handle_t> > nearest_path_node(const nid_t& id, int64_t max_steps = 16) const;
     int64_t min_approx_path_distance(const nid_t& id1, const nid_t& id2) const;
+    std::vector<size_t> position_in_path(const handle_t& handle, const path_handle_t& path) const;
+    std::unordered_map<path_handle_t, std::vector<size_t> > position_in_paths(const handle_t& handle, const size_t& offset) const;
     void for_path_range(const std::string& name, int64_t start, int64_t stop,
-                        std::function<void(int64_t, bool)> lambda, bool is_rev) const;
-    size_t node_occs_in_path(const nid_t& id, const std::string& name) const;
-    size_t node_occs_in_path(const nid_t& id, const path_handle_t& path) const;
-    std::vector<size_t> node_ranks_in_path(const nid_t& id, const std::string& name) const;
-    std::vector<size_t> node_ranks_in_path(const nid_t& id, const path_handle_t& path) const;
-    std::vector<size_t> position_in_path(const nid_t& id, const std::string& name) const;
-    std::vector<size_t> position_in_path(const nid_t& id, const path_handle_t& path) const;
-    std::map<std::string, std::vector<size_t> > position_in_paths(const nid_t& id, bool is_rev, const size_t& offset) const;
-    std::map<std::string, std::vector<std::pair<size_t, bool> > > offsets_in_paths(pos_t pos) const;
-    std::map<std::string, std::vector<std::pair<size_t, bool> > > nearest_offsets_in_paths(const pos_t& pos, int64_t max_search = 16) const;
-    std::map<std::string, std::vector<size_t> > distance_in_paths(const nid_t& id1, bool is_rev1, const size_t& offset1,
-                                                                  const nid_t& id2, bool is_rev2, const size_t& offset2) const;
-    int64_t min_distance_in_paths(const nid_t& id1, bool is_rev1, const size_t& offset1,
-                                  const nid_t& id2, bool is_rev2, const size_t& offset2) const;
-    int64_t node_at_path_position(const std::string& name, size_t pos) const;
-    size_t node_start_at_path_position(const std::string& name, size_t pos) const;
+                        std::function<void(handle_t)> lambda, bool is_rev) const;
+    std::unordered_map<path_handle_t, std::vector<std::pair<size_t, bool> > > offsets_in_paths(const pos_t& gpos) const;
+    std::unordered_map<path_handle_t, std::vector<std::pair<size_t, bool> > > nearest_offsets_in_paths(const pos_t& pos, int64_t max_search) const;
+    handle_t handle_at_path_position(const path_handle_t& path, size_t pos) const;
+    size_t node_start_at_path_position(const path_handle_t& path, size_t pos) const;
+    pos_t graph_pos_at_path_position(const path_handle_t& path, size_t path_pos) const;
     pos_t graph_pos_at_path_position(const std::string& name, size_t path_pos) const;
     char pos_char(nid_t id, bool is_rev, size_t off) const;
     std::string pos_substr(nid_t id, bool is_rev, size_t off, size_t len) const;
@@ -467,7 +458,7 @@ private:
     // Here is path storage
     ////////////////////////////////////////////////////////////////////////////
 
-    // paths: serialized as bitvectors over nodes and edges
+    // path names
     sdsl::int_vector<> pn_iv; // path names
     sdsl::csa_wt<> pn_csa; // path name compressed suffix array
     sdsl::bit_vector pn_bv;  // path name starts in uncompressed version of csa
@@ -475,15 +466,18 @@ private:
     sdsl::bit_vector::select_1_type pn_bv_select;
     sdsl::int_vector<> pi_iv; // path ids by rank in the path names
 
-    // probably these should get compressed, for when we have whole genomes with many chromosomes
-    // the growth in required memory is quadratic but the stored matrix is sparse
-    std::vector<XGPath*> paths; // path entity membership
+    std::vector<XGPath*> paths; // path structure
 
     // node->path membership
     sdsl::int_vector<> np_iv;
-    sdsl::bit_vector np_bv; // entity delimiters in ep_iv
-    sdsl::rank_support_v<1> np_bv_rank;
+    // node->path rank
+    sdsl::int_vector<> nr_iv;
+    // node->path position/orientation
+    sdsl::int_vector<> nx_iv;
+    sdsl::bit_vector np_bv; // entity delimiters in both vectors
+    //sdsl::rank_support_v<1> np_bv_rank;
     sdsl::bit_vector::select_1_type np_bv_select;
+
     
 };
 
@@ -497,8 +491,7 @@ public:
     XGPath(const std::string& path_name,
            const std::vector<handle_t>& path,
            bool is_circular,
-           XG& graph,
-           size_t* unique_member_count_out = nullptr);
+           XG& graph);
     // Path names are stored in the XG object, in a compressed fashion, and are
     // not duplicated here.
     
@@ -508,14 +501,12 @@ public:
     XGPath(XGPath&& other) = delete;
     XGPath& operator=(const XGPath& other) = delete;
     XGPath& operator=(XGPath&& other) = delete;
-    int64_t min_node_id = 0;
-    sdsl::wt_gmr<> ids;
-    sdsl::sd_vector<> directions; // forward or backward through nodes
-    sdsl::int_vector<> positions;
-    sdsl::int_vector<> ranks;
-    sdsl::bit_vector offsets;
-    sdsl::rank_support_v<1> offsets_rank;
-    sdsl::bit_vector::select_1_type offsets_select;
+    handle_t min_handle;
+    sdsl::enc_vector<> handles;
+    //sdsl::rrr_vector directions; // forward or backward through nodes
+    sdsl::rrr_vector<> offsets;
+    sdsl::rrr_vector<>::rank_1_type offsets_rank;
+    sdsl::rrr_vector<>::select_1_type offsets_select;
     bool is_circular = false;
     void load(std::istream& in);
     size_t serialize(std::ostream& out,
@@ -525,9 +516,11 @@ public:
     // Get the node orientation at a 0-based offset.
     nid_t node(size_t offset) const;
     bool is_reverse(size_t offset) const;
-    nid_t local_id(nid_t id) const;
-    nid_t external_id(nid_t id) const;
-    nid_t node_at_position(size_t pos) const;
+    handle_t local_handle(const handle_t& handle) const;
+    handle_t external_handle(const handle_t& handle) const;
+    handle_t handle(size_t offset) const;
+    handle_t handle_at_position(size_t pos) const;
+    size_t handle_start(size_t offset) const;
     size_t offset_at_position(size_t pos) const;
 };
 
