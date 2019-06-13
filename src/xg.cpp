@@ -597,6 +597,8 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     bool curr_is_circular = false; // TODO, use TP:Z:circular tag... we'll have to fish this out of the file
 
     auto build_accumulated_path = [&](void) {
+        // only build if we had a path to build
+        if (curr_path_steps.empty()) return;
 #ifdef VERBOSE_DEBUG
         cerr << "adding path " << curr_path_name << endl;
 #endif
@@ -662,7 +664,7 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         const XGPath& path = *paths[i-1];
         uint64_t pos = 0;
         for (size_t j = 0; j < path.handles.size(); ++j) {
-            handle_t handle = as_handle(path.handles[i]);
+            handle_t handle = as_handle(path.handles[j]);
             uint64_t handle_length = get_length(handle);
             bool is_rev = number_bool_packing::unpack_bit(handle);
             // and record the relative orientation by packing it into the position
