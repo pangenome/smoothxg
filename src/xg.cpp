@@ -386,6 +386,9 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     min_id = std::numeric_limits<int64_t>::max();
     max_id = 0;
     // get information about graph size and id ranges
+#ifdef VERBOSE_DEBUG
+    cerr << "computing graph sequence length and node count" << endl;
+#endif
     gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
             nid_t id = std::stol(s.name);
             // min id starts at 0
@@ -394,6 +397,9 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
             seq_length += s.sequence.size();
             ++node_count;
         });
+#ifdef VERBOSE_DEBUG
+    cerr << "counting edges" << endl;
+#endif
     // edge count
     gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
             if (e.source_name.empty()) return;
@@ -401,6 +407,9 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         });
     // path count
     std::string pname;
+#ifdef VERBOSE_DEBUG
+    cerr << "counting paths" << endl;
+#endif
     gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name, const std::string& node_id, bool is_rev, const std::string& cigar) {
             if (path_name != pname) {
                 ++path_count;
@@ -548,7 +557,7 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     }
 
 #ifdef VERBOSE_DEBUG
-    std::cerr << endl;
+    std::cerr << node_count << " of " << node_count << " ~ 100.0000%" << std::endl;
 #endif
 
     // cleanup our mmmultimap
@@ -595,12 +604,13 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     std::vector<handle_t> curr_path_steps;
     size_t curr_node_count = 0;
     bool curr_is_circular = false; // TODO, use TP:Z:circular tag... we'll have to fish this out of the file
+    uint64_t p = 0;
 
     auto build_accumulated_path = [&](void) {
         // only build if we had a path to build
         if (curr_path_steps.empty()) return;
 #ifdef VERBOSE_DEBUG
-        cerr << "adding path " << curr_path_name << endl;
+        if (++p % 1000 == 0) std::cerr << p << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
 #endif
         size_t unique_member_count = 0;
         path_names += start_marker + curr_path_name + end_marker;
@@ -626,6 +636,9 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     // build the last path
     build_accumulated_path();
     curr_path_steps.clear();
+#ifdef VERBOSE_DEBUG
+    std::cerr << path_count << " of " << path_count << " ~ 100.0000%" << std::endl;
+#endif
 
     //std::cerr << "path names " << path_names << std::endl;
 
@@ -663,6 +676,9 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         path_handle_t path_handle = as_path_handle(i);
         const XGPath& path = *paths[i-1];
         uint64_t pos = 0;
+#ifdef VERBOSE_DEBUG
+        if (i % 1000 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
+#endif
         for (size_t j = 0; j < path.handles.size(); ++j) {
             handle_t handle = as_handle(path.handles[j]);
             uint64_t handle_length = get_length(handle);
@@ -677,14 +693,23 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
             pos += handle_length;
         }
     }
+#ifdef VERBOSE_DEBUG
+    std::cerr << path_count << " of " << path_count << " ~ 100.0000%" << std::endl;
+#endif
     node_path_mm.index(as_integer(max_handle));
     sdsl::util::assign(np_iv, sdsl::int_vector<>(node_count + path_step_count));
     sdsl::util::assign(nr_iv, sdsl::int_vector<>(node_count + path_step_count));
     sdsl::util::assign(nx_iv, sdsl::int_vector<>(node_count + path_step_count));
     sdsl::util::assign(np_bv, sdsl::bit_vector(node_count + path_step_count));
     // now we need to map this into a new data structure for node->path position mappings
+#ifdef VERBOSE_DEBUG
+    std::cerr << "recording node to path position mappings" << std::endl;
+#endif
     uint64_t np_offset = 0;
     for (int64_t i = 0; i < node_count; ++i) {
+#ifdef VERBOSE_DEBUG
+        if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
+#endif
         np_bv[i] = 1; // mark node start
         ++np_offset; // skip over null entry
         node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
@@ -694,6 +719,9 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
                 ++np_offset;
             });
     }
+#ifdef VERBOSE_DEBUG
+    std::cerr << node_count << " of " << node_count << " ~ 100.0000%" << std::endl;
+#endif
     std::remove(node_path_idx.c_str());
     // TODO, evaluate if these should be compressed more intensely
     sdsl::util::bit_compress(np_iv);
