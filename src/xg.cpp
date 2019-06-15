@@ -373,7 +373,7 @@ size_t XG::serialize_and_measure(ostream& out, sdsl::structure_tree_node* s, std
     
 }
 
-void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
+void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string basename) {
     if (basename.empty()) {
         basename = gfa_filename;
     }
@@ -680,14 +680,14 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         if (i % 1000 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
 #endif
         for (size_t j = 0; j < path.handles.size(); ++j) {
-            handle_t handle = as_handle(path.handles[j]);
+            handle_t handle = path.handle(j);
             uint64_t handle_length = get_length(handle);
             bool is_rev = number_bool_packing::unpack_bit(handle);
             // and record the relative orientation by packing it into the position
             uint64_t path_and_rev = as_integer(number_bool_packing::pack(as_integer(path_handle), is_rev));
             // determine the path relative position on the forward strand
             uint64_t adj_pos = is_rev ? pos + handle_length : pos;
-            node_path_mm.append(number_bool_packing::unpack_number(handle)+1,
+            node_path_mm.append(id_to_rank(get_id(handle)),
                                 std::make_tuple(path_and_rev, j, adj_pos));
             ++path_step_count;
             pos += handle_length;
@@ -696,11 +696,30 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
 #ifdef VERBOSE_DEBUG
     std::cerr << path_count << " of " << path_count << " ~ 100.0000%" << std::endl;
 #endif
-    node_path_mm.index(as_integer(max_handle));
-    sdsl::util::assign(np_iv, sdsl::int_vector<>(node_count + path_step_count));
-    sdsl::util::assign(nr_iv, sdsl::int_vector<>(node_count + path_step_count));
-    sdsl::util::assign(nx_iv, sdsl::int_vector<>(node_count + path_step_count));
-    sdsl::util::assign(np_bv, sdsl::bit_vector(node_count + path_step_count));
+    node_path_mm.index(node_count+1);
+
+#ifdef VERBOSE_DEBUG
+    std::cerr << "determining size of node to path position mappings" << std::endl;
+#endif
+    uint64_t np_size = 0;
+    for (int64_t i = 0; i < node_count; ++i) {
+#ifdef VERBOSE_DEBUG
+        if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
+#endif
+        uint64_t has_steps = false;
+        node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
+                ++np_size;
+                has_steps = true;
+            });
+        if (!has_steps) ++np_size; // skip over null entry
+    }
+#ifdef VERBOSE_DEBUG
+    std::cerr << node_count << " of " << node_count << " ~ 100.0000%" << std::endl;
+#endif
+    sdsl::util::assign(np_iv, sdsl::int_vector<>(np_size));
+    sdsl::util::assign(nr_iv, sdsl::int_vector<>(np_size));
+    sdsl::util::assign(nx_iv, sdsl::int_vector<>(np_size));
+    sdsl::util::assign(np_bv, sdsl::bit_vector(np_size));
     // now we need to map this into a new data structure for node->path position mappings
 #ifdef VERBOSE_DEBUG
     std::cerr << "recording node to path position mappings" << std::endl;
@@ -710,15 +729,29 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
 #ifdef VERBOSE_DEBUG
         if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
 #endif
-        np_bv[i] = 1; // mark node start
-        ++np_offset; // skip over null entry
+        np_bv[np_offset] = 1; // mark node start
+        //uint64_t idx = number_bool_packing::pack(i, false)+1;
+        uint64_t has_steps = false;
         node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
                 np_iv[np_offset] = std::get<0>(v); // packed path and rev
                 nr_iv[np_offset] = std::get<1>(v); // rank of step in path
                 nx_iv[np_offset] = std::get<2>(v); // offset from path start on forward handle
                 ++np_offset;
+                has_steps = true;
             });
+        if (!has_steps) ++np_offset; // skip over null entry
     }
+
+    /*
+    std::cerr << std::endl;
+    std::cerr << "np_bv ";
+    for (uint64_t i = 0; i < np_bv.size(); ++i) std:cerr << np_bv[i] << " ";
+    std::cerr << std::endl;
+    std::cerr << "np_iv " << np_iv << std::endl;
+    std::cerr << "nr_iv " << nr_iv << std::endl;
+    std::cerr << "nx_iv " << nx_iv << std::endl;
+    */
+
 #ifdef VERBOSE_DEBUG
     std::cerr << node_count << " of " << node_count << " ~ 100.0000%" << std::endl;
 #endif
@@ -728,6 +761,148 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
     sdsl::util::bit_compress(nr_iv);
     sdsl::util::bit_compress(nx_iv);
     sdsl::util::assign(np_bv_select, sdsl::bit_vector::select_1_type(&np_bv));
+
+    // validate the graph
+    if (validate) {
+        // do we get the correct sequences when looking up handles by id?
+        gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
+            nid_t id = std::stol(s.name);
+            handle_t handle = get_handle(id);
+            if (s.sequence != get_sequence(handle)) {
+                std::cerr << "mismatch in handle sequence for " << id << std::endl;
+                exit(1);
+            }
+            if (get_id(handle) != id) {
+                std::cerr << "mismatch in id for " << id << std::endl;
+                exit(1);
+            }
+        });
+        // do we have the correct set of edges?
+        gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
+                if (e.source_name.empty()) return;
+                handle_t from_handle = get_handle(std::stol(e.source_name), !e.source_orientation_forward);
+                handle_t to_handle = get_handle(std::stol(e.sink_name), !e.sink_orientation_forward);
+                bool seen_to = false;
+                follow_edges(from_handle, false, [&](const handle_t& h) {
+                        //std::cerr << "fwd I see edge " << get_id(from_handle) << ":" << get_is_reverse(from_handle) << " -> " << get_id(h) << ":" << get_is_reverse(h) << std::endl;
+                        //std::cerr << as_integer(h) << " ==? " << as_integer(to_handle) << std::endl;
+                        if (h == to_handle) {
+                            seen_to = true;
+                        }
+                    });
+                bool seen_from = false;
+                follow_edges(to_handle, true, [&](const handle_t& h) {
+                        //std::cerr << "rev I see edge " << get_id(h) << ":" << get_is_reverse(h) << " -> " << get_id(to_handle) << ":" << get_is_reverse(to_handle) << std::endl;
+                        //std::cerr << as_integer(h) << " ==? " << as_integer(from_handle) << std::endl;
+                        if (h == from_handle) {
+                            seen_from = true;
+                        }
+                    });
+                if (!seen_to) {
+                    std::cerr << "can't find to edge for " << get_id(from_handle) << ":" << get_is_reverse(from_handle)
+                              << " -> " << get_id(to_handle) << ":" << get_is_reverse(to_handle) << std::endl;
+                    exit(1);
+                }
+                if (!seen_from) {
+                    std::cerr << "can't find from edge for " << get_id(from_handle) << ":" << get_is_reverse(from_handle)
+                              << " -> " << get_id(to_handle) << ":" << get_is_reverse(to_handle) << std::endl;
+                    exit(1);
+                }
+            });
+        // do our stored paths match those in the input?
+
+        std::string curr_path_name;
+        std::vector<handle_t> curr_path_steps;
+        size_t curr_node_count = 0;
+        bool curr_is_circular = false; // TODO, use TP:Z:circular tag... we'll have to fish this out of the file
+        uint64_t p_handle = 0;
+        auto check_accumulated_path = [&](void) {
+            ++p_handle;
+            // only check if we had a path to build
+            if (curr_path_steps.empty()) return;
+            auto& path = *paths[p_handle-1];
+            // check that the path name is correct
+            if (get_path_name(as_path_handle(p_handle)) != curr_path_name) {
+                std::cerr << "path name mismatch " << get_path_name(as_path_handle(p_handle)) << " != " << curr_path_name << std::endl;
+                exit(1);
+            }
+            // check that the path handles are correct
+            for (uint64_t i = 0; i < curr_path_steps.size(); ++i) {
+                if (path.handle(i) != curr_path_steps[i]) {
+                    std::cerr << "handle mismatch " << get_id(path.handle(i)) << " != " << get_id(curr_path_steps[i]) << " in path " << curr_path_name << std::endl;
+                    exit(1);
+                }
+            }
+            // check that the path positions are correct
+            uint64_t pos = 0;
+            path_handle_t path_handle = as_path_handle(p_handle);
+            std::cerr << "on path " << curr_path_name << std::endl;
+            //const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const;
+            for (uint64_t i = 0; i < curr_path_steps.size(); ++i) {
+                handle_t handle = curr_path_steps[i];
+                std::cerr << "looking at node " << get_id(handle) << " on path " << curr_path_name << std::endl;
+                uint64_t handle_length = get_length(handle);
+                for (uint64_t j = 0; j < handle_length; ++j) {
+                    handle_t handle_at = path.handle_at_position(pos+j);
+                    if (handle != handle_at) {
+                        std::cerr << "handle at position mismatch " << get_id(handle) << " != " << get_id(handle_at)
+                                  << " in path " << curr_path_name << " at position " << pos+j << std::endl;
+                        exit(1);
+                    }
+                }
+                bool path_seen = false;
+                auto check_pos_index = [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
+                    // check that the step handle is the same as this handle
+                    std::cerr << "checking " << get_id(handle) << " on " << curr_path_name << std::endl;
+                    path_handle_t path_handle_of = get_path_handle_of_step(step);
+                    if (path_handle == path_handle_of && as_integers(step)[1] == i) {
+                        std::cerr << "found matching step handle" << std::endl;
+                        handle_t oriented_handle = !get_is_reverse(handle) && is_rev ? flip(handle) : handle;
+                        handle_t handle_at = get_handle_of_step(step);
+                        if (oriented_handle != handle_at) {
+                            std::cerr << "handle at step mismatch " << get_id(oriented_handle) << " != " << get_id(handle_at)
+                                      << " in path " << curr_path_name << std::endl;
+                            std::cerr << "handle " << as_integer(handle_at) << " != " << as_integer(oriented_handle) << std::endl;
+                            exit(1);
+                        }
+                        handle_t handle_at_pos = path.handle_at_position(pos);
+                        if (handle_at != handle_at_pos) {
+                            std::cerr << "handle at position mismatch " << get_id(handle_at) << " != " << get_id(handle_at_pos)
+                                      << " in path " << curr_path_name << " at position " << pos << std::endl;
+                            exit(1);
+                        }
+                        path_seen = true;
+                        return false;
+                    }
+                    return true;
+                };
+                // verify that we have the right position in the node to path position index
+                for_each_step_and_position_on_handle(handle, check_pos_index);
+                if (!path_seen) {
+                    std::cerr << "didn't find path " << curr_path_name << " in reverse index for " << get_id(handle) << std::endl;
+                    exit(1);
+                }
+                pos += get_length(handle);
+            }
+        };
+        gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name_raw, const std::string& node_id, bool is_rev, const std::string& cigar) {
+                std::string path_name = path_name_raw;
+                path_name.erase(std::remove_if(path_name.begin(), path_name.end(), [](char c) { return std::isspace(c); }), path_name.end());
+                if (path_name != curr_path_name && !curr_path_name.empty()) {
+                    // check the last path we've accumulated
+                    check_accumulated_path();
+                    curr_path_steps.clear();
+                }
+                curr_path_name = path_name;
+                curr_path_steps.push_back(get_handle(stol(node_id), is_rev));
+            });
+        // check the last path
+        check_accumulated_path();
+        curr_path_steps.clear();
+
+        // are our stored path positions and ranks correct?
+        std::cerr << "graph valid" << std::endl;
+    }
 
 //#define DEBUG_CONSTRUCTION
 #ifdef DEBUG_CONSTRUCTION
@@ -838,8 +1013,6 @@ void XG::from_gfa(const std::string& gfa_filename, std::string basename) {
         
     }
 
-    // TODO check if we've made a valid graph
-    //
 }
 
 void XG::to_gfa(std::ostream& out) const {
@@ -1346,17 +1519,16 @@ bool XG::for_each_path_handle_impl(const function<bool(const path_handle_t&)>& i
 }
 
 bool XG::for_each_step_on_handle_impl(const handle_t& handle, const function<bool(const step_handle_t&)>& iteratee) const {
-    uint64_t rank = number_bool_packing::unpack_number(handle)+1;
-    size_t off = np_bv_select(rank);
-    assert(np_bv[off++]);
-    while (off < np_bv.size() ? np_bv[off] == 0 : false) {
+    size_t off = np_bv_select(id_to_rank(get_id(handle)));
+    size_t i = off;
+    while (i < np_bv.size() && (off == i && np_iv[i] != 0 || np_bv[i] == 0)) {
         step_handle_t step_handle;
-        as_integers(step_handle)[0] = number_bool_packing::unpack_number(as_handle(np_iv[off]));
-        as_integers(step_handle)[1] = nr_iv[off];
+        as_integers(step_handle)[0] = number_bool_packing::unpack_number(as_handle(np_iv[i]));
+        as_integers(step_handle)[1] = nr_iv[i];
         if (!iteratee(step_handle)) {
             return false;
         }
-        ++off;
+        ++i;
     }
     return true;
 }
@@ -1366,18 +1538,17 @@ bool XG::for_each_step_and_position_on_handle(const handle_t& handle, const std:
 }
 
 bool XG::for_each_step_and_position_on_handle_impl(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const {
-    uint64_t rank = number_bool_packing::unpack_number(handle)+1;
-    size_t off = np_bv_select(rank);
-    assert(np_bv[off++]);
-    while (off < np_bv.size() ? np_bv[off] == 0 : false) {
-        handle_t path_and_rev = as_handle(np_iv[off]);
+    size_t off = np_bv_select(id_to_rank(get_id(handle)));
+    size_t i = off;
+    while (i < np_bv.size() && (off == i && np_iv[i] != 0 || np_bv[i] == 0)) {
+        handle_t path_and_rev = as_handle(np_iv[i]);
         step_handle_t step_handle;
         as_integers(step_handle)[0] = number_bool_packing::unpack_number(path_and_rev);
-        as_integers(step_handle)[1] = nr_iv[off];
-        if (!iteratee(step_handle, number_bool_packing::unpack_bit(path_and_rev), nx_iv[off])) {
+        as_integers(step_handle)[1] = nr_iv[i];
+        if (!iteratee(step_handle, number_bool_packing::unpack_bit(path_and_rev), nx_iv[i])) {
             return false;
         }
-        ++off;
+        ++i;
     }
     return true;
 }
@@ -1411,9 +1582,15 @@ size_t XG::node_graph_idx(const nid_t& id) const {
 }
 
 bool XG::path_contains_handle(const std::string& name, const handle_t& handle) const {
+    bool contains_handle = false;
     for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
             path_handle_t path = as_path_handle(as_integers(step)[0]);
-            if (get_path_name(path) == name) return true;
+            if (get_path_name(path) == name) {
+                contains_handle = true;
+                return false; // break
+            } else {
+                return true; // keep going
+            }
         });
     return false;
 }

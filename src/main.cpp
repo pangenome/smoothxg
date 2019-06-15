@@ -25,6 +25,7 @@ int main(int argc, char** argv) {
     args::Flag gfa_out(parser, "FILE", "write the graph in GFA to stdout", {'G', "gfa-out"});
     args::ValueFlag<std::string> structure_html(parser, "FILE", "store the sdsl structure description", {'S', "structure"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
+    args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
     try {
         parser.ParseCLI(argc, argv);
@@ -53,7 +54,7 @@ int main(int argc, char** argv) {
         std::ifstream in(args::get(xg_in));
         graph.load(in);
     } else if (!args::get(gfa_in).empty()) {
-        graph.from_gfa(args::get(gfa_in));
+        graph.from_gfa(args::get(gfa_in), args::get(validate));
     }
 
     if (!args::get(xg_out).empty()) {
