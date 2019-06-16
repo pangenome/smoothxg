@@ -611,7 +611,7 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
         // only build if we had a path to build
         if (curr_path_steps.empty()) return;
 #ifdef VERBOSE_DEBUG
-        if (++p % 1000 == 0) std::cerr << p << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
+        if (++p % 100 == 0) std::cerr << p << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
 #endif
         size_t unique_member_count = 0;
         path_names += start_marker + curr_path_name + end_marker;
@@ -678,7 +678,7 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
         const XGPath& path = *paths[i-1];
         uint64_t pos = 0;
 #ifdef VERBOSE_DEBUG
-        if (i % 1000 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
+        if (i % 100 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
 #endif
         for (size_t j = 0; j < path.handles.size(); ++j) {
             handle_t handle = path.handle(j);
