@@ -518,6 +518,7 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
         if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
 #endif
         handle_t handle = temp_get_handle(id, false);
+        //std::cerr << "id " << id << std::endl;
         g_bv[g] = 1; // mark record start for later query
         g_iv[g++] = id;
         g_iv[g++] = node_start(id);
@@ -686,7 +687,7 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
             // and record the relative orientation by packing it into the position
             uint64_t path_and_rev = as_integer(number_bool_packing::pack(as_integer(path_handle), is_rev));
             // determine the path relative position on the forward strand
-            uint64_t adj_pos = is_rev ? pos + handle_length : pos;
+            uint64_t adj_pos = is_rev ? pos + handle_length - 1: pos;
             node_path_mm.append(id_to_rank(get_id(handle)),
                                 std::make_tuple(path_and_rev, j, adj_pos));
             ++path_step_count;
@@ -836,11 +837,11 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
             // check that the path positions are correct
             uint64_t pos = 0;
             path_handle_t path_handle = as_path_handle(p_handle);
-            std::cerr << "on path " << curr_path_name << std::endl;
+            //std::cerr << "on path " << curr_path_name << std::endl;
             //const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const;
             for (uint64_t i = 0; i < curr_path_steps.size(); ++i) {
                 handle_t handle = curr_path_steps[i];
-                std::cerr << "looking at node " << get_id(handle) << " on path " << curr_path_name << std::endl;
+                //std::cerr << "looking at node " << get_id(handle) << " on path " << curr_path_name << std::endl;
                 uint64_t handle_length = get_length(handle);
                 for (uint64_t j = 0; j < handle_length; ++j) {
                     handle_t handle_at = path.handle_at_position(pos+j);
@@ -853,10 +854,10 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
                 bool path_seen = false;
                 auto check_pos_index = [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
                     // check that the step handle is the same as this handle
-                    std::cerr << "checking " << get_id(handle) << " on " << curr_path_name << std::endl;
+                    //std::cerr << "checking " << get_id(handle) << " on " << curr_path_name << std::endl;
                     path_handle_t path_handle_of = get_path_handle_of_step(step);
                     if (path_handle == path_handle_of && as_integers(step)[1] == i) {
-                        std::cerr << "found matching step handle" << std::endl;
+                        //std::cerr << "found matching step handle" << std::endl;
                         handle_t oriented_handle = !get_is_reverse(handle) && is_rev ? flip(handle) : handle;
                         handle_t handle_at = get_handle_of_step(step);
                         if (oriented_handle != handle_at) {
@@ -1339,10 +1340,10 @@ bool XG::for_each_handle_impl(const function<bool(const handle_t&)>& iteratee, b
                 
 #pragma omp task firstprivate(handle)
                     {
-                        // Run the iteratee
-                        if (!iteratee(handle)) {
+                        // Run the iteratee, skipping empty handles that result from discontiguous ids
+                        if (get_id(handle) && !iteratee(handle)) {
                             // The iteratee is bored and wants to stop.
-                            #pragma omp atomic write
+#pragma omp atomic write
                             stop_early = true;
                         }
                     }
@@ -1364,8 +1365,8 @@ bool XG::for_each_handle_impl(const function<bool(const handle_t&)>& iteratee, b
             // Make it into a handle, packing it as the node ID and using 0 for orientation
             handle_t handle = handlegraph::number_bool_packing::pack(g, false);
             
-            // Run the iteratee in-line
-            if (!iteratee(handle)) {
+            // Run the iteratee in-line, skipping empty handles that result from discontiguous ids
+            if (get_id(handle) && !iteratee(handle)) {
                 // The iteratee is bored and wants to stop.
                 stop_early = true;
             }
