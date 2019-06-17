@@ -118,16 +118,40 @@ set(ips4o_INCLUDE "${SOURCE_DIR}")
 
 set(CMAKE_BUILD_TYPE Release)
 
+add_library(xg_objs OBJECT src/xg.cpp)
+
+add_dependencies(xg_objs sdsl-lite)
+add_dependencies(xg_objs mmmultimap)
+add_dependencies(xg_objs tayweeargs)
+add_dependencies(xg_objs gfakluge)
+add_dependencies(xg_objs ips4o)
+
+target_include_directories(xg_objs PUBLIC
+  "${CMAKE_SOURCE_DIR}/src"
+  "${handlegraph_INCLUDE}"
+  "${sdsl-lite_INCLUDE}"
+  "${sdsl-lite-divsufsort_INCLUDE}"
+  "${tayweeargs_INCLUDE}"
+  "${ips4o_INCLUDE}"
+  "${mmmultimap_INCLUDE}"
+  "${gfakluge_INCLUDE}"
+  "${gfakluge_tinyFA_INCLUDE}")
+
+set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
+
+# The following folder will be included
+include_directories("${PROJECT_SOURCE_DIR}")
+
+# build a static library
+#add_library(libxg STATIC ${CMAKE_SOURCE_DIR}/src/xg.cpp)
+add_library(libxg STATIC $<TARGET_OBJECTS:xg_objs>)
+set_target_properties(libxg PROPERTIES OUTPUT_NAME "xg")
+
 # set up our target executable and specify its dependencies and includes
 add_executable(xg
-  ${CMAKE_SOURCE_DIR}/src/xg.cpp
+  $<TARGET_OBJECTS:xg_objs>
   ${CMAKE_SOURCE_DIR}/src/main.cpp
   )
-add_dependencies(xg sdsl-lite)
-add_dependencies(xg mmmultimap)
-add_dependencies(xg tayweeargs)
-add_dependencies(xg gfakluge)
-add_dependencies(xg ips4o)
 target_include_directories(xg PUBLIC
   "${CMAKE_SOURCE_DIR}/src"
   "${handlegraph_INCLUDE}"
@@ -139,33 +163,6 @@ target_include_directories(xg PUBLIC
   "${gfakluge_INCLUDE}"
   "${gfakluge_tinyFA_INCLUDE}")
 target_link_libraries(xg
-  "${sdsl-lite_LIB}/libsdsl.a"
-  "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
-  "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
-  "${handlegraph_LIB}/libhandlegraph.a"
-  "-latomic"
-  )
-
-set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
-
-# The following folder will be included
-include_directories("${PROJECT_SOURCE_DIR}")
-
-# build a static library
-add_library(libxg STATIC ${CMAKE_SOURCE_DIR}/src/xg.cpp)
-set_target_properties(libxg PROPERTIES OUTPUT_NAME "xg")
-add_dependencies(libxg xg)
-target_include_directories(libxg PUBLIC
-  "${CMAKE_SOURCE_DIR}/src"
-  "${handlegraph_INCLUDE}"
-  "${sdsl-lite_INCLUDE}"
-  "${sdsl-lite-divsufsort_INCLUDE}"
-  "${tayweeargs_INCLUDE}"
-  "${ips4o_INCLUDE}"
-  "${mmmultimap_INCLUDE}"
-  "${gfakluge_INCLUDE}"
-  "${gfakluge_tinyFA_INCLUDE}")
-target_link_libraries(libxg
   "${sdsl-lite_LIB}/libsdsl.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"

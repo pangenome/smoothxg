@@ -381,6 +381,9 @@ public:
     pos_t graph_pos_at_path_position(const std::string& name, size_t path_pos) const;
     char pos_char(nid_t id, bool is_rev, size_t off) const;
     std::string pos_substr(nid_t id, bool is_rev, size_t off, size_t len) const;
+    edge_t edge_from_encoding(const nid_t& from, const nid_t& to, int type) const;
+    size_t edge_graph_idx(const handle_t& from, const handle_t& to) const;
+    size_t get_g_iv_size(void) const;
 
     char start_marker = '#';
     char end_marker = '$';
@@ -420,7 +423,7 @@ private:
     const static int G_NODE_TO_COUNT_OFFSET = 3;
     const static int G_NODE_FROM_COUNT_OFFSET = 4;
     const static int G_NODE_HEADER_LENGTH = 5;
-    
+
     const static int G_EDGE_OFFSET_OFFSET = 0;
     const static int G_EDGE_TYPE_OFFSET = 1;
     const static int G_EDGE_LENGTH = 2;

@@ -295,7 +295,7 @@ handle_t XGPath::local_handle(const handle_t& handle) const {
 handle_t XGPath::external_handle(const handle_t& handle) const {
     return as_handle(as_integer(handle)+as_integer(min_handle));
 }
-    
+
 void XG::serialize(ostream& out) const {
     serialize_and_measure(out);
 }
@@ -1139,6 +1139,63 @@ std::string XG::pos_substr(nid_t id, bool is_rev, size_t off, size_t len) const 
         }
         return reverse_complement(s);
     }
+}
+
+edge_t XG::edge_from_encoding(const nid_t& from, const nid_t& to, int type) const {
+    bool from_rev = false;
+    bool to_rev = false;
+    switch (type) {
+    case 1:
+        break;
+    case 2:
+        to_rev = true;
+        break;
+    case 3:
+        from_rev = true;
+        break;
+    case 4:
+        from_rev = true;
+        to_rev = true;
+        break;
+    default:
+        assert(false);
+        break;
+    }
+    return make_pair(get_handle(from, from_rev), get_handle(to, to_rev));
+}
+
+size_t XG::edge_graph_idx(const handle_t& _from, const handle_t& _to) const {
+    handle_t from_handle = _from;
+    handle_t to_handle = _to;
+    if (get_is_reverse(_from) && get_is_reverse(_to)) {
+        from_handle = flip(_to);
+        to_handle = flip(_from);
+    }
+    nid_t id = get_id(from_handle);
+    size_t g = g_bv_select(id_to_rank(id));
+    int edges_to_count = g_iv[g+G_NODE_TO_COUNT_OFFSET];
+    int edges_from_count = g_iv[g+G_NODE_FROM_COUNT_OFFSET];
+    int64_t f = g + G_NODE_HEADER_LENGTH + G_EDGE_LENGTH * edges_to_count;
+    int64_t e = f + G_EDGE_LENGTH * edges_from_count;
+    int i = 1;
+    for (int64_t j = f; j < e; ++i) {
+        int64_t to = g+g_iv[j++];
+        int type = g_iv[j++];
+        edge_t curr = edge_from_encoding(id,
+                                         (nid_t)g_iv[to+G_NODE_ID_OFFSET],
+                                         type);
+        if (curr.second == to_handle
+            && get_is_reverse(curr.first) == get_is_reverse(from_handle)
+            && get_is_reverse(curr.second) == get_is_reverse(to_handle)) {
+            return g + i;
+        }
+    }
+    assert(false);
+    return 0;
+}
+
+size_t XG::get_g_iv_size(void) const {
+    return g_iv.size();
 }
 
 size_t XG::id_to_rank(const nid_t& id) const {
