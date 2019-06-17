@@ -146,6 +146,33 @@ target_link_libraries(xg
   "-latomic"
   )
 
+set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
+
+# The following folder will be included
+include_directories("${PROJECT_SOURCE_DIR}")
+
+# build a static library
+add_library(libxg STATIC ${CMAKE_SOURCE_DIR}/src/xg.cpp)
+set_target_properties(libxg PROPERTIES OUTPUT_NAME "xg")
+add_dependencies(libxg xg)
+target_include_directories(libxg PUBLIC
+  "${CMAKE_SOURCE_DIR}/src"
+  "${handlegraph_INCLUDE}"
+  "${sdsl-lite_INCLUDE}"
+  "${sdsl-lite-divsufsort_INCLUDE}"
+  "${tayweeargs_INCLUDE}"
+  "${ips4o_INCLUDE}"
+  "${mmmultimap_INCLUDE}"
+  "${gfakluge_INCLUDE}"
+  "${gfakluge_tinyFA_INCLUDE}")
+target_link_libraries(libxg
+  "${sdsl-lite_LIB}/libsdsl.a"
+  "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
+  "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
+  "${handlegraph_LIB}/libhandlegraph.a"
+  "-latomic"
+  )
+
 if (APPLE)
 elseif (TRUE)
   set(CMAKE_EXE_LINKER_FLAGS "-static")
