@@ -379,6 +379,48 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
     }
     char* filename = (char*)gfa_filename.c_str();
     gfak::GFAKluge gfa;
+    // set up our enumerators
+    auto for_each_sequence = [&](const std::function<void(const std::string& seq, const nid_t& node_id)>& lambda) {
+        gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
+                nid_t node_id = std::stol(s.name);
+                lambda(s.sequence, node_id);
+            });
+    };
+    auto for_each_edge = [&](const std::function<void(const nid_t& from_id, const bool& from_rev,
+                                                      const nid_t& to_id, const bool& to_rev)>& lambda) {
+        gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
+                if (e.source_name.empty()) return;
+                nid_t from_id = std::stol(e.source_name);
+                bool from_rev = !e.source_orientation_forward;
+                nid_t to_id = std::stol(e.sink_name);
+                bool to_rev = !e.sink_orientation_forward;
+                lambda(from_id, from_rev, to_id, to_rev);
+            });
+    };
+    auto for_each_path_element = [&](const std::function<void(const std::string& path_name,
+                                                              const nid_t& node_id, const bool& is_rev,
+                                                              const std::string& cigar)>& lambda) {
+        gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name_raw, const std::string& node_id_str,
+                                                        bool is_rev, const std::string& cigar) {
+                nid_t node_id = std::stol(node_id_str);
+                std::string path_name = path_name_raw;
+                path_name.erase(std::remove_if(path_name.begin(), path_name.end(), [](char c) { return std::isspace(c); }), path_name.end());
+                lambda(path_name, node_id, is_rev, cigar);
+            });
+    };
+    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, validate, basename);
+}
+
+
+void XG::from_enumerators(const std::function<void(const std::function<void(const std::string& seq, const nid_t& node_id)>&)>& for_each_sequence,
+                          const std::function<void(const std::function<void(const nid_t& from, const bool& from_rev,
+                                                                            const nid_t& to, const bool& to_rev)>&)>& for_each_edge,
+                          const std::function<void(const std::function<void(const std::string& path_name,
+                                                                            const nid_t& node_id, const bool& is_rev,
+                                                                            const std::string& cigar)>&)>& for_each_path_element,
+                          bool validate, std::string basename) {
+
+    if (basename.empty()) assert(false);
     node_count = 0;
     seq_length = 0;
     edge_count = 0;
@@ -389,20 +431,18 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
 #ifdef VERBOSE_DEBUG
     cerr << "computing graph sequence length and node count" << endl;
 #endif
-    gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
-            nid_t id = std::stol(s.name);
+    for_each_sequence([&](const std::string& seq, const nid_t& id) {
             // min id starts at 0
             min_id = std::min(min_id, id);
             max_id = std::max(max_id, id);
-            seq_length += s.sequence.size();
+            seq_length += seq.size();
             ++node_count;
         });
 #ifdef VERBOSE_DEBUG
     cerr << "counting edges" << endl;
 #endif
     // edge count
-    gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
-            if (e.source_name.empty()) return;
+    for_each_edge([&](const nid_t& from_id, const bool& from_rev, const nid_t& to_id, const bool& to_rev) {
             ++edge_count;
         });
     // path count
@@ -410,13 +450,12 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
 #ifdef VERBOSE_DEBUG
     cerr << "counting paths" << endl;
 #endif
-    gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name, const std::string& node_id, bool is_rev, const std::string& cigar) {
+    for_each_path_element([&](const std::string& path_name, const nid_t& node_id, const bool& is_rev, const std::string& cigar) {
             if (path_name != pname) {
                 ++path_count;
             }
             pname = path_name;
         });
-
 #ifdef VERBOSE_DEBUG
     std::cerr << "graph has " << seq_length << "bp in sequence, "
               << node_count << " nodes, "
@@ -438,8 +477,7 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
 #endif
     size_t r = 1;    
     // first make i_iv and r_iv
-    gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
-            nid_t id = std::stol(s.name);
+    for_each_sequence([&](const std::string& seq, const nid_t& id) {
             i_iv[r-1] = id;
             // store ids to rank mapping
             r_iv[id-min_id] = r;
@@ -450,11 +488,10 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
 
     // then make s_bv and s_iv
     size_t j = 0;
-    gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
-            nid_t id = std::stol(s.name);
+    for_each_sequence([&](const std::string& seq, const nid_t& id) {
             //size_t i = r_iv[id-min_id]-1;
             s_bv[j] = 1; // record node start
-            for (auto c : s.sequence) {
+            for (auto c : seq) {
                 s_iv[j++] = dna3bit(c); // store sequence
             }
         });
@@ -489,10 +526,9 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
     std::string edge_t_f_idx = basename + ".to_from.mm";
     mmmulti::map<uint64_t, uint64_t> edge_from_to_mm(edge_f_t_idx);
     mmmulti::map<uint64_t, uint64_t> edge_to_from_mm(edge_t_f_idx);
-    gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
-            if (e.source_name.empty()) return;
-            handle_t from_handle = temp_get_handle(std::stol(e.source_name), !e.source_orientation_forward);
-            handle_t to_handle = temp_get_handle(std::stol(e.sink_name), !e.sink_orientation_forward);
+    for_each_edge([&](const nid_t& from_id, const bool& from_rev, const nid_t& to_id, const bool& to_rev) {
+            handle_t from_handle = temp_get_handle(from_id, from_rev);
+            handle_t to_handle = temp_get_handle(to_id, to_rev);
             edge_from_to_mm.append(as_integer(from_handle), as_integer(to_handle));
             edge_to_from_mm.append(as_integer(to_handle), as_integer(from_handle));
         });
@@ -623,16 +659,14 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
 
     // todo ... is it circular?
     // might make sense to scan the file for this
-    gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name_raw, const std::string& node_id, bool is_rev, const std::string& cigar) {
-            std::string path_name = path_name_raw;
-            path_name.erase(std::remove_if(path_name.begin(), path_name.end(), [](char c) { return std::isspace(c); }), path_name.end());
+    for_each_path_element([&](const std::string& path_name, const nid_t& node_id, const bool& is_rev, const std::string& cigar) {
             if (path_name != curr_path_name && !curr_path_name.empty()) {
                 // build the last path we've accumulated
                 build_accumulated_path();
                 curr_path_steps.clear();
             }
             curr_path_name = path_name;
-            curr_path_steps.push_back(get_handle(stol(node_id), is_rev));
+            curr_path_steps.push_back(get_handle(node_id, is_rev));
         });
     // build the last path
     build_accumulated_path();
@@ -766,23 +800,21 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
     // validate the graph
     if (validate) {
         // do we get the correct sequences when looking up handles by id?
-        gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
-            nid_t id = std::stol(s.name);
-            handle_t handle = get_handle(id);
-            if (s.sequence != get_sequence(handle)) {
-                std::cerr << "mismatch in handle sequence for " << id << std::endl;
-                exit(1);
-            }
-            if (get_id(handle) != id) {
-                std::cerr << "mismatch in id for " << id << std::endl;
-                exit(1);
-            }
-        });
+        for_each_sequence([&](const std::string& seq, const nid_t& id) {
+                handle_t handle = get_handle(id);
+                if (seq != get_sequence(handle)) {
+                    std::cerr << "mismatch in handle sequence for " << id << std::endl;
+                    exit(1);
+                }
+                if (get_id(handle) != id) {
+                    std::cerr << "mismatch in id for " << id << std::endl;
+                    exit(1);
+                }
+            });
         // do we have the correct set of edges?
-        gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
-                if (e.source_name.empty()) return;
-                handle_t from_handle = get_handle(std::stol(e.source_name), !e.source_orientation_forward);
-                handle_t to_handle = get_handle(std::stol(e.sink_name), !e.sink_orientation_forward);
+        for_each_edge([&](const nid_t& from_id, const bool& from_rev, const nid_t& to_id, const bool& to_rev) {
+                handle_t from_handle = temp_get_handle(from_id, from_rev);
+                handle_t to_handle = temp_get_handle(to_id, to_rev);
                 bool seen_to = false;
                 follow_edges(from_handle, false, [&](const handle_t& h) {
                         //std::cerr << "fwd I see edge " << get_id(from_handle) << ":" << get_is_reverse(from_handle) << " -> " << get_id(h) << ":" << get_is_reverse(h) << std::endl;
@@ -886,16 +918,14 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
                 pos += get_length(handle);
             }
         };
-        gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name_raw, const std::string& node_id, bool is_rev, const std::string& cigar) {
-                std::string path_name = path_name_raw;
-                path_name.erase(std::remove_if(path_name.begin(), path_name.end(), [](char c) { return std::isspace(c); }), path_name.end());
+        for_each_path_element([&](const std::string& path_name, const nid_t& node_id, const bool& is_rev, const std::string& cigar) {
                 if (path_name != curr_path_name && !curr_path_name.empty()) {
                     // check the last path we've accumulated
                     check_accumulated_path();
                     curr_path_steps.clear();
                 }
                 curr_path_name = path_name;
-                curr_path_steps.push_back(get_handle(stol(node_id), is_rev));
+                curr_path_steps.push_back(get_handle(node_id, is_rev));
             });
         // check the last path
         check_accumulated_path();
