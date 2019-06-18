@@ -910,7 +910,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
                     return true;
                 };
                 // verify that we have the right position in the node to path position index
-                for_each_step_and_position_on_handle(handle, check_pos_index);
+                for_each_step_position_on_handle(handle, check_pos_index);
                 if (!path_seen) {
                     std::cerr << "didn't find path " << curr_path_name << " in reverse index for " << get_id(handle) << std::endl;
                     exit(1);
@@ -1625,11 +1625,7 @@ bool XG::for_each_step_on_handle_impl(const handle_t& handle, const function<boo
     return true;
 }
 
-bool XG::for_each_step_and_position_on_handle(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const {
-    return for_each_step_and_position_on_handle_impl(handle, iteratee);
-}
-
-bool XG::for_each_step_and_position_on_handle_impl(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const {
+bool XG::for_each_step_position_on_handle(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const {
     size_t off = np_bv_select(id_to_rank(get_id(handle)));
     size_t i = off;
     while (i < np_bv.size() && (off == i && np_iv[i] != 0 || np_bv[i] == 0)) {
@@ -1675,7 +1671,7 @@ size_t XG::node_graph_idx(const nid_t& id) const {
 
 bool XG::path_contains_handle(const std::string& name, const handle_t& handle) const {
     bool contains_handle = false;
-    for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
+    for_each_step_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
             path_handle_t path = as_path_handle(as_integers(step)[0]);
             if (get_path_name(path) == name) {
                 contains_handle = true;
@@ -1689,7 +1685,7 @@ bool XG::path_contains_handle(const std::string& name, const handle_t& handle) c
 
 std::vector<path_handle_t> XG::paths_of_handle(const handle_t& handle) const {
     std::vector<path_handle_t> path_handles;
-    for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
+    for_each_step_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
             path_handles.push_back(as_path_handle(as_integers(step)[0]));
             return true;
         });
@@ -1811,7 +1807,7 @@ void XG::for_path_range(const std::string& name, int64_t start, int64_t stop,
 std::vector<size_t> XG::position_in_path(const handle_t& handle, const path_handle_t& path) const {
     std::vector<size_t> pos_in_path;
     size_t path_length = get_path_length(path);
-    for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
+    for_each_step_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
             path_handle_t path_handle = as_path_handle(as_integers(step)[0]);
             if (path_handle == path) {
                 pos_in_path.push_back(get_is_reverse(handle) ? path_length - pos - get_length(handle) : pos);
@@ -1823,7 +1819,7 @@ std::vector<size_t> XG::position_in_path(const handle_t& handle, const path_hand
 
 std::unordered_map<path_handle_t, std::vector<size_t> > XG::position_in_paths(const handle_t& handle, const size_t& offset) const {
     std::unordered_map<path_handle_t, std::vector<size_t> > positions;
-    for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
+    for_each_step_position_on_handle(handle, [&](const step_handle_t& step, const bool& is_rev, const uint64_t& pos) {
             path_handle_t path = as_path_handle(as_integers(step)[0]);
             size_t path_length = get_path_length(path);
             positions[path].push_back(get_is_reverse(handle) ? path_length - pos - get_length(handle) : pos);
@@ -1836,7 +1832,7 @@ std::unordered_map<path_handle_t, std::vector<std::pair<size_t, bool> > > XG::of
     std::unordered_map<path_handle_t, std::vector<std::pair<size_t, bool> > > positions;
     handle_t handle = get_handle(id(gpos), is_rev(gpos));
     size_t handle_length = get_length(handle);
-    for_each_step_and_position_on_handle(handle, [&](const step_handle_t& step, const bool& rev, const uint64_t& pos) {
+    for_each_step_position_on_handle(handle, [&](const step_handle_t& step, const bool& rev, const uint64_t& pos) {
             path_handle_t path = as_path_handle(as_integers(step)[0]);
             size_t path_length = get_path_length(path);
             bool dir = rev != is_rev(gpos);

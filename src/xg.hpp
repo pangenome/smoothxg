@@ -24,12 +24,13 @@
 #include <handlegraph/iteratee.hpp>
 #include <handlegraph/util.hpp>
 #include <handlegraph/handle_graph.hpp>
-#include <handlegraph/path_handle_graph.hpp>
-#include <handlegraph/mutable_handle_graph.hpp>
-#include <handlegraph/mutable_path_handle_graph.hpp>
-#include <handlegraph/mutable_path_mutable_handle_graph.hpp>
-#include <handlegraph/deletable_handle_graph.hpp>
-#include <handlegraph/mutable_path_deletable_handle_graph.hpp>
+//#include <handlegraph/path_handle_graph.hpp>
+#include <handlegraph/path_position_handle_graph.hpp>
+//#include <handlegraph/mutable_handle_graph.hpp>
+//#include <handlegraph/mutable_path_handle_graph.hpp>
+//#include <handlegraph/mutable_path_mutable_handle_graph.hpp>
+//#include <handlegraph/deletable_handle_graph.hpp>
+//#include <handlegraph/mutable_path_deletable_handle_graph.hpp>
 
 #include "mmmultimap.hpp"
 
@@ -179,7 +180,7 @@ class XGFormatError : public std::runtime_error {
  * Provides succinct storage for a graph, its positional paths, and a set of
  * embedded threads.
  */
-class XG : public PathHandleGraph, public SerializableHandleGraph {
+class XG : public PathPositionHandleGraph, public SerializableHandleGraph {
 public:
     
     ////////////////////////////////////////////////////////////////////////////
@@ -344,8 +345,7 @@ public:
     /// Executes a function on each step of a handle in any path.
     bool for_each_step_on_handle_impl(const handle_t& handle, const std::function<bool(const step_handle_t&)>& iteratee) const;
     /// Unpack the path position and orientation information alongside the steps
-    bool for_each_step_and_position_on_handle(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const;
-    bool for_each_step_and_position_on_handle_impl(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const;
+    bool for_each_step_position_on_handle(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const;
     
     ////////////////////////////////////////////////////////////////////////////
     // Higher-level graph API
