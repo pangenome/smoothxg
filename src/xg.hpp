@@ -373,7 +373,7 @@ public:
     std::vector<size_t> position_in_path(const handle_t& handle, const path_handle_t& path) const;
     std::unordered_map<path_handle_t, std::vector<size_t> > position_in_paths(const handle_t& handle, const size_t& offset) const;
     void for_path_range(const std::string& name, int64_t start, int64_t stop,
-                        std::function<void(handle_t)> lambda, bool is_rev) const;
+                        std::function<void(const handle_t&)> lambda, bool is_rev) const;
     std::unordered_map<path_handle_t, std::vector<std::pair<size_t, bool> > > offsets_in_paths(const pos_t& gpos) const;
     std::unordered_map<path_handle_t, std::vector<std::pair<size_t, bool> > > nearest_offsets_in_paths(const pos_t& pos, int64_t max_search) const;
     handle_t handle_at_path_position(const path_handle_t& path, size_t pos) const;

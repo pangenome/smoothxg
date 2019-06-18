@@ -1789,7 +1789,7 @@ int64_t XG::min_approx_path_distance(const nid_t& id1, const nid_t& id2) const {
 }
 
 void XG::for_path_range(const std::string& name, int64_t start, int64_t stop,
-                        std::function<void(handle_t)> lambda, bool is_rev) const {
+                        std::function<void(const handle_t&)> lambda, bool is_rev) const {
     // what is the node at the start, and at the end
     auto& path = *paths[as_integer(get_path_handle(name))-1];
     size_t plen = path.offsets.size();
