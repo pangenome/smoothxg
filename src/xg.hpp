@@ -197,7 +197,13 @@ public:
     XG& operator=(const XG& other) = delete;
     XG& operator=(XG&& other) = delete;
 
-    // Use external enumerators to drive graph construction
+    /// build the graph from another simple graph
+    void from_handle_graph(const HandleGraph& graph, const std::string& basename);
+
+    /// build the graph from another path handle graph
+    void from_path_handle_graph(const PathHandleGraph& graph, const std::string& basename);
+
+    /// Use external enumerators to drive graph construction
     void from_enumerators(const std::function<void(const std::function<void(const std::string& seq, const nid_t& node_id)>&)>& for_each_sequence,
                           const std::function<void(const std::function<void(const nid_t& from, const bool& from_rev,
                                                                             const nid_t& to, const bool& to_rev)>&)>& for_each_edge,
@@ -206,7 +212,7 @@ public:
                                                                             const std::string& cigar)>&)>& for_each_path_element,
                           bool validate = false, std::string basename = "");
 
-    // Use a memory-mapped GFA file to build the index in low memory
+    /// Use a memory-mapped GFA file to build the index in low memory
     void from_gfa(const std::string& gfa_filename, bool validate = false, std::string basename = "");
 
     void to_gfa(std::ostream& out) const;

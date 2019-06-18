@@ -412,6 +412,78 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
 }
 
 
+/// build the graph from another simple graph
+void XG::from_handle_graph(const HandleGraph& graph, const std::string& basename) {
+    if (basename.empty()) {
+        std::cerr << "a basename is required for xg construction" << std::endl;
+        exit(1);
+    }
+    // set up our enumerators
+    auto for_each_sequence = [&](const std::function<void(const std::string& seq, const nid_t& node_id)>& lambda) {
+        graph.for_each_handle([&](const handle_t& handle) {
+                lambda(graph.get_sequence(handle), graph.get_id(handle));
+            });
+    };
+    auto for_each_edge = [&](const std::function<void(const nid_t& from_id, const bool& from_rev,
+                                                      const nid_t& to_id, const bool& to_rev)>& lambda) {
+        graph.for_each_handle([&](const handle_t& handle) {
+                nid_t handle_id = graph.get_id(handle);
+                // TODO going forward on both strands will cause us to repeat in the case of self edges
+                graph.follow_edges(handle, false, [&](const handle_t& next) {
+                        lambda(handle_id, false, graph.get_id(next), graph.get_is_reverse(next));
+                    });
+                graph.follow_edges(flip(handle), false, [&](const handle_t& next) {
+                        lambda(handle_id, true, graph.get_id(next), graph.get_is_reverse(next));
+                    });
+            });
+    };
+    auto for_each_path_element = [&](const std::function<void(const std::string& path_name,
+                                                              const nid_t& node_id, const bool& is_rev,
+                                                              const std::string& cigar)>& lambda) {
+        // no-op
+    };
+    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, false, basename);
+}
+
+/// build the graph from another path handle graph
+void XG::from_path_handle_graph(const PathHandleGraph& graph, const std::string& basename) {
+    if (basename.empty()) {
+        std::cerr << "a basename is required for xg construction" << std::endl;
+        exit(1);
+    }
+    // set up our enumerators
+    auto for_each_sequence = [&](const std::function<void(const std::string& seq, const nid_t& node_id)>& lambda) {
+        graph.for_each_handle([&](const handle_t& handle) {
+                lambda(graph.get_sequence(handle), graph.get_id(handle));
+            });
+    };
+    auto for_each_edge = [&](const std::function<void(const nid_t& from_id, const bool& from_rev,
+                                                      const nid_t& to_id, const bool& to_rev)>& lambda) {
+        graph.for_each_handle([&](const handle_t& handle) {
+                nid_t handle_id = graph.get_id(handle);
+                // TODO going forward on both strands will cause us to repeat in the case of self edges
+                graph.follow_edges(handle, false, [&](const handle_t& next) {
+                        lambda(handle_id, false, graph.get_id(next), graph.get_is_reverse(next));
+                    });
+                graph.follow_edges(flip(handle), false, [&](const handle_t& next) {
+                        lambda(handle_id, true, graph.get_id(next), graph.get_is_reverse(next));
+                    });
+            });
+    };
+    auto for_each_path_element = [&](const std::function<void(const std::string& path_name,
+                                                              const nid_t& node_id, const bool& is_rev,
+                                                              const std::string& cigar)>& lambda) {
+        graph.for_each_path_handle([&](const path_handle_t& path_handle) {
+                std::string path_name = get_path_name(path_handle);
+                graph.for_each_step_in_path(path_handle, [&](const step_handle_t& step) {
+                        handle_t handle = graph.get_handle_of_step(step);
+                        lambda(path_name, graph.get_id(handle), graph.get_is_reverse(handle), "");
+                    });
+            });
+    };
+    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, false, basename);
+}
+
 void XG::from_enumerators(const std::function<void(const std::function<void(const std::string& seq, const nid_t& node_id)>&)>& for_each_sequence,
                           const std::function<void(const std::function<void(const nid_t& from, const bool& from_rev,
                                                                             const nid_t& to, const bool& to_rev)>&)>& for_each_edge,
