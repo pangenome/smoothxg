@@ -1204,6 +1204,10 @@ size_t XG::id_to_rank(const nid_t& id) const {
     return r_iv[x];
 }
 
+size_t XG::handle_rank(const handle_t& handle) const {
+    return id_to_rank(get_id(handle));
+}
+
 nid_t XG::rank_to_id(const size_t& rank) const {
     if(rank == 0) {
         cerr << "[xg] error: Request for id of rank 0" << endl;

@@ -353,6 +353,7 @@ public:
     /// id to rank helper function
 
     size_t id_to_rank(const nid_t& id) const;
+    size_t handle_rank(const handle_t& handle) const;
     /// rank to id helper function
     nid_t rank_to_id(const size_t& rank) const;
     size_t max_node_rank(void) const;
