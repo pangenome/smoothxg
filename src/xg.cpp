@@ -5,6 +5,7 @@
 
 #include <bitset>
 #include <arpa/inet.h>
+#include <mutex>
 
 #include <handlegraph/util.hpp>
 
@@ -375,7 +376,7 @@ size_t XG::serialize_and_measure(ostream& out, sdsl::structure_tree_node* s, std
 
 void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string basename) {
     if (basename.empty()) {
-        basename = gfa_filename;
+        basename = temp_file::create();
     }
     char* filename = (char*)gfa_filename.c_str();
     gfak::GFAKluge gfa;
@@ -413,11 +414,7 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
 
 
 /// build the graph from another simple graph
-void XG::from_handle_graph(const HandleGraph& graph, const std::string& basename) {
-    if (basename.empty()) {
-        std::cerr << "a basename is required for xg construction" << std::endl;
-        exit(1);
-    }
+void XG::from_handle_graph(const HandleGraph& graph) {
     // set up our enumerators
     auto for_each_sequence = [&](const std::function<void(const std::string& seq, const nid_t& node_id)>& lambda) {
         graph.for_each_handle([&](const handle_t& handle) {
@@ -426,15 +423,9 @@ void XG::from_handle_graph(const HandleGraph& graph, const std::string& basename
     };
     auto for_each_edge = [&](const std::function<void(const nid_t& from_id, const bool& from_rev,
                                                       const nid_t& to_id, const bool& to_rev)>& lambda) {
-        graph.for_each_handle([&](const handle_t& handle) {
-                nid_t handle_id = graph.get_id(handle);
-                // TODO going forward on both strands will cause us to repeat in the case of self edges
-                graph.follow_edges(handle, false, [&](const handle_t& next) {
-                        lambda(handle_id, false, graph.get_id(next), graph.get_is_reverse(next));
-                    });
-                graph.follow_edges(flip(handle), false, [&](const handle_t& next) {
-                        lambda(handle_id, true, graph.get_id(next), graph.get_is_reverse(next));
-                    });
+        graph.for_each_edge([&](const edge_t& edge) {
+                lambda(graph.get_id(edge.first), graph.get_is_reverse(edge.first),
+                       graph.get_id(edge.second), graph.get_is_reverse(edge.second));
             });
     };
     auto for_each_path_element = [&](const std::function<void(const std::string& path_name,
@@ -442,15 +433,11 @@ void XG::from_handle_graph(const HandleGraph& graph, const std::string& basename
                                                               const std::string& cigar)>& lambda) {
         // no-op
     };
-    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, false, basename);
+    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, false);
 }
 
 /// build the graph from another path handle graph
-void XG::from_path_handle_graph(const PathHandleGraph& graph, const std::string& basename) {
-    if (basename.empty()) {
-        std::cerr << "a basename is required for xg construction" << std::endl;
-        exit(1);
-    }
+void XG::from_path_handle_graph(const PathHandleGraph& graph) {
     // set up our enumerators
     auto for_each_sequence = [&](const std::function<void(const std::string& seq, const nid_t& node_id)>& lambda) {
         graph.for_each_handle([&](const handle_t& handle) {
@@ -459,15 +446,9 @@ void XG::from_path_handle_graph(const PathHandleGraph& graph, const std::string&
     };
     auto for_each_edge = [&](const std::function<void(const nid_t& from_id, const bool& from_rev,
                                                       const nid_t& to_id, const bool& to_rev)>& lambda) {
-        graph.for_each_handle([&](const handle_t& handle) {
-                nid_t handle_id = graph.get_id(handle);
-                // TODO going forward on both strands will cause us to repeat in the case of self edges
-                graph.follow_edges(handle, false, [&](const handle_t& next) {
-                        lambda(handle_id, false, graph.get_id(next), graph.get_is_reverse(next));
-                    });
-                graph.follow_edges(flip(handle), false, [&](const handle_t& next) {
-                        lambda(handle_id, true, graph.get_id(next), graph.get_is_reverse(next));
-                    });
+        graph.for_each_edge([&](const edge_t& edge) {
+                lambda(graph.get_id(edge.first), graph.get_is_reverse(edge.first),
+                       graph.get_id(edge.second), graph.get_is_reverse(edge.second));
             });
     };
     auto for_each_path_element = [&](const std::function<void(const std::string& path_name,
@@ -481,7 +462,7 @@ void XG::from_path_handle_graph(const PathHandleGraph& graph, const std::string&
                     });
             });
     };
-    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, false, basename);
+    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, false);
 }
 
 void XG::from_enumerators(const std::function<void(const std::function<void(const std::string& seq, const nid_t& node_id)>&)>& for_each_sequence,
@@ -492,7 +473,9 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
                                                                             const std::string& cigar)>&)>& for_each_path_element,
                           bool validate, std::string basename) {
 
-    if (basename.empty()) assert(false);
+    if (basename.empty()) {
+        basename = temp_file::create();
+    }
     node_count = 0;
     seq_length = 0;
     edge_count = 0;
@@ -707,7 +690,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     cerr << "storing paths" << endl;
 #endif
     // paths
-    string path_names;
+    std::string path_names;
 
     std::string curr_path_name;
     std::vector<handle_t> curr_path_steps;
@@ -1954,6 +1937,109 @@ pos_t XG::graph_pos_at_path_position(const path_handle_t& path_handle, size_t pa
     size_t x = path.offset_at_position(path_pos);
     handle_t handle = path.handle(x);
     return make_pos_t(get_id(handle), get_is_reverse(handle), path_pos - path.handle_start(x));
+}
+
+namespace temp_file {
+
+// We use this to make the API thread-safe
+std::recursive_mutex monitor;
+
+std::string temp_dir;
+
+/// Because the names are in a static object, we can delete them when
+/// std::exit() is called.
+struct Handler {
+    std::set<std::string> filenames;
+    std::string parent_directory;
+    ~Handler() {
+        // No need to lock in static destructor
+        for (auto& filename : filenames) {
+            std::remove(filename.c_str());
+        }
+        if (!parent_directory.empty()) {
+            // There may be extraneous files in the directory still (like .fai files)
+            auto directory = opendir(parent_directory.c_str());
+            
+            dirent* dp;
+            while ((dp = readdir(directory)) != nullptr) {
+                // For every item still in it, delete it.
+                // TODO: Maybe eventually recursively delete?
+                std::remove((parent_directory + "/" + dp->d_name).c_str());
+            }
+            closedir(directory);
+            
+            // Delete the directory itself
+            std::remove(parent_directory.c_str());
+        }
+    }
+} handler;
+
+std::string create(const std::string& base) {
+    std::lock_guard<recursive_mutex> lock(monitor);
+
+    if (handler.parent_directory.empty()) {
+        // Make a parent directory for our temp files
+        string tmpdirname = get_dir() + "/xg-XXXXXX";
+        auto got = mkdtemp(&tmpdirname[0]);
+        if (got != nullptr) {
+            // Save the directory we got
+            handler.parent_directory = got;
+        } else {
+            cerr << "[xg]: couldn't create temp directory: " << tmpdirname << endl;
+            exit(1);
+        }
+    }
+
+    std::string tmpname = handler.parent_directory + "/" + base + "XXXXXX";
+    // hack to use mkstemp to get us a safe temporary file name
+    int fd = mkstemp(&tmpname[0]);
+    if(fd != -1) {
+        // we don't leave it open; we are assumed to open it again externally
+        close(fd);
+    } else {
+        cerr << "[xg]: couldn't create temp file on base "
+             << base << " : " << tmpname << endl;
+        exit(1);
+    }
+    handler.filenames.insert(tmpname);
+    return tmpname;
+}
+
+std::string create() {
+    // No need to lock as we call this thing that locks
+    return create("xg-");
+}
+
+void remove(const std::string& filename) {
+    std::lock_guard<recursive_mutex> lock(monitor);
+    
+    std::remove(filename.c_str());
+    handler.filenames.erase(filename);
+}
+
+void set_dir(const std::string& new_temp_dir) {
+    std::lock_guard<recursive_mutex> lock(monitor);
+    
+    temp_dir = new_temp_dir;
+}
+
+std::string get_dir() {
+    std::lock_guard<recursive_mutex> lock(monitor);
+
+    // Get the default temp dir from environment variables.
+    if (temp_dir.empty()) {
+        const char* system_temp_dir = nullptr;
+        for(const char* var_name : {"TMPDIR", "TMP", "TEMP", "TEMPDIR", "USERPROFILE"}) {
+            if (system_temp_dir == nullptr) {
+                system_temp_dir = getenv(var_name);
+            }
+        }
+        temp_dir = (system_temp_dir == nullptr ? "/tmp" : system_temp_dir);
+    }
+
+    return temp_dir;
+}
+
 }
 
 }

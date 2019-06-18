@@ -54,7 +54,8 @@ int main(int argc, char** argv) {
         std::ifstream in(args::get(xg_in));
         graph.load(in);
     } else if (!args::get(gfa_in).empty()) {
-        graph.from_gfa(args::get(gfa_in), args::get(validate));
+        graph.from_gfa(args::get(gfa_in), args::get(validate),
+                       args::get(base).empty() ? args::get(gfa_in) : args::get(base));
     }
 
     if (!args::get(xg_out).empty()) {
