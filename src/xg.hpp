@@ -393,6 +393,7 @@ public:
     edge_t edge_from_encoding(const nid_t& from, const nid_t& to, int type) const;
     size_t edge_graph_idx(const handle_t& from, const handle_t& to) const;
     size_t get_g_iv_size(void) const;
+    size_t sequence_bit_size(void) const;
 
     char start_marker = '#';
     char end_marker = '$';
