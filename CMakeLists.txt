@@ -121,6 +121,7 @@ set(CMAKE_BUILD_TYPE Release)
 
 add_library(xg_objs OBJECT src/xg.cpp)
 
+add_dependencies(xg_objs handlegraph)
 add_dependencies(xg_objs sdsl-lite)
 add_dependencies(xg_objs mmmultimap)
 add_dependencies(xg_objs tayweeargs)
