@@ -1253,10 +1253,6 @@ size_t XG::get_g_iv_size(void) const {
     return g_iv.size();
 }
 
-size_t XG::sequence_bit_size(void) const {
-    return s_iv.bit_size();
-}
-
 size_t XG::id_to_rank(const nid_t& id) const {
     size_t x = id-min_id;
     if (x < 0 || x >= r_iv.size()) return 0;
