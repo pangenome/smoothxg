@@ -587,7 +587,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
             edge_from_to_mm.append(as_integer(from_handle), as_integer(to_handle));
             edge_to_from_mm.append(as_integer(to_handle), as_integer(from_handle));
         });
-    handle_t max_handle = number_bool_packing::pack(max_id, true);
+    handle_t max_handle = number_bool_packing::pack(r_iv.size(), true);
     edge_from_to_mm.index(as_integer(max_handle));
     edge_to_from_mm.index(as_integer(max_handle));
 
