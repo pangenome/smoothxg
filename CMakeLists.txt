@@ -77,7 +77,7 @@ set(sdsl-lite-divsufsort_LIB "${INSTALL_DIR}/src/sdsl-lite-build/external/libdiv
 # mmmultimap (memory mapped multimap)
 ExternalProject_Add(mmmultimap
   GIT_REPOSITORY "https://github.com/ekg/mmmultimap.git"
-  GIT_TAG "8a76cec0b819de6e2b855f4edc29993f75b1b26b"
+  GIT_TAG "b92a5c8826141d61413546278719724e0f612c39"
   BUILD_COMMAND ""
   UPDATE_COMMAND ""
   INSTALL_COMMAND "")
@@ -109,8 +109,8 @@ set(gfakluge_tinyFA_INCLUDE "${INSTALL_DIR}/src/gfakluge/src/tinyFA")
 
 # In-place Parallel Super Scalar Samplesort (IPS⁴o), header only
 ExternalProject_Add(ips4o
-  GIT_REPOSITORY "https://github.com/SaschaWitt/ips4o.git"
-  GIT_TAG "bff3ccf0bf349497f2bb10f825d160b792236367"
+  GIT_REPOSITORY "https://github.com/vgteam/ips4o.git"
+  GIT_TAG "22069381cc1bf2df07ee1ff47f6b6073fcfb4508"
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
   CONFIGURE_COMMAND "")
