@@ -11,7 +11,7 @@
 
 #include "gfakluge.hpp"
 
-#define VERBOSE_DEBUG
+//#define VERBOSE_DEBUG
 //#define debug_algorithms
 //#define debug_component_index
 
@@ -383,31 +383,31 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
     // set up our enumerators
     auto for_each_sequence = [&](const std::function<void(const std::string& seq, const nid_t& node_id)>& lambda) {
         gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
-                nid_t node_id = std::stol(s.name);
-                lambda(s.sequence, node_id);
-            });
+            nid_t node_id = std::stol(s.name);
+            lambda(s.sequence, node_id);
+        });
     };
     auto for_each_edge = [&](const std::function<void(const nid_t& from_id, const bool& from_rev,
                                                       const nid_t& to_id, const bool& to_rev)>& lambda) {
         gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
-                if (e.source_name.empty()) return;
-                nid_t from_id = std::stol(e.source_name);
-                bool from_rev = !e.source_orientation_forward;
-                nid_t to_id = std::stol(e.sink_name);
-                bool to_rev = !e.sink_orientation_forward;
-                lambda(from_id, from_rev, to_id, to_rev);
-            });
+            if (e.source_name.empty()) return;
+            nid_t from_id = std::stol(e.source_name);
+            bool from_rev = !e.source_orientation_forward;
+            nid_t to_id = std::stol(e.sink_name);
+            bool to_rev = !e.sink_orientation_forward;
+            lambda(from_id, from_rev, to_id, to_rev);
+        });
     };
     auto for_each_path_element = [&](const std::function<void(const std::string& path_name,
                                                               const nid_t& node_id, const bool& is_rev,
                                                               const std::string& cigar)>& lambda) {
         gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name_raw, const std::string& node_id_str,
                                                         bool is_rev, const std::string& cigar) {
-                nid_t node_id = std::stol(node_id_str);
-                std::string path_name = path_name_raw;
-                path_name.erase(std::remove_if(path_name.begin(), path_name.end(), [](char c) { return std::isspace(c); }), path_name.end());
-                lambda(path_name, node_id, is_rev, cigar);
-            });
+            nid_t node_id = std::stol(node_id_str);
+            std::string path_name = path_name_raw;
+            path_name.erase(std::remove_if(path_name.begin(), path_name.end(), [](char c) { return std::isspace(c); }), path_name.end());
+            lambda(path_name, node_id, is_rev, cigar);
+        });
     };
     from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, validate, basename);
 }
@@ -587,7 +587,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
             edge_from_to_mm.append(as_integer(from_handle), as_integer(to_handle));
             edge_to_from_mm.append(as_integer(to_handle), as_integer(from_handle));
         });
-    handle_t max_handle = number_bool_packing::pack(max_id, true);
+    handle_t max_handle = number_bool_packing::pack(r_iv.size(), true);
     edge_from_to_mm.index(as_integer(max_handle));
     edge_to_from_mm.index(as_integer(max_handle));
 
