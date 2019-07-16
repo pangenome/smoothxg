@@ -270,14 +270,14 @@ handle_t XGPath::handle(size_t offset) const {
 }
     
 handle_t XGPath::handle_at_position(size_t pos) const {
-    return handle(offset_at_position(pos));
+    return handle(step_rank_at_position(pos));
 }
 
 size_t XGPath::handle_start(size_t offset) const {
     return offsets_select(offset+1);
 }
 
-size_t XGPath::offset_at_position(size_t pos) const {
+size_t XGPath::step_rank_at_position(size_t pos) const {
     return offsets_rank(pos+1)-1;
 }
 
@@ -612,7 +612,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         //std::cerr << "id " << id << std::endl;
         g_bv[g] = 1; // mark record start for later query
         g_iv[g++] = id;
-        g_iv[g++] = node_start(id);
+        g_iv[g++] = node_vector_offset(id);
         g_iv[g++] = temp_node_size(id);
         size_t to_edge_count = 0;
         size_t from_edge_count = 0;
@@ -1219,12 +1219,12 @@ edge_t XG::edge_from_encoding(const nid_t& from, const nid_t& to, int type) cons
     return make_pair(get_handle(from, from_rev), get_handle(to, to_rev));
 }
 
-size_t XG::edge_graph_idx(const handle_t& _from, const handle_t& _to) const {
-    handle_t from_handle = _from;
-    handle_t to_handle = _to;
-    if (get_is_reverse(_from) && get_is_reverse(_to)) {
-        from_handle = flip(_to);
-        to_handle = flip(_from);
+size_t XG::edge_index(const edge_t& edge) const {
+    handle_t from_handle = edge.first;
+    handle_t to_handle = edge.second;
+    if (get_is_reverse(from_handle) && get_is_reverse(to_handle)) {
+        from_handle = flip(from_handle);
+        to_handle = flip(to_handle);
     }
     nid_t id = get_id(from_handle);
     size_t g = g_bv_select(id_to_rank(id));
@@ -1696,6 +1696,21 @@ bool XG::for_each_step_position_on_handle(const handle_t& handle, const std::fun
     return true;
 }
 
+/// Gets the position of a given step in the path it's from
+size_t XG::get_position_of_step(const step_handle_t& step) const {
+    const auto& xgpath = *paths[as_integer(get_path_handle_of_step(step)) - 1];
+    return xgpath.handle_start(as_integers(step)[1]);
+}
+
+/// Get the step at a given position
+step_handle_t XG::get_step_at_position(const path_handle_t& path, const size_t& position) const {
+    const auto& xgpath = *paths[as_integer(path) - 1];
+    step_handle_t step;
+    as_integers(step)[0] = as_integer(path);
+    as_integers(step)[1] = xgpath.step_rank_at_position(position);
+    return step;
+}
+
 size_t XG::get_node_count() const {
     return this->node_count;
 }
@@ -1712,11 +1727,11 @@ size_t XG::max_node_rank(void) const {
     return s_bv_rank(s_bv.size());
 }
 
-int64_t XG::node_at_seq_pos(const size_t& pos) const {
-    return rank_to_id(s_bv_rank(pos));
+nid_t XG::node_at_vector_offset(const size_t& offset) const {
+    return rank_to_id(s_bv_rank(offset));
 }
 
-size_t XG::node_start(const nid_t& id) const {
+size_t XG::node_vector_offset(const nid_t& id) const {
     return s_bv_select(id_to_rank(id));
 }
 
@@ -1934,7 +1949,7 @@ pos_t XG::graph_pos_at_path_position(const path_handle_t& path_handle, size_t pa
     auto& path = *paths[as_integer(path_handle)];
     //handle_t path.handle_at_position(path_pos);
     // what's the path offset in the path?
-    size_t x = path.offset_at_position(path_pos);
+    size_t x = path.step_rank_at_position(path_pos);
     handle_t handle = path.handle(x);
     return make_pos_t(get_id(handle), get_is_reverse(handle), path_pos - path.handle_start(x));
 }

@@ -52,7 +52,7 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 # libhandlegraph (full build using its cmake config)
 ExternalProject_Add(handlegraph
   GIT_REPOSITORY "https://github.com/vgteam/libhandlegraph.git"
-  GIT_TAG "5756a2cd1819917559b2a421d5bb99ff30c9b061"
+  GIT_TAG "708002425b335198fcc7cdda5608604a73602f3c"
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR}
   #BUILD_COMMAND ""
   UPDATE_COMMAND ""

@@ -176,7 +176,7 @@ class XGFormatError : public std::runtime_error {
  * Provides succinct storage for a graph, its positional paths, and a set of
  * embedded threads.
  */
-class XG : public PathPositionHandleGraph, public SerializableHandleGraph {
+class XG : public PathPositionHandleGraph, public SerializableHandleGraph, public VectorizableHandleGraph {
 public:
     
     ////////////////////////////////////////////////////////////////////////////
@@ -348,6 +348,10 @@ public:
     bool for_each_step_on_handle_impl(const handle_t& handle, const std::function<bool(const step_handle_t&)>& iteratee) const;
     /// Unpack the path position and orientation information alongside the steps
     bool for_each_step_position_on_handle(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const;
+    /// Gets the position of a given step in the path it's from
+    size_t get_position_of_step(const step_handle_t& step) const;
+    /// Get the step at a given position
+    step_handle_t get_step_at_position(const path_handle_t& path, const size_t& position) const;
     
     ////////////////////////////////////////////////////////////////////////////
     // Higher-level graph API
@@ -360,7 +364,8 @@ public:
     nid_t rank_to_id(const size_t& rank) const;
     size_t max_node_rank(void) const;
     int64_t node_at_seq_pos(const size_t& pos) const;
-    size_t node_start(const nid_t& id) const;
+    size_t node_vector_offset(const nid_t& id) const;
+    nid_t node_at_vector_offset(const size_t& offset) const;
     size_t max_path_rank(void) const;
     size_t node_graph_idx(const nid_t& id) const;
     const XGPath& get_path(const std::string& name) const;
@@ -385,7 +390,7 @@ public:
     char pos_char(nid_t id, bool is_rev, size_t off) const;
     std::string pos_substr(nid_t id, bool is_rev, size_t off, size_t len) const;
     edge_t edge_from_encoding(const nid_t& from, const nid_t& to, int type) const;
-    size_t edge_graph_idx(const handle_t& from, const handle_t& to) const;
+    size_t edge_index(const edge_t& edge) const;
     size_t get_g_iv_size(void) const;
 
     char start_marker = '#';
@@ -536,7 +541,7 @@ public:
     handle_t handle(size_t offset) const;
     handle_t handle_at_position(size_t pos) const;
     size_t handle_start(size_t offset) const;
-    size_t offset_at_position(size_t pos) const;
+    size_t step_rank_at_position(size_t pos) const;
 };
 
 /**
