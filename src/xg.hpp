@@ -215,11 +215,9 @@ public:
 
     // Use an existing handle graph to build the index
     //void from_path_handle_graph(const PathHandleGraph& other);
-               
-    // What's the maximum XG version number we can read with this code?
-    const static uint32_t MAX_INPUT_VERSION = 11;
-    // What's the version we serialize?
-    const static uint32_t OUTPUT_VERSION = 11;
+    
+    // What version of an XG is this designed to read?
+    const static uint32_t CURRENT_VERSION = 13;
                
     // Load this XG index from a stream. Throw an XGFormatError if the stream
     // does not produce a valid XG file.
@@ -452,6 +450,10 @@ private:
     bool do_edges(const size_t& g, const size_t& start, const size_t& count,
                   bool is_to, bool want_left, bool is_reverse, const std::function<bool(const handle_t&)>& iteratee) const;
     
+    // Use memmapped indexing to construct the node-to-path indexes once
+    // XGPath's have been created (used during construction)
+    void index_node_to_path(const std::string& basename);
+    
     ////////////////////////////////////////////////////////////////////////////
     // Here are the bits we need to keep around to talk about the sequence
     ////////////////////////////////////////////////////////////////////////////
@@ -497,8 +499,6 @@ private:
     sdsl::bit_vector np_bv; // entity delimiters in both vectors
     //sdsl::rank_support_v<1> np_bv_rank;
     sdsl::bit_vector::select_1_type np_bv_select;
-
-    
 };
 
 class XGPath {
@@ -529,6 +529,7 @@ public:
     sdsl::rrr_vector<>::select_1_type offsets_select;
     bool is_circular = false;
     void load(std::istream& in);
+    void load_from_old_version(std::istream& in, uint32_t file_version, const XG& graph);
     size_t serialize(std::ostream& out,
                      sdsl::structure_tree_node* v = NULL,
                      std::string name = "") const;
