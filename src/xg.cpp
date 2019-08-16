@@ -93,10 +93,10 @@ void XG::load(std::istream& in) {
         in.unget();
     }
     
-    if (file_version > MAX_INPUT_VERSION) {
+    if (file_version > CURRENT_VERSION) {
         // This XG file is from the distant future.
         throw XGFormatError("XG index file version " + std::to_string(file_version) +
-                            " is too new to interpret (max version = " + std::to_string(MAX_INPUT_VERSION) + ")");
+                            " is too new to interpret (max version = " + std::to_string(CURRENT_VERSION) + ")");
     }
     
     try {
@@ -106,7 +106,6 @@ void XG::load(std::istream& in) {
         // 1. Increment OUTPUT_VERSION to a new integer.
         // 2. Change the serialization code.
         // 3. Add a new case here (or enhance an existing case) with new deserialization code.
-        // 4. Up MAX_INPUT_VERSION to allow your new version to be read.
         ////////////////////////////////////////////////////////////////////////
         switch (file_version) {
         
@@ -116,10 +115,12 @@ void XG::load(std::istream& in) {
         case 8:
         case 9:
         case 10:
+        case 11:
+        case 12:
             std::cerr << "warning:[XG] Loading an out-of-date XG format."
                       << "For better performance over repeated loads, consider recreating this XG index." << std::endl;
             // Fall through
-        case 11:
+        case 13:
             {
                 sdsl::read_member(seq_length, in);
                 sdsl::read_member(node_count, in);
@@ -147,6 +148,45 @@ void XG::load(std::istream& in) {
                 s_bv_rank.load(in, &s_bv);
                 s_bv_select.load(in, &s_bv);
 
+                if (file_version <= 11) {
+                    // Skip over gPBWT thread names
+                    {
+                        sdsl::csa_bitcompressed<> tn_csa;
+                        tn_csa.load(in);
+                    }
+                    {
+                        sdsl::sd_vector<> tn_cbv;
+                        tn_cbv.load(in);
+                        sdsl::sd_vector<>::rank_1_type tn_cbv_rank;
+                        tn_cbv_rank.load(in, &tn_cbv);
+                        sdsl::sd_vector<>::select_1_type tn_cbv_select;
+                        tn_cbv_select.load(in, &tn_cbv);
+                    }
+                }
+                
+                if (file_version >= 7 && file_version <= 11) {
+                    // There is a single haplotype count here for all components
+                    // We ignore this part of the gPBWT
+                    size_t haplotype_count;
+                    sdsl::read_member(haplotype_count, in);
+                }
+                
+                if (file_version <= 11) {
+                    // Skip thread positions in gPBWT
+                    {
+                        sdsl::vlc_vector<> tin_civ;
+                        tin_civ.load(in);
+                    }
+                    {
+                        sdsl::vlc_vector<> tio_civ;
+                        tio_civ.load(in);
+                    }
+                    {
+                        sdsl::wt_int<> side_thread_wt;
+                        side_thread_wt.load(in);
+                    }
+                }
+                
                 pn_iv.load(in);
                 pn_csa.load(in);
                 pn_bv.load(in);
@@ -159,14 +199,74 @@ void XG::load(std::istream& in) {
                     // Load the path, giving it the file version and a
                     // rank-to-ID comversion function for format upgrade
                     // purposes.
-                    path->load(in);
+                    if (file_version <= 12) {
+                        path->load_from_old_version(in, file_version, *this);
+                    }
+                    else {
+                        path->load(in);
+                    }
                     paths.push_back(path);
                 }
-                np_bv.load(in);
-                np_bv_select.load(in, &np_bv);
-                np_iv.load(in);
-                nr_iv.load(in);
-                nx_iv.load(in);
+                
+                if (file_version <= 12) {
+                    // skip over the old node-to-path indexes
+                    {
+                        sdsl::int_vector<> old_np_iv;
+                        old_np_iv.load(in);
+                    }
+                    {
+                        sdsl::bit_vector old_np_bv;
+                        old_np_bv.load(in);
+                        sdsl::rank_support_v<1> old_np_bv_rank;
+                        old_np_bv_rank.load(in, &np_bv);
+                        sdsl::bit_vector::select_1_type old_np_bv_select;
+                        old_np_bv_select.load(in, &np_bv);
+                    }
+                    
+                    // create the new node-to-path indexes
+                    index_node_to_path(temp_file::create());
+                }
+                else {
+                    // we're in the more recent encoding, so we can load
+                    // the node-to-path indexes directly
+                    
+                    np_bv.load(in);
+                    np_bv_select.load(in, &np_bv);
+                    np_iv.load(in);
+                    nr_iv.load(in);
+                    nx_iv.load(in);
+                }
+                
+                if (file_version >= 6 && file_version <= 10) {
+                    // load and ignore the component path set indexes (which have
+                    // now been exported)
+                    {
+                        sdsl::int_vector<> path_ranks_iv;
+                        path_ranks_iv.load(in);
+                    }
+                    {
+                        sdsl::bit_vector path_ranks_bv;
+                        path_ranks_bv.load(in);
+                    }
+                }
+                
+                if (file_version <= 11) {
+                    // load and ignore the gPBWT entity vectors
+                    {
+                        sdsl::vlc_vector<> h_civ;
+                        h_civ.load(in);
+                    }
+                    // and the thread starts
+                    {
+                        sdsl::vlc_vector<> ts_civ;
+                        ts_civ.load(in);
+                    }
+                    // and the B arrays
+                    {
+                        sdsl::wt_rlmn<sdsl::sd_vector<>> bs_single_array;
+                        bs_single_array.load(in);
+                    }
+                }
             }
             break;
         default:
@@ -183,7 +283,6 @@ void XG::load(std::istream& in) {
         std::cerr << "error [xg]: Unexpected error parsing XG data. Is it in version " << file_version << " XG format?" << std::endl;
         throw e;
     }
-
 }
 
 void XGPath::load(std::istream& in) {
@@ -193,6 +292,82 @@ void XGPath::load(std::istream& in) {
     offsets_rank.load(in, &offsets);
     offsets_select.load(in, &offsets);
     sdsl::read_member(is_circular, in);    
+}
+
+void XGPath::load_from_old_version(std::istream& in, uint32_t file_version, const XG& graph) {
+    
+    if (file_version < 8) {
+        // skip over some members from early versions
+        {
+            sdsl::rrr_vector<> nodes;
+            nodes.load(in);
+        }
+        {
+            sdsl::rrr_vector<>::rank_1_type nodes_rank;
+            nodes_rank.load(in);
+        }
+        {
+            sdsl::rrr_vector<>::select_1_type nodes_select;
+            nodes_select.load(in);
+        }
+    }
+    
+    // convert the old ID and direction vectors into the handles vector
+    {
+        // first make an int vector of handles
+        sdsl::int_vector<> handles_iv;
+        {
+            int64_t id_offset = 0;
+            if (file_version >= 8) {
+                // IDs are stored relative to a minimum offset
+                sdsl::read_member(id_offset, in);
+            }
+            
+            sdsl::wt_gmr<> ids;
+            ids.load(in);
+            
+            sdsl::sd_vector<> directions;
+            directions.load(in);
+            // compute the minimum handle
+            min_handle = handlegraph::as_handle(numeric_limits<int64_t>::max());
+            for (size_t i = 0; i < ids.size(); ++i) {
+                min_handle = as_handle(min(as_integer(min_handle),
+                                           as_integer(graph.get_handle(ids[i] + id_offset - 1, directions[i]))));
+            }
+            // convert the vector into a handle-based one with a min handle offset
+            sdsl::util::assign(handles_iv, sdsl::int_vector<>(ids.size()));
+            for (size_t i = 0; i < ids.size(); ++i) {
+                handles_iv[i] = as_integer(graph.get_handle(ids[i] + id_offset - 1, directions[i])) - as_integer(min_handle);
+            }
+        }
+        
+        // re-encode the handles int vector with a variable-length encoding
+        sdsl::util::assign(handles, sdsl::enc_vector<>(handles_iv));
+    }
+    
+    // skip the rank and position vectors
+    {
+        sdsl::int_vector<> ranks;
+        ranks.load(in);
+    }
+    {
+        sdsl::int_vector<> positions;
+        positions.load(in);
+    }
+    
+    // the offsets vectors have the same encoding
+    offsets.load(in);
+    offsets_rank.load(in, &offsets);
+    offsets_select.load(in, &offsets);
+    
+    if (file_version >= 10) {
+        // there is support for circular paths in this version
+        sdsl::read_member(is_circular, in);
+    }
+    else {
+        // previous versions are interpreted as not circular
+        is_circular = false;
+    }
 }
 
 size_t XGPath::serialize(std::ostream& out,
@@ -248,7 +423,6 @@ XGPath::XGPath(const std::string& path_name,
     sdsl::bit_vector offsets_bv;
     sdsl::util::assign(offsets_bv, sdsl::bit_vector(path_length));
 
-    std::set<int64_t> uniq_nodes;
     //cerr << "path " << path_name << " has " << path.size() << endl;
     for (size_t i = 0; i < path.size(); ++i) {
         //cerr << i << endl;
@@ -311,16 +485,15 @@ size_t XG::serialize_and_measure(ostream& out, sdsl::structure_tree_node* s, std
     written += 2;
     
     // And the version number
-    int32_t version_buffer = htonl(OUTPUT_VERSION);
+    int32_t version_buffer = htonl(CURRENT_VERSION);
     out.write((char*) &version_buffer, sizeof(version_buffer));
     written += sizeof(version_buffer) / sizeof(char);
     
     ////////////////////////////////////////////////////////////////////////
     // DO NOT CHANGE THIS CODE without creating a new XG version:
-    // 1. Increment OUTPUT_VERSION to a new integer.
+    // 1. Increment CURRENT_VERSION to a new integer.
     // 2. Add your new serialization code.
     // 3. Add a new case for your new version to XG::load()
-    // 4. Up MAX_INPUT_VERSION to allow your new version to be read.
     ////////////////////////////////////////////////////////////////////////
 
     written += sdsl::write_member(s_iv.size(), out, child, "sequence_length");
@@ -754,103 +927,8 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     cerr << "computing node to path membership" << endl;
 #endif
     
-    // node -> paths
-    // use the mmmultimap...
-    std::string node_path_idx = basename + ".node_path.mm";
-    mmmulti::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> node_path_mm(node_path_idx);
-    uint64_t path_step_count = 0;
-    // for each path...
-    // could be done in parallel
-    for (size_t i = 1; i <= paths.size(); ++i) {
-        // Go through paths by number, so we can determine rank
-        path_handle_t path_handle = as_path_handle(i);
-        const XGPath& path = *paths[i-1];
-        uint64_t pos = 0;
-#ifdef VERBOSE_DEBUG
-        if (i % 100 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
-#endif
-        for (size_t j = 0; j < path.handles.size(); ++j) {
-            handle_t handle = path.handle(j);
-            uint64_t handle_length = get_length(handle);
-            bool is_rev = number_bool_packing::unpack_bit(handle);
-            // and record the relative orientation by packing it into the position
-            uint64_t path_and_rev = as_integer(number_bool_packing::pack(as_integer(path_handle), is_rev));
-            // determine the path relative position on the forward strand
-            uint64_t adj_pos = is_rev ? pos + handle_length - 1: pos;
-            node_path_mm.append(id_to_rank(get_id(handle)),
-                                std::make_tuple(path_and_rev, j, adj_pos));
-            ++path_step_count;
-            pos += handle_length;
-        }
-    }
-#ifdef VERBOSE_DEBUG
-    std::cerr << path_count << " of " << path_count << " ~ 100.0000%" << std::endl;
-#endif
-    node_path_mm.index(node_count+1);
-
-#ifdef VERBOSE_DEBUG
-    std::cerr << "determining size of node to path position mappings" << std::endl;
-#endif
-    uint64_t np_size = 0;
-    for (int64_t i = 0; i < node_count; ++i) {
-#ifdef VERBOSE_DEBUG
-        if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
-#endif
-        uint64_t has_steps = false;
-        node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
-                ++np_size;
-                has_steps = true;
-            });
-        if (!has_steps) ++np_size; // skip over null entry
-    }
-#ifdef VERBOSE_DEBUG
-    std::cerr << node_count << " of " << node_count << " ~ 100.0000%" << std::endl;
-#endif
-    sdsl::util::assign(np_iv, sdsl::int_vector<>(np_size));
-    sdsl::util::assign(nr_iv, sdsl::int_vector<>(np_size));
-    sdsl::util::assign(nx_iv, sdsl::int_vector<>(np_size));
-    sdsl::util::assign(np_bv, sdsl::bit_vector(np_size));
-    // now we need to map this into a new data structure for node->path position mappings
-#ifdef VERBOSE_DEBUG
-    std::cerr << "recording node to path position mappings" << std::endl;
-#endif
-    uint64_t np_offset = 0;
-    for (int64_t i = 0; i < node_count; ++i) {
-#ifdef VERBOSE_DEBUG
-        if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
-#endif
-        np_bv[np_offset] = 1; // mark node start
-        //uint64_t idx = number_bool_packing::pack(i, false)+1;
-        uint64_t has_steps = false;
-        node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
-                np_iv[np_offset] = std::get<0>(v); // packed path and rev
-                nr_iv[np_offset] = std::get<1>(v); // rank of step in path
-                nx_iv[np_offset] = std::get<2>(v); // offset from path start on forward handle
-                ++np_offset;
-                has_steps = true;
-            });
-        if (!has_steps) ++np_offset; // skip over null entry
-    }
-
-    /*
-    std::cerr << std::endl;
-    std::cerr << "np_bv ";
-    for (uint64_t i = 0; i < np_bv.size(); ++i) std:cerr << np_bv[i] << " ";
-    std::cerr << std::endl;
-    std::cerr << "np_iv " << np_iv << std::endl;
-    std::cerr << "nr_iv " << nr_iv << std::endl;
-    std::cerr << "nx_iv " << nx_iv << std::endl;
-    */
-
-#ifdef VERBOSE_DEBUG
-    std::cerr << node_count << " of " << node_count << " ~ 100.0000%" << std::endl;
-#endif
-    std::remove(node_path_idx.c_str());
-    // TODO, evaluate if these should be compressed more intensely
-    sdsl::util::bit_compress(np_iv);
-    sdsl::util::bit_compress(nr_iv);
-    sdsl::util::bit_compress(nx_iv);
-    sdsl::util::assign(np_bv_select, sdsl::bit_vector::select_1_type(&np_bv));
+    // create the node-to-path indexes
+    index_node_to_path(basename);
 
     // validate the graph
     if (validate) {
@@ -1099,6 +1177,107 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         
     }
 
+}
+
+void XG::index_node_to_path(const std::string& basename) {
+    
+    // node -> paths
+    // use the mmmultimap...
+    std::string node_path_idx = basename + ".node_path.mm";
+    mmmulti::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> node_path_mm(node_path_idx);
+    uint64_t path_step_count = 0;
+    // for each path...
+    // could be done in parallel
+    for (size_t i = 1; i <= paths.size(); ++i) {
+        // Go through paths by number, so we can determine rank
+        path_handle_t path_handle = as_path_handle(i);
+        const XGPath& path = *paths[i-1];
+        uint64_t pos = 0;
+#ifdef VERBOSE_DEBUG
+        if (i % 100 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
+#endif
+        for (size_t j = 0; j < path.handles.size(); ++j) {
+            handle_t handle = path.handle(j);
+            uint64_t handle_length = get_length(handle);
+            bool is_rev = number_bool_packing::unpack_bit(handle);
+            // and record the relative orientation by packing it into the position
+            uint64_t path_and_rev = as_integer(number_bool_packing::pack(as_integer(path_handle), is_rev));
+            // determine the path relative position on the forward strand
+            uint64_t adj_pos = is_rev ? pos + handle_length - 1: pos;
+            node_path_mm.append(id_to_rank(get_id(handle)),
+                                std::make_tuple(path_and_rev, j, adj_pos));
+            ++path_step_count;
+            pos += handle_length;
+        }
+    }
+#ifdef VERBOSE_DEBUG
+    std::cerr << path_count << " of " << path_count << " ~ 100.0000%" << std::endl;
+#endif
+    node_path_mm.index(node_count+1);
+    
+#ifdef VERBOSE_DEBUG
+    std::cerr << "determining size of node to path position mappings" << std::endl;
+#endif
+    uint64_t np_size = 0;
+    for (int64_t i = 0; i < node_count; ++i) {
+#ifdef VERBOSE_DEBUG
+        if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
+#endif
+        uint64_t has_steps = false;
+        node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
+            ++np_size;
+            has_steps = true;
+        });
+        if (!has_steps) ++np_size; // skip over null entry
+    }
+#ifdef VERBOSE_DEBUG
+    std::cerr << node_count << " of " << node_count << " ~ 100.0000%" << std::endl;
+#endif
+    sdsl::util::assign(np_iv, sdsl::int_vector<>(np_size));
+    sdsl::util::assign(nr_iv, sdsl::int_vector<>(np_size));
+    sdsl::util::assign(nx_iv, sdsl::int_vector<>(np_size));
+    sdsl::util::assign(np_bv, sdsl::bit_vector(np_size));
+    // now we need to map this into a new data structure for node->path position mappings
+#ifdef VERBOSE_DEBUG
+    std::cerr << "recording node to path position mappings" << std::endl;
+#endif
+    uint64_t np_offset = 0;
+    for (int64_t i = 0; i < node_count; ++i) {
+#ifdef VERBOSE_DEBUG
+        if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
+#endif
+        np_bv[np_offset] = 1; // mark node start
+        //uint64_t idx = number_bool_packing::pack(i, false)+1;
+        uint64_t has_steps = false;
+        node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
+            np_iv[np_offset] = std::get<0>(v); // packed path and rev
+            nr_iv[np_offset] = std::get<1>(v); // rank of step in path
+            nx_iv[np_offset] = std::get<2>(v); // offset from path start on forward handle
+            ++np_offset;
+            has_steps = true;
+        });
+        if (!has_steps) ++np_offset; // skip over null entry
+    }
+    
+    /*
+     std::cerr << std::endl;
+     std::cerr << "np_bv ";
+     for (uint64_t i = 0; i < np_bv.size(); ++i) std:cerr << np_bv[i] << " ";
+     std::cerr << std::endl;
+     std::cerr << "np_iv " << np_iv << std::endl;
+     std::cerr << "nr_iv " << nr_iv << std::endl;
+     std::cerr << "nx_iv " << nx_iv << std::endl;
+     */
+    
+#ifdef VERBOSE_DEBUG
+    std::cerr << node_count << " of " << node_count << " ~ 100.0000%" << std::endl;
+#endif
+    std::remove(node_path_idx.c_str());
+    // TODO, evaluate if these should be compressed more intensely
+    sdsl::util::bit_compress(np_iv);
+    sdsl::util::bit_compress(nr_iv);
+    sdsl::util::bit_compress(nx_iv);
+    sdsl::util::assign(np_bv_select, sdsl::bit_vector::select_1_type(&np_bv));
 }
 
 void XG::to_gfa(std::ostream& out) const {
