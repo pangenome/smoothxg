@@ -1208,7 +1208,7 @@ void XG::index_node_to_path(const std::string& basename) {
         const XGPath& path = *paths[i-1];
         uint64_t pos = 0;
 #ifdef VERBOSE_DEBUG
-        if (i % 100 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
+        if (i % 100 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)i/(float)path_count * 100 << "%" << "\r";
 #endif
         for (size_t j = 0; j < path.handles.size(); ++j) {
             handle_t handle = path.handle(j);
