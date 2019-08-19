@@ -630,7 +630,7 @@ void XG::from_path_handle_graph(const PathHandleGraph& graph) {
                                                               const nid_t& node_id, const bool& is_rev,
                                                               const std::string& cigar, bool is_empty)>& lambda) {
         graph.for_each_path_handle([&](const path_handle_t& path_handle) {
-                std::string path_name = get_path_name(path_handle);
+                std::string path_name = graph.get_path_name(path_handle);
                 size_t step_count = 0;
                 graph.for_each_step_in_path(path_handle, [&](const step_handle_t& step) {
                         handle_t handle = graph.get_handle_of_step(step);
@@ -1208,7 +1208,7 @@ void XG::index_node_to_path(const std::string& basename) {
         const XGPath& path = *paths[i-1];
         uint64_t pos = 0;
 #ifdef VERBOSE_DEBUG
-        if (i % 100 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
+        if (i % 100 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)i/(float)path_count * 100 << "%" << "\r";
 #endif
         for (size_t j = 0; j < path.handles.size(); ++j) {
             handle_t handle = path.handle(j);
