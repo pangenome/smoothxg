@@ -205,8 +205,8 @@ public:
                                                                             const nid_t& to, const bool& to_rev)>&)>& for_each_edge,
                           const std::function<void(const std::function<void(const std::string& path_name,
                                                                             const nid_t& node_id, const bool& is_rev,
-                                                                            const std::string& cigar, bool is_empty,
-                                                                            bool is_circular)>&)>& for_each_path_element,
+                                                                            const std::string& cigar, const bool& is_empty,
+                                                                            const bool& is_circular)>&)>& for_each_path_element,
                           bool validate = false, std::string basename = "");
 
     /// Use a memory-mapped GFA file to build the index in low memory

@@ -574,7 +574,7 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
     auto for_each_path_element = [&](const std::function<void(const std::string& path_name,
                                                               const nid_t& node_id, const bool& is_rev,
                                                               const std::string& cigar,
-                                                              bool is_empty, bool is_circular)>& lambda) {
+                                                              const bool& is_empty, const bool& is_circular)>& lambda) {
         gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name_raw, const std::string& node_id_str,
                                                         bool is_rev, const std::string& cigar,
                                                         bool is_empty, bool is_circular) {
@@ -605,7 +605,7 @@ void XG::from_handle_graph(const HandleGraph& graph) {
     };
     auto for_each_path_element = [&](const std::function<void(const std::string& path_name,
                                                               const nid_t& node_id, const bool& is_rev,
-                                                              const std::string& cigar, bool is_empty, bool is_circular)>& lambda) {
+                                                              const std::string& cigar, const bool& is_empty, const bool& is_circular)>& lambda) {
         // no-op
     };
     from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, false);
@@ -628,17 +628,18 @@ void XG::from_path_handle_graph(const PathHandleGraph& graph) {
     };
     auto for_each_path_element = [&](const std::function<void(const std::string& path_name,
                                                               const nid_t& node_id, const bool& is_rev,
-                                                              const std::string& cigar, bool is_empty, bool is_circular)>& lambda) {
+                                                              const std::string& cigar, const bool& is_empty, const bool& is_circular)>& lambda) {
         graph.for_each_path_handle([&](const path_handle_t& path_handle) {
                 std::string path_name = graph.get_path_name(path_handle);
                 size_t step_count = 0;
+                bool path_is_circular = graph.get_is_circular(path_handle);
                 graph.for_each_step_in_path(path_handle, [&](const step_handle_t& step) {
                         handle_t handle = graph.get_handle_of_step(step);
-                        lambda(path_name, graph.get_id(handle), graph.get_is_reverse(handle), "", false, graph.get_is_circular(path_handle));
+                        lambda(path_name, graph.get_id(handle), graph.get_is_reverse(handle), "", false, path_is_circular);
                         ++step_count;
                     });
                 if (step_count == 0) {
-                    lambda(path_name, 0, false, "", true, false);
+                    lambda(path_name, 0, false, "", true, path_is_circular);
                 }
             });
     };
@@ -650,8 +651,8 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
                                                                             const nid_t& to, const bool& to_rev)>&)>& for_each_edge,
                           const std::function<void(const std::function<void(const std::string& path_name,
                                                                             const nid_t& node_id, const bool& is_rev,
-                                                                            const std::string& cigar, bool is_empty,
-                                                                            bool is_circular)>&)>& for_each_path_element,
+                                                                            const std::string& cigar, const bool& is_empty,
+                                                                            const bool& is_circular)>&)>& for_each_path_element,
                           bool validate, std::string basename) {
 
     if (basename.empty()) {
@@ -686,7 +687,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
 #ifdef VERBOSE_DEBUG
     cerr << "counting paths" << endl;
 #endif
-    for_each_path_element([&](const std::string& path_name, const nid_t& node_id, const bool& is_rev, const std::string& cigar, bool is_empty, bool is_circular) {
+    for_each_path_element([&](const std::string& path_name, const nid_t& node_id, const bool& is_rev, const std::string& cigar, const bool& is_empty, const bool& is_circular) {
             if (path_name != pname) {
                 ++path_count;
             }
@@ -895,7 +896,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     // todo ... is it circular?
     // might make sense to scan the file for this
     bool has_path = false;
-    for_each_path_element([&](const std::string& path_name, const nid_t& node_id, const bool& is_rev, const std::string& cigar, bool is_empty, bool is_circular) {
+    for_each_path_element([&](const std::string& path_name, const nid_t& node_id, const bool& is_rev, const std::string& cigar, const bool& is_empty, const bool& is_circular) {
             if (path_name != curr_path_name && !curr_path_name.empty()) {
                 // build the last path we've accumulated
                 build_accumulated_path();
@@ -914,6 +915,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         build_accumulated_path();
     }
     curr_path_steps.clear();
+    curr_is_circular = false;
 #ifdef VERBOSE_DEBUG
     std::cerr << path_count << " of " << path_count << " ~ 100.0000%" << std::endl;
 #endif
@@ -1066,8 +1068,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
                 pos += get_length(handle);
             }
         };
-        for_each_path_element([&](const std::string& path_name, const nid_t& node_id, const bool& is_rev, const std::string& cigar, bool is_empty,
-                                  bool is_circular) {
+        for_each_path_element([&](const std::string& path_name, const nid_t& node_id, const bool& is_rev, const std::string& cigar, const bool& is_empty, const bool& is_circular) {
                 if (path_name != curr_path_name && !curr_path_name.empty()) {
                     // check the last path we've accumulated
                     check_accumulated_path();
