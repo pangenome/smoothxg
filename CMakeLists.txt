@@ -114,7 +114,7 @@ set(tayweeargs_INCLUDE "${SOURCE_DIR}")
 # gfakluge (header only)
 ExternalProject_Add(gfakluge
   GIT_REPOSITORY "https://github.com/vgteam/gfakluge.git"
-  GIT_TAG "99f70b0d832cfb3439568e2494efacd1079e6a09"
+  GIT_TAG "8011bca887354094774e4b01926093ab6bfdc702"
   BUILD_IN_SOURCE TRUE
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR} # TODO ADD static build flag
   UPDATE_COMMAND ""
