@@ -936,7 +936,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     sdsl::util::assign(pn_bv_select, sdsl::bit_vector::select_1_type(&pn_bv));
     
     // is this file removed by construct?
-    string path_name_file = temp_file::create() + "@pathnames.iv";
+    string path_name_file = basename + ".pathnames.iv";
     sdsl::store_to_file((const char*)path_names.c_str(), path_name_file);
     sdsl::construct(pn_csa, path_name_file, 1);
 
