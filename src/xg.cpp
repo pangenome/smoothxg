@@ -761,17 +761,17 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     // we use the mmmultimap here to reduce in-memory costs to a minimum
     std::string edge_f_t_idx = basename + ".from_to.mm";
     std::string edge_t_f_idx = basename + ".to_from.mm";
-    mmmulti::map<uint64_t, uint64_t> edge_from_to_mm(edge_f_t_idx);
-    mmmulti::map<uint64_t, uint64_t> edge_to_from_mm(edge_t_f_idx);
+    auto edge_from_to_mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(edge_f_t_idx);
+    auto edge_to_from_mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(edge_t_f_idx);
     for_each_edge([&](const nid_t& from_id, const bool& from_rev, const nid_t& to_id, const bool& to_rev) {
             handle_t from_handle = temp_get_handle(from_id, from_rev);
             handle_t to_handle = temp_get_handle(to_id, to_rev);
-            edge_from_to_mm.append(as_integer(from_handle), as_integer(to_handle));
-            edge_to_from_mm.append(as_integer(to_handle), as_integer(from_handle));
+            edge_from_to_mm->append(as_integer(from_handle), as_integer(to_handle));
+            edge_to_from_mm->append(as_integer(to_handle), as_integer(from_handle));
         });
     handle_t max_handle = number_bool_packing::pack(r_iv.size(), true);
-    edge_from_to_mm.index(as_integer(max_handle));
-    edge_to_from_mm.index(as_integer(max_handle));
+    edge_from_to_mm->index(as_integer(max_handle));
+    edge_to_from_mm->index(as_integer(max_handle));
 
     // calculate g_iv size
     size_t g_iv_size =
@@ -805,7 +805,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         for (auto orientation : { false, true }) {
             handle_t to = temp_get_handle(id, orientation);
             //std::cerr << "looking at to handle " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
-            edge_to_from_mm.for_unique_values_of(as_integer(to), [&](const uint64_t& _from) {
+            edge_to_from_mm->for_unique_values_of(as_integer(to), [&](const uint64_t& _from) {
                     handle_t from = as_handle(_from);
                     //std::cerr << "edge to " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from)
                     //<< " -> " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
@@ -818,7 +818,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         for (auto orientation : { false, true }) {
             handle_t from = temp_get_handle(id, orientation);
             //std::cerr << "looking at from handle " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from) << std::endl;
-            edge_from_to_mm.for_unique_values_of(as_integer(from), [&](const uint64_t& _to) {
+            edge_from_to_mm->for_unique_values_of(as_integer(from), [&](const uint64_t& _to) {
                     handle_t to = as_handle(_to);
                     //std::cerr << "edge from " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from)
                     //<< " -> " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
@@ -835,6 +835,8 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
 #endif
 
     // cleanup our mmmultimap
+    edge_from_to_mm.reset();
+    edge_to_from_mm.reset();
     std::remove(edge_f_t_idx.c_str());
     std::remove(edge_t_f_idx.c_str());
 
@@ -1203,7 +1205,7 @@ void XG::index_node_to_path(const std::string& basename) {
     // node -> paths
     // use the mmmultimap...
     std::string node_path_idx = basename + ".node_path.mm";
-    mmmulti::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> node_path_mm(node_path_idx);
+    auto node_path_mm = std::make_unique<mmmulti::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>>>(node_path_idx);
     uint64_t path_step_count = 0;
     // for each path...
     // could be done in parallel
@@ -1223,7 +1225,7 @@ void XG::index_node_to_path(const std::string& basename) {
             uint64_t path_and_rev = as_integer(number_bool_packing::pack(as_integer(path_handle), is_rev));
             // determine the path relative position on the forward strand
             uint64_t adj_pos = is_rev ? pos + handle_length - 1: pos;
-            node_path_mm.append(id_to_rank(get_id(handle)),
+            node_path_mm->append(id_to_rank(get_id(handle)),
                                 std::make_tuple(path_and_rev, j, adj_pos));
             ++path_step_count;
             pos += handle_length;
@@ -1232,7 +1234,7 @@ void XG::index_node_to_path(const std::string& basename) {
 #ifdef VERBOSE_DEBUG
     std::cerr << path_count << " of " << path_count << " ~ 100.0000%" << std::endl;
 #endif
-    node_path_mm.index(node_count+1);
+    node_path_mm->index(node_count+1);
     
 #ifdef VERBOSE_DEBUG
     std::cerr << "determining size of node to path position mappings" << std::endl;
@@ -1243,7 +1245,7 @@ void XG::index_node_to_path(const std::string& basename) {
         if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
 #endif
         uint64_t has_steps = false;
-        node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
+        node_path_mm->for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
             ++np_size;
             has_steps = true;
         });
@@ -1268,7 +1270,7 @@ void XG::index_node_to_path(const std::string& basename) {
         np_bv[np_offset] = 1; // mark node start
         //uint64_t idx = number_bool_packing::pack(i, false)+1;
         uint64_t has_steps = false;
-        node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
+        node_path_mm->for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
             np_iv[np_offset] = std::get<0>(v); // packed path and rev
             nr_iv[np_offset] = std::get<1>(v); // rank of step in path
             nx_iv[np_offset] = std::get<2>(v); // offset from path start on forward handle
@@ -1291,6 +1293,7 @@ void XG::index_node_to_path(const std::string& basename) {
 #ifdef VERBOSE_DEBUG
     std::cerr << node_count << " of " << node_count << " ~ 100.0000%" << std::endl;
 #endif
+    node_path_mm.reset();
     std::remove(node_path_idx.c_str());
     // TODO, evaluate if these should be compressed more intensely
     sdsl::util::bit_compress(np_iv);
