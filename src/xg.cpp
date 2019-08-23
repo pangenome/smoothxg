@@ -584,7 +584,7 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
             lambda(path_name, node_id, is_rev, cigar, is_empty, is_circular);
         });
     };
-    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, validate, basename);
+    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, validate);
 }
 
 
@@ -936,7 +936,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     sdsl::util::assign(pn_bv_select, sdsl::bit_vector::select_1_type(&pn_bv));
     
     // is this file removed by construct?
-    string path_name_file = temp_file::create() + "@pathnames.iv";
+    string path_name_file = basename + ".pathnames.iv";
     sdsl::store_to_file((const char*)path_names.c_str(), path_name_file);
     sdsl::construct(pn_csa, path_name_file, 1);
 
@@ -2192,8 +2192,10 @@ std::string create(const std::string& base) {
 
     if (handler.parent_directory.empty()) {
         // Make a parent directory for our temp files
-        string tmpdirname = get_dir() + "/xg-XXXXXX";
-        auto got = mkdtemp(&tmpdirname[0]);
+        string tmpdirname_cpp = get_dir() + "/xg-XXXXXX";
+        char* tmpdirname = new char[tmpdirname_cpp.length() + 1];
+        strcpy(tmpdirname, tmpdirname_cpp.c_str());
+        auto got = mkdtemp(tmpdirname);
         if (got != nullptr) {
             // Save the directory we got
             handler.parent_directory = got;
@@ -2201,6 +2203,7 @@ std::string create(const std::string& base) {
             cerr << "[xg]: couldn't create temp directory: " << tmpdirname << endl;
             exit(1);
         }
+        delete [] tmpdirname;
     }
 
     std::string tmpname = handler.parent_directory + "/" + base + "XXXXXX";

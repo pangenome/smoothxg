@@ -82,7 +82,7 @@ set(handlegraph_LIB "${INSTALL_DIR}/src/handlegraph-build")
 # sdsl-lite (full build using its cmake config)
 ExternalProject_Add(sdsl-lite
   GIT_REPOSITORY "https://github.com/simongog/sdsl-lite.git"
-  GIT_TAG "d52aa9a71513d132e30c09491b5899af449ebb94"
+  GIT_TAG "ddb0fbbc33bb183baa616f17eb48e261ac2a3672"
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR} # TODO ADD static build flag
   UPDATE_COMMAND ""
   INSTALL_COMMAND "")
@@ -94,8 +94,8 @@ set(sdsl-lite-divsufsort_LIB "${INSTALL_DIR}/src/sdsl-lite-build/external/libdiv
 
 # mmmultimap (memory mapped multimap)
 ExternalProject_Add(mmmultimap
-  GIT_REPOSITORY "https://github.com/glennhickey/mmmultimap.git"
-  GIT_TAG "1a4247189c555fd58d9f70a03c7288f9a08e858e"
+  GIT_REPOSITORY "https://github.com/ekg/mmmultimap.git"
+  GIT_TAG "38d5d70f4f9e10aae4548b022c2a7d55024c5e99"
   BUILD_COMMAND ""
   UPDATE_COMMAND ""
   INSTALL_COMMAND "")
