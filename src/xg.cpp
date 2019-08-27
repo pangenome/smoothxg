@@ -1913,6 +1913,12 @@ size_t XG::get_position_of_step(const step_handle_t& step) const {
 
 /// Get the step at a given position
 step_handle_t XG::get_step_at_position(const path_handle_t& path, const size_t& position) const {
+    
+    if (position >= get_path_length(path)) {
+        throw runtime_error("Cannot get position " + std::to_string(position) + " along path " +
+            get_path_name(path) + " of length " + std::to_string(get_path_length(path)));
+    }
+    
     const auto& xgpath = *paths[as_integer(path) - 1];
     step_handle_t step;
     as_integers(step)[0] = as_integer(path);
