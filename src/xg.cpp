@@ -963,8 +963,8 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
             });
         // do we have the correct set of edges?
         for_each_edge([&](const nid_t& from_id, const bool& from_rev, const nid_t& to_id, const bool& to_rev) {
-                handle_t from_handle = temp_get_handle(from_id, from_rev);
-                handle_t to_handle = temp_get_handle(to_id, to_rev);
+                handle_t from_handle = get_handle(from_id, from_rev);
+                handle_t to_handle = get_handle(to_id, to_rev);
                 bool seen_to = false;
                 follow_edges(from_handle, false, [&](const handle_t& h) {
                         //std::cerr << "fwd I see edge " << get_id(from_handle) << ":" << get_is_reverse(from_handle) << " -> " << get_id(h) << ":" << get_is_reverse(h) << std::endl;
@@ -1082,9 +1082,6 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         // check the last path
         check_accumulated_path();
         curr_path_steps.clear();
-
-        // are our stored path positions and ranks correct?
-        std::cerr << "graph valid" << std::endl;
     }
 
 //#define DEBUG_CONSTRUCTION
