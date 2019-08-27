@@ -547,6 +547,15 @@ size_t XG::serialize_and_measure(ostream& out, sdsl::structure_tree_node* s, std
     
 }
 
+void XG::dump_to_stream(std::ostream& out) const {
+    out << "===BEGIN XG===" << std::endl;
+    out << "index\tg\tbv" << std::endl;
+    for (size_t i = 0; i < g_iv.size(); i++) {
+        out << i << "\t" << g_iv[i] << "\t" << g_bv[i] << std::endl;
+    }
+    out << "===END XG===" << std::endl;
+}
+
 void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string basename) {
     if (basename.empty()) {
         basename = temp_file::create();

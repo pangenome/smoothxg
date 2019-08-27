@@ -230,6 +230,9 @@ public:
     void serialize(std::ostream& out) const;
     size_t serialize_and_measure(std::ostream& out, sdsl::structure_tree_node* s = nullptr, std::string name = "") const;
     
+    /// Dump information about the XG to the given stream for debugging
+    void dump_to_stream(std::ostream& out) const;
+    
     ////////////////////////////////////////////////////////////////////////////
     // Basic API
     ////////////////////////////////////////////////////////////////////////////
