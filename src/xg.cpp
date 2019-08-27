@@ -1606,8 +1606,8 @@ bool XG::do_edges(const size_t& g, const size_t& start, const size_t& count, boo
         int type = g_iv[start + i * G_EDGE_LENGTH + G_EDGE_TYPE_OFFSET];
         
         // Make sure we got a valid edge type and we haven't wandered off into non-edge data.
-        assert(type >= 0);
-        assert(type <= 3);
+        assert(type >= 1);
+        assert(type <= 4);
         
         if (edge_filter(type, is_to, want_left, is_reverse)) {
             
