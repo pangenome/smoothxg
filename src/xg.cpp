@@ -1337,7 +1337,7 @@ void XG::to_gfa(std::ostream& out) const {
 }
 
 char XG::pos_char(nid_t id, bool is_rev, size_t off) const {
-    assert(off < get_length(id));
+    assert(off < get_length(get_handle(id)));
     if (!is_rev) {
         size_t rank = id_to_rank(id);
         size_t pos = s_bv_select(rank) + off;
