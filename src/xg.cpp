@@ -974,8 +974,8 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
             });
         // do we have the correct set of edges?
         for_each_edge([&](const nid_t& from_id, const bool& from_rev, const nid_t& to_id, const bool& to_rev) {
-                handle_t from_handle = temp_get_handle(from_id, from_rev);
-                handle_t to_handle = temp_get_handle(to_id, to_rev);
+                handle_t from_handle = get_handle(from_id, from_rev);
+                handle_t to_handle = get_handle(to_id, to_rev);
                 bool seen_to = false;
                 follow_edges(from_handle, false, [&](const handle_t& h) {
                         //std::cerr << "fwd I see edge " << get_id(from_handle) << ":" << get_is_reverse(from_handle) << " -> " << get_id(h) << ":" << get_is_reverse(h) << std::endl;
@@ -1093,9 +1093,6 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         // check the last path
         check_accumulated_path();
         curr_path_steps.clear();
-
-        // are our stored path positions and ranks correct?
-        std::cerr << "graph valid" << std::endl;
     }
 
 //#define DEBUG_CONSTRUCTION
@@ -1352,7 +1349,7 @@ void XG::to_gfa(std::ostream& out) const {
 }
 
 char XG::pos_char(nid_t id, bool is_rev, size_t off) const {
-    assert(off < get_length(get_handle(id, false)));
+    assert(off < get_length(get_handle(id)));
     if (!is_rev) {
         size_t rank = id_to_rank(id);
         size_t pos = s_bv_select(rank) + off;
@@ -1617,11 +1614,8 @@ bool want_left, bool is_reverse, const function<bool(const handle_t&)>& iteratee
         int type = g_iv[start + i * G_EDGE_LENGTH + G_EDGE_TYPE_OFFSET];
         
         // Make sure we got a valid edge type and we haven't wandered off into non-edge data.
-        if (type < EDGE_TYPE_MIN || type > EDGE_TYPE_MAX) {
-            throw runtime_error("Edge " + std::to_string(i) + " of run starting at " + std::to_string(start) +
-                " for node at " + std::to_string(g) + " has unacceptable edge type " + std::to_string(type) +
-                " at g vector index " + std::to_string(start + i * G_EDGE_LENGTH + G_EDGE_TYPE_OFFSET));
-        }
+        assert(type >= EDGE_TYPE_MIN);
+        assert(type <= EDGE_TYPE_MAX);
         
         if (edge_filter(type, is_to, want_left, is_reverse)) {
             
