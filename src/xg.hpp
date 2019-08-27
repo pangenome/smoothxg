@@ -14,21 +14,21 @@
 #include <sys/types.h>
 #include <dirent.h>
 
-#include "sdsl/bit_vectors.hpp"
-#include "sdsl/enc_vector.hpp"
-#include "sdsl/dac_vector.hpp"
-#include "sdsl/vlc_vector.hpp"
-#include "sdsl/wavelet_trees.hpp"
-#include "sdsl/csa_wt.hpp"
-#include "sdsl/suffix_arrays.hpp"
+#include <sdsl/bit_vectors.hpp>
+#include <sdsl/enc_vector.hpp>
+#include <sdsl/dac_vector.hpp>
+#include <sdsl/vlc_vector.hpp>
+#include <sdsl/wavelet_trees.hpp>
+#include <sdsl/csa_wt.hpp>
+#include <sdsl/suffix_arrays.hpp>
 
-#include "handlegraph/types.hpp"
-#include "handlegraph/iteratee.hpp"
-#include "handlegraph/util.hpp"
-#include "handlegraph/handle_graph.hpp"
-#include "handlegraph/path_position_handle_graph.hpp"
+#include <handlegraph/types.hpp>
+#include <handlegraph/iteratee.hpp>
+#include <handlegraph/util.hpp>
+#include <handlegraph/handle_graph.hpp>
+#include <handlegraph/path_position_handle_graph.hpp>
 
-#include "mmmultimap.hpp"
+#include <mmmultimap.hpp>
 
 
 namespace xg {
