@@ -1410,20 +1410,20 @@ edge_t XG::edge_from_encoding(const nid_t& from, const nid_t& to, int type) cons
     bool from_rev = false;
     bool to_rev = false;
     switch (type) {
-    case 1:
+    case EDGE_TYPE_END_START:
         break;
-    case 2:
+    case EDGE_TYPE_END_END:
         to_rev = true;
         break;
-    case 3:
+    case EDGE_TYPE_START_START:
         from_rev = true;
         break;
-    case 4:
+    case EDGE_TYPE_START_END:
         from_rev = true;
         to_rev = true;
         break;
     default:
-        assert(false);
+        throw std::runtime_error("Invalid edge type " + std::to_string(type) + " encountered");
         break;
     }
     return make_pair(get_handle(from, from_rev), get_handle(to, to_rev));
@@ -1455,7 +1455,8 @@ size_t XG::edge_index(const edge_t& edge) const {
             return g + i;
         }
     }
-    assert(false);
+    throw std::runtime_error("Cound not find index of edge connecting " +
+        std::to_string(get_id(from_handle)) + " and " + std::to_string(get_id(to_handle)));
     return 0;
 }
 
@@ -1476,25 +1477,13 @@ size_t XG::handle_rank(const handle_t& handle) const {
 nid_t XG::rank_to_id(const size_t& rank) const {
     if(rank == 0) {
         cerr << "[xg] error: Request for id of rank 0" << endl;
-        assert(false);
+        exit(1);
     }
     if(rank > node_count) {
         cerr << "[xg] error: Request for id of rank " << rank << "/" << node_count << endl;
-        assert(false);
+        exit(1);
     }
     return g_iv[g_bv_select(rank)];
-}
-
-int XG::edge_type(const handle_t& from, const handle_t& to) const {
-    if (get_is_reverse(from) && get_is_reverse(to)) {
-        return 4;
-    } else if (get_is_reverse(from)) {
-        return 3;
-    } else if (get_is_reverse(to)) {
-        return 2;
-    } else {
-        return 1;
-    }
 }
 
 handle_t XG::get_handle(const nid_t& node_id, bool is_reverse) const {
@@ -1588,20 +1577,27 @@ string XG::get_subsequence(const handle_t& handle, size_t index, size_t size) co
     return subsequence;
 }
 
+int XG::edge_type(const handle_t& from, const handle_t& to) const {
+    if (get_is_reverse(from) && get_is_reverse(to)) {
+        return EDGE_TYPE_START_END;
+    } else if (get_is_reverse(from)) {
+        return EDGE_TYPE_START_START;
+    } else if (get_is_reverse(to)) {
+        return EDGE_TYPE_END_END;
+    } else {
+        return EDGE_TYPE_END_START;
+    }
+}
+
 bool XG::edge_filter(int type, bool is_to, bool want_left, bool is_reverse) const {
     // Return true if we want an edge of the given type, where we are the from
     // or to node (according to is_to), when we are looking off the right or
     // left side of the node (according to want_left), and when the node is
     // forward or reverse (accoridng to is_reverse).
     
-    // Edge type encoding:
-    // 1: end to start
-    // 2: end to end
-    // 3: start to start
-    // 4: start to end
-    
     // First compute what we want looking off the right of a node in the forward direction.
-    bool wanted = !is_to && (type == 1 || type == 2) || is_to && (type == 2 || type == 4);
+    bool wanted = (!is_to && (type == EDGE_TYPE_END_START || type == EDGE_TYPE_END_END)) || 
+        (is_to && (type == EDGE_TYPE_END_END || type == EDGE_TYPE_START_END));
     
     // We computed whether we wanted it assuming we were looking off the right. The complement is what we want looking off the left.
     wanted = wanted != want_left;
@@ -1613,7 +1609,7 @@ bool XG::edge_filter(int type, bool is_to, bool want_left, bool is_reverse) cons
 }
 
 bool XG::do_edges(const size_t& g, const size_t& start, const size_t& count, bool is_to,
-    bool want_left, bool is_reverse, const function<bool(const handle_t&)>& iteratee) const {
+bool want_left, bool is_reverse, const function<bool(const handle_t&)>& iteratee) const {
     
     // OK go over all those edges
     for (size_t i = 0; i < count; i++) {
@@ -1621,8 +1617,11 @@ bool XG::do_edges(const size_t& g, const size_t& start, const size_t& count, boo
         int type = g_iv[start + i * G_EDGE_LENGTH + G_EDGE_TYPE_OFFSET];
         
         // Make sure we got a valid edge type and we haven't wandered off into non-edge data.
-        assert(type >= 0);
-        assert(type <= 3);
+        if (type < EDGE_TYPE_MIN || type > EDGE_TYPE_MAX) {
+            throw runtime_error("Edge " + std::to_string(i) + " of run starting at " + std::to_string(start) +
+                " for node at " + std::to_string(g) + " has unacceptable edge type " + std::to_string(type) +
+                " at g vector index " + std::to_string(start + i * G_EDGE_LENGTH + G_EDGE_TYPE_OFFSET));
+        }
         
         if (edge_filter(type, is_to, want_left, is_reverse)) {
             
@@ -1635,7 +1634,7 @@ bool XG::do_edges(const size_t& g, const size_t& start, const size_t& count, boo
             
             // Should we invert?
             // We only invert if we cross an end to end edge. Or a start to start edge
-            bool new_reverse = is_reverse != (type == 2 || type == 3);
+            bool new_reverse = is_reverse != (type == EDGE_TYPE_END_END || type == EDGE_TYPE_START_START);
             
             // Compose the handle for where we are going
             handle_t next_handle = handlegraph::number_bool_packing::pack(g + offset, new_reverse);
@@ -1650,7 +1649,7 @@ bool XG::do_edges(const size_t& g, const size_t& start, const size_t& count, boo
         else {
             // TODO: delete this after using it to debug
             int64_t offset = g_iv[start + i * G_EDGE_LENGTH + G_EDGE_OFFSET_OFFSET];
-            bool new_reverse = is_reverse != (type == 2 || type == 3);
+            bool new_reverse = is_reverse != (type == EDGE_TYPE_END_END || type == EDGE_TYPE_START_START);
             handle_t next_handle = handlegraph::number_bool_packing::pack(g + offset, new_reverse);
         }
     }
@@ -1753,8 +1752,8 @@ path_handle_t XG::get_path_handle(const std::string& path_name) const {
     std::string query = start_marker + path_name + end_marker;
     auto occs = locate(pn_csa, query);
     if (occs.size() > 1) {
-        cerr << "multiple hits for " << query << endl;
-        assert(false);
+        cerr << "error [xg]: multiple hits for " << query << endl;
+        exit(1);
     }
     if(occs.size() == 0) {
         // This path does not exist. Give back 0, which can never be a real path

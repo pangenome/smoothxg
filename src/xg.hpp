@@ -437,7 +437,21 @@ private:
     const static int G_EDGE_OFFSET_OFFSET = 0;
     const static int G_EDGE_TYPE_OFFSET = 1;
     const static int G_EDGE_LENGTH = 2;
+    
+    // And the edge types (so we don't confuse our magic numbers)
+    const static int EDGE_TYPE_MIN = 1;
+    const static int EDGE_TYPE_END_START = 1;
+    const static int EDGE_TYPE_END_END = 2;
+    const static int EDGE_TYPE_START_START = 3;
+    const static int EDGE_TYPE_START_END = 4;
+    const static int EDGE_TYPE_MAX = 4;
 
+    /// Compute the type of an edge given its handles.
+    /// Edge type encoding:
+    /// 1: end to start
+    /// 2: end to end
+    /// 3: start to start
+    /// 4: start to end
     int edge_type(const handle_t& from, const handle_t& to) const;
     
     /// This is a utility function for the edge exploration. It says whether we
