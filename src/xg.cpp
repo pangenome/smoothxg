@@ -14,6 +14,7 @@
 //#define VERBOSE_DEBUG
 //#define debug_algorithms
 //#define debug_component_index
+#define debug_path_index
 
 namespace xg {
 
@@ -916,7 +917,13 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
             }
             curr_path_name = path_name;
             if (!is_empty) {
-                curr_path_steps.push_back(get_handle(node_id, is_rev));
+                handle_t visiting = get_handle(node_id, is_rev);
+#ifdef debug_path_index
+                std::cerr << "Adding handle for " << node_id << (is_rev ? "-" : "+") << " with value "
+                    << as_integer(visiting) << " to path " << path_name << std::endl;
+                std::cerr << "Node length is " << get_length(visiting) << " bp" << std::endl;
+#endif
+                curr_path_steps.push_back(visiting);
             }
             curr_is_circular = is_circular;
             has_path = true;
@@ -1219,12 +1226,24 @@ void XG::index_node_to_path(const std::string& basename) {
         // Go through paths by number, so we can determine rank
         path_handle_t path_handle = as_path_handle(i);
         const XGPath& path = *paths[i-1];
+#ifdef debug_path_index
+        std::cerr << "Indexing path " << &path << " at index " << i-1 << " of " << paths.size() << std::endl; 
+#endif
         uint64_t pos = 0;
 #ifdef VERBOSE_DEBUG
         if (i % 100 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)i/(float)path_count * 100 << "%" << "\r";
 #endif
         for (size_t j = 0; j < path.handles.size(); ++j) {
             handle_t handle = path.handle(j);
+            
+#ifdef debug_path_index
+            std::cerr << "Look at handle " << j << " of " << path.handles.size() << ": "
+                << get_id(handle) << (get_is_reverse(handle) ? "-" : "+") << " with value " << as_integer(handle) << std::endl;
+                
+            std::cerr << "Handle is for node at g vector position " << handlegraph::number_bool_packing::unpack_number(handle)
+                << " of " << g_iv.size() << " and node length will be at "
+                << handlegraph::number_bool_packing::unpack_number(handle) + G_NODE_LENGTH_OFFSET << std::endl;
+#endif
             uint64_t handle_length = get_length(handle);
             bool is_rev = number_bool_packing::unpack_bit(handle);
             // and record the relative orientation by packing it into the position
@@ -1486,8 +1505,21 @@ nid_t XG::rank_to_id(const size_t& rank) const {
 handle_t XG::get_handle(const nid_t& node_id, bool is_reverse) const {
     // Handles will be g vector index with is_reverse in the low bit
     
+    // What rank are we looking for?
+    size_t node_rank = id_to_rank(node_id);
+    
+    if (node_rank == 0) {
+        throw runtime_error("Attempted to get handle for node " + std::to_string(node_id) + " not present in graph");
+    }
+    
     // Where in the g vector do we need to be
-    uint64_t g = g_bv_select(id_to_rank(node_id));
+    uint64_t g = g_bv_select(node_rank);
+    
+    if (g + G_NODE_HEADER_LENGTH > g_iv.size()) {
+        throw runtime_error("Handle for node " + std::to_string(node_id) + " with g vector offset " +
+            std::to_string(g) + " is too close to end of g vector at " + std::to_string(g_iv.size()));
+    }
+    
     // And set the high bit if it's reverse
     return handlegraph::number_bool_packing::pack(g, is_reverse);
 }
