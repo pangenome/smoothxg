@@ -391,13 +391,20 @@ XGPath::XGPath(const std::string& path_name,
                bool is_circular,
                XG& graph) {
 
+#ifdef debug_path_index
+    std::cerr << "Constructing xgpath for path with handles:" << std::endl;
+    for (handle_t visiting : path) {
+        std::cerr << "\t" << as_integer(visiting) << std::endl;
+    }
+#endif
+
     // The circularity flag is just a normal bool
     this->is_circular = is_circular;
 
-    // node ids, the literal path
+    // handle integer values, the literal path
     sdsl::int_vector<> handles_iv;
     sdsl::util::assign(handles_iv, sdsl::int_vector<>(path.size()));
-    // directions of traversal (typically forward, but we allow backwards
+    // directions of traversal (typically forward, but we allow backwards)
     sdsl::bit_vector directions_bv;
     sdsl::util::assign(directions_bv, sdsl::bit_vector(path.size()));
 
@@ -405,20 +412,37 @@ XGPath::XGPath(const std::string& path_name,
     size_t members_off = 0;
     size_t positions_off = 0;
     size_t path_length = 0;
+    // Start out with the max integer, as a handle, as our minimum-valued handle in the path.
     min_handle = as_handle(std::numeric_limits<int64_t>::max());
 
-    // determine min node id
+    // determine min handle value which occurs
     for (size_t i = 0; i < path.size(); ++i) {
         min_handle = as_handle(std::min(as_integer(min_handle), as_integer(path[i])));
     }
-    // determine total length and record node ids
+
+#ifdef debug_path_index
+        std::cerr << "Basing on minimum handle value " << as_integer(min_handle) << std::endl;
+#endif
+    
+    // determine total length and record handles
     for (size_t i = 0; i < path.size(); ++i) {
         const handle_t& handle = path[i];
         path_length += graph.get_length(handle);
         handles_iv[i] = as_integer(local_handle(handle));
+        
+#ifdef debug_path_index
+        std::cerr << "Recorded handle as " << handles_iv[i] << std::endl;
+#endif
+        
         // we will explode if the node isn't in the graph
     }
     sdsl::util::assign(handles, sdsl::enc_vector<>(handles_iv));
+    
+#ifdef debug_path_index
+    for (size_t i = 0; i < path.size(); i++) {
+        std::cerr << "Encoded handle as " << handles[i] << std::endl;
+    }
+#endif
 
     // make the bitvector for path offsets
     sdsl::bit_vector offsets_bv;
@@ -462,7 +486,8 @@ bool XGPath::is_reverse(size_t offset) const {
 
 handle_t XGPath::local_handle(const handle_t& handle) const {
     if (as_integer(handle) < as_integer(min_handle)) {
-        return as_handle(std::numeric_limits<int64_t>::max());
+        throw std::runtime_error("Handle with value " + std::to_string(as_integer(handle)) +
+            " cannot be converted to local space based at min handle with value " + std::to_string(as_integer(min_handle)));
     } else {
         return as_handle(as_integer(handle)-as_integer(min_handle));
     }
@@ -897,12 +922,24 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
 #ifdef VERBOSE_DEBUG
         if (++p % 100 == 0) std::cerr << p << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
 #endif
+
+#ifdef debug_path_index
+        std::cerr << "Creating XGPath for path " << curr_path_name << " with visits:" << std::endl;
+        for (handle_t visiting : curr_path_steps) {
+             std::cerr << "\tHandle for " << get_id(visiting) << (get_is_reverse(visiting) ? "-" : "+") << " with value "
+                    << as_integer(visiting) << std::endl;
+        }
+#endif
         size_t unique_member_count = 0;
         path_names += start_marker + curr_path_name + end_marker;
         XGPath* path = new XGPath(curr_path_name, curr_path_steps,
                                   curr_is_circular,
                                   *this);
         paths.push_back(path);
+        
+#ifdef debug_path_index
+        std::cerr << "paths[" << paths.size() - 1 << "] = " << curr_path_name << " @ " << path << std::endl;
+#endif
     };
 
     // todo ... is it circular?
