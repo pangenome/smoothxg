@@ -413,15 +413,18 @@ XGPath::XGPath(const std::string& path_name,
     size_t positions_off = 0;
     size_t path_length = 0;
     // Start out with the max integer, as a handle, as our minimum-valued handle in the path.
-    min_handle = as_handle(std::numeric_limits<uint64_t>::max());
+    uint64_t min_handle_int = (path.size() ? as_integer(path[0]) : 0);
 
     // determine min handle value which occurs
-    for (size_t i = 0; i < path.size(); ++i) {
-        min_handle = as_handle(std::min(as_integer(min_handle), as_integer(path[i])));
+    for (size_t i = 1; i < path.size(); ++i) {
+        if (as_integer(path[i]) < min_handle_int) {
+            min_handle_int = as_integer(path[i]);
+        }
     }
+    min_handle = as_handle(min_handle_int);
 
 #ifdef debug_path_index
-    std::cerr << "Basing on minimum handle value " << as_integer(min_handle) << std::endl;
+    std::cerr << "Basing on minimum handle value " << as_integer(min_handle) << " (aka " << min_handle_int << ")" << std::endl;
 #endif
     
     // determine total length and record handles
