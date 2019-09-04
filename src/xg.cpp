@@ -330,7 +330,7 @@ void XGPath::load_from_old_version(std::istream& in, uint32_t file_version, cons
             sdsl::sd_vector<> directions;
             directions.load(in);
             // compute the minimum handle
-            min_handle = handlegraph::as_handle(numeric_limits<int64_t>::max());
+            min_handle = handlegraph::as_handle(numeric_limits<uint64_t>::max());
             for (size_t i = 0; i < ids.size(); ++i) {
                 min_handle = as_handle(min(as_integer(min_handle),
                                            as_integer(graph.get_handle(ids[i] + id_offset - 1, directions[i]))));
@@ -413,7 +413,7 @@ XGPath::XGPath(const std::string& path_name,
     size_t positions_off = 0;
     size_t path_length = 0;
     // Start out with the max integer, as a handle, as our minimum-valued handle in the path.
-    min_handle = as_handle(std::numeric_limits<int64_t>::max());
+    min_handle = as_handle(std::numeric_limits<uint64_t>::max());
 
     // determine min handle value which occurs
     for (size_t i = 0; i < path.size(); ++i) {
@@ -421,7 +421,7 @@ XGPath::XGPath(const std::string& path_name,
     }
 
 #ifdef debug_path_index
-        std::cerr << "Basing on minimum handle value " << as_integer(min_handle) << std::endl;
+    std::cerr << "Basing on minimum handle value " << as_integer(min_handle) << std::endl;
 #endif
     
     // determine total length and record handles
@@ -697,7 +697,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     seq_length = 0;
     edge_count = 0;
     path_count = 0;
-    min_id = std::numeric_limits<int64_t>::max();
+    min_id = std::numeric_limits<uint64_t>::max();
     max_id = 0;
     // get information about graph size and id ranges
 #ifdef VERBOSE_DEBUG
