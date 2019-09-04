@@ -14,7 +14,7 @@
 //#define VERBOSE_DEBUG
 //#define debug_algorithms
 //#define debug_component_index
-#define debug_path_index
+//#define debug_path_index
 
 namespace xg {
 
