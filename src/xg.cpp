@@ -14,6 +14,7 @@
 //#define VERBOSE_DEBUG
 //#define debug_algorithms
 //#define debug_component_index
+//#define debug_path_index
 
 namespace xg {
 
@@ -329,7 +330,7 @@ void XGPath::load_from_old_version(std::istream& in, uint32_t file_version, cons
             sdsl::sd_vector<> directions;
             directions.load(in);
             // compute the minimum handle
-            min_handle = handlegraph::as_handle(numeric_limits<int64_t>::max());
+            min_handle = handlegraph::as_handle(numeric_limits<uint64_t>::max());
             for (size_t i = 0; i < ids.size(); ++i) {
                 min_handle = as_handle(min(as_integer(min_handle),
                                            as_integer(graph.get_handle(ids[i] + id_offset - 1, directions[i]))));
@@ -390,13 +391,20 @@ XGPath::XGPath(const std::string& path_name,
                bool is_circular,
                XG& graph) {
 
+#ifdef debug_path_index
+    std::cerr << "Constructing xgpath for path with handles:" << std::endl;
+    for (handle_t visiting : path) {
+        std::cerr << "\t" << as_integer(visiting) << std::endl;
+    }
+#endif
+
     // The circularity flag is just a normal bool
     this->is_circular = is_circular;
 
-    // node ids, the literal path
+    // handle integer values, the literal path
     sdsl::int_vector<> handles_iv;
     sdsl::util::assign(handles_iv, sdsl::int_vector<>(path.size()));
-    // directions of traversal (typically forward, but we allow backwards
+    // directions of traversal (typically forward, but we allow backwards)
     sdsl::bit_vector directions_bv;
     sdsl::util::assign(directions_bv, sdsl::bit_vector(path.size()));
 
@@ -404,20 +412,40 @@ XGPath::XGPath(const std::string& path_name,
     size_t members_off = 0;
     size_t positions_off = 0;
     size_t path_length = 0;
-    min_handle = as_handle(std::numeric_limits<int64_t>::max());
+    // Start out with the max integer, as a handle, as our minimum-valued handle in the path.
+    uint64_t min_handle_int = (path.size() ? as_integer(path[0]) : 0);
 
-    // determine min node id
-    for (size_t i = 0; i < path.size(); ++i) {
-        min_handle = as_handle(std::min(as_integer(min_handle), as_integer(path[i])));
+    // determine min handle value which occurs
+    for (size_t i = 1; i < path.size(); ++i) {
+        if (as_integer(path[i]) < min_handle_int) {
+            min_handle_int = as_integer(path[i]);
+        }
     }
-    // determine total length and record node ids
+    min_handle = as_handle(min_handle_int);
+
+#ifdef debug_path_index
+    std::cerr << "Basing on minimum handle value " << as_integer(min_handle) << " (aka " << min_handle_int << ")" << std::endl;
+#endif
+    
+    // determine total length and record handles
     for (size_t i = 0; i < path.size(); ++i) {
         const handle_t& handle = path[i];
         path_length += graph.get_length(handle);
         handles_iv[i] = as_integer(local_handle(handle));
+        
+#ifdef debug_path_index
+        std::cerr << "Recorded handle as " << handles_iv[i] << std::endl;
+#endif
+        
         // we will explode if the node isn't in the graph
     }
     sdsl::util::assign(handles, sdsl::enc_vector<>(handles_iv));
+    
+#ifdef debug_path_index
+    for (size_t i = 0; i < path.size(); i++) {
+        std::cerr << "Encoded handle as " << handles[i] << std::endl;
+    }
+#endif
 
     // make the bitvector for path offsets
     sdsl::bit_vector offsets_bv;
@@ -461,7 +489,8 @@ bool XGPath::is_reverse(size_t offset) const {
 
 handle_t XGPath::local_handle(const handle_t& handle) const {
     if (as_integer(handle) < as_integer(min_handle)) {
-        return as_handle(std::numeric_limits<int64_t>::max());
+        throw std::runtime_error("Handle with value " + std::to_string(as_integer(handle)) +
+            " cannot be converted to local space based at min handle with value " + std::to_string(as_integer(min_handle)));
     } else {
         return as_handle(as_integer(handle)-as_integer(min_handle));
     }
@@ -545,6 +574,15 @@ size_t XG::serialize_and_measure(ostream& out, sdsl::structure_tree_node* s, std
     sdsl::structure_tree::add_size(child, written);
     return written;
     
+}
+
+void XG::dump_to_stream(std::ostream& out) const {
+    out << "===BEGIN XG===" << std::endl;
+    out << "index\tg\tbv" << std::endl;
+    for (size_t i = 0; i < g_iv.size(); i++) {
+        out << i << "\t" << g_iv[i] << "\t" << g_bv[i] << std::endl;
+    }
+    out << "===END XG===" << std::endl;
 }
 
 void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string basename) {
@@ -662,7 +700,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     seq_length = 0;
     edge_count = 0;
     path_count = 0;
-    min_id = std::numeric_limits<int64_t>::max();
+    min_id = std::numeric_limits<uint64_t>::max();
     max_id = 0;
     // get information about graph size and id ranges
 #ifdef VERBOSE_DEBUG
@@ -761,17 +799,17 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     // we use the mmmultimap here to reduce in-memory costs to a minimum
     std::string edge_f_t_idx = basename + ".from_to.mm";
     std::string edge_t_f_idx = basename + ".to_from.mm";
-    mmmulti::map<uint64_t, uint64_t> edge_from_to_mm(edge_f_t_idx);
-    mmmulti::map<uint64_t, uint64_t> edge_to_from_mm(edge_t_f_idx);
+    auto edge_from_to_mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(edge_f_t_idx);
+    auto edge_to_from_mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(edge_t_f_idx);
     for_each_edge([&](const nid_t& from_id, const bool& from_rev, const nid_t& to_id, const bool& to_rev) {
             handle_t from_handle = temp_get_handle(from_id, from_rev);
             handle_t to_handle = temp_get_handle(to_id, to_rev);
-            edge_from_to_mm.append(as_integer(from_handle), as_integer(to_handle));
-            edge_to_from_mm.append(as_integer(to_handle), as_integer(from_handle));
+            edge_from_to_mm->append(as_integer(from_handle), as_integer(to_handle));
+            edge_to_from_mm->append(as_integer(to_handle), as_integer(from_handle));
         });
     handle_t max_handle = number_bool_packing::pack(r_iv.size(), true);
-    edge_from_to_mm.index(as_integer(max_handle));
-    edge_to_from_mm.index(as_integer(max_handle));
+    edge_from_to_mm->index(as_integer(max_handle));
+    edge_to_from_mm->index(as_integer(max_handle));
 
     // calculate g_iv size
     size_t g_iv_size =
@@ -805,7 +843,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         for (auto orientation : { false, true }) {
             handle_t to = temp_get_handle(id, orientation);
             //std::cerr << "looking at to handle " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
-            edge_to_from_mm.for_unique_values_of(as_integer(to), [&](const uint64_t& _from) {
+            edge_to_from_mm->for_unique_values_of(as_integer(to), [&](const uint64_t& _from) {
                     handle_t from = as_handle(_from);
                     //std::cerr << "edge to " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from)
                     //<< " -> " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
@@ -818,7 +856,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         for (auto orientation : { false, true }) {
             handle_t from = temp_get_handle(id, orientation);
             //std::cerr << "looking at from handle " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from) << std::endl;
-            edge_from_to_mm.for_unique_values_of(as_integer(from), [&](const uint64_t& _to) {
+            edge_from_to_mm->for_unique_values_of(as_integer(from), [&](const uint64_t& _to) {
                     handle_t to = as_handle(_to);
                     //std::cerr << "edge from " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from)
                     //<< " -> " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
@@ -835,6 +873,8 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
 #endif
 
     // cleanup our mmmultimap
+    edge_from_to_mm.reset();
+    edge_to_from_mm.reset();
     std::remove(edge_f_t_idx.c_str());
     std::remove(edge_t_f_idx.c_str());
 
@@ -885,12 +925,24 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
 #ifdef VERBOSE_DEBUG
         if (++p % 100 == 0) std::cerr << p << " of " << path_count << " ~ " << (float)p/(float)path_count * 100 << "%" << "\r";
 #endif
+
+#ifdef debug_path_index
+        std::cerr << "Creating XGPath for path " << curr_path_name << " with visits:" << std::endl;
+        for (handle_t visiting : curr_path_steps) {
+             std::cerr << "\tHandle for " << get_id(visiting) << (get_is_reverse(visiting) ? "-" : "+") << " with value "
+                    << as_integer(visiting) << std::endl;
+        }
+#endif
         size_t unique_member_count = 0;
         path_names += start_marker + curr_path_name + end_marker;
         XGPath* path = new XGPath(curr_path_name, curr_path_steps,
                                   curr_is_circular,
                                   *this);
         paths.push_back(path);
+        
+#ifdef debug_path_index
+        std::cerr << "paths[" << paths.size() - 1 << "] = " << curr_path_name << " @ " << path << std::endl;
+#endif
     };
 
     // todo ... is it circular?
@@ -905,7 +957,13 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
             }
             curr_path_name = path_name;
             if (!is_empty) {
-                curr_path_steps.push_back(get_handle(node_id, is_rev));
+                handle_t visiting = get_handle(node_id, is_rev);
+#ifdef debug_path_index
+                std::cerr << "Adding handle for " << node_id << (is_rev ? "-" : "+") << " with value "
+                    << as_integer(visiting) << " to path " << path_name << std::endl;
+                std::cerr << "Node length is " << get_length(visiting) << " bp" << std::endl;
+#endif
+                curr_path_steps.push_back(visiting);
             }
             curr_is_circular = is_circular;
             has_path = true;
@@ -1200,7 +1258,7 @@ void XG::index_node_to_path(const std::string& basename) {
     // node -> paths
     // use the mmmultimap...
     std::string node_path_idx = basename + ".node_path.mm";
-    mmmulti::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> node_path_mm(node_path_idx);
+    auto node_path_mm = std::make_unique<mmmulti::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>>>(node_path_idx);
     uint64_t path_step_count = 0;
     // for each path...
     // could be done in parallel
@@ -1208,19 +1266,31 @@ void XG::index_node_to_path(const std::string& basename) {
         // Go through paths by number, so we can determine rank
         path_handle_t path_handle = as_path_handle(i);
         const XGPath& path = *paths[i-1];
+#ifdef debug_path_index
+        std::cerr << "Indexing path " << &path << " at index " << i-1 << " of " << paths.size() << std::endl; 
+#endif
         uint64_t pos = 0;
 #ifdef VERBOSE_DEBUG
         if (i % 100 == 0) std::cerr << i << " of " << path_count << " ~ " << (float)i/(float)path_count * 100 << "%" << "\r";
 #endif
         for (size_t j = 0; j < path.handles.size(); ++j) {
             handle_t handle = path.handle(j);
+            
+#ifdef debug_path_index
+            std::cerr << "Look at handle " << j << " of " << path.handles.size() << ": "
+                << get_id(handle) << (get_is_reverse(handle) ? "-" : "+") << " with value " << as_integer(handle) << std::endl;
+                
+            std::cerr << "Handle is for node at g vector position " << handlegraph::number_bool_packing::unpack_number(handle)
+                << " of " << g_iv.size() << " and node length will be at "
+                << handlegraph::number_bool_packing::unpack_number(handle) + G_NODE_LENGTH_OFFSET << std::endl;
+#endif
             uint64_t handle_length = get_length(handle);
             bool is_rev = number_bool_packing::unpack_bit(handle);
             // and record the relative orientation by packing it into the position
             uint64_t path_and_rev = as_integer(number_bool_packing::pack(as_integer(path_handle), is_rev));
             // determine the path relative position on the forward strand
             uint64_t adj_pos = is_rev ? pos + handle_length - 1: pos;
-            node_path_mm.append(id_to_rank(get_id(handle)),
+            node_path_mm->append(id_to_rank(get_id(handle)),
                                 std::make_tuple(path_and_rev, j, adj_pos));
             ++path_step_count;
             pos += handle_length;
@@ -1229,7 +1299,7 @@ void XG::index_node_to_path(const std::string& basename) {
 #ifdef VERBOSE_DEBUG
     std::cerr << path_count << " of " << path_count << " ~ 100.0000%" << std::endl;
 #endif
-    node_path_mm.index(node_count+1);
+    node_path_mm->index(node_count+1);
     
 #ifdef VERBOSE_DEBUG
     std::cerr << "determining size of node to path position mappings" << std::endl;
@@ -1240,7 +1310,7 @@ void XG::index_node_to_path(const std::string& basename) {
         if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
 #endif
         uint64_t has_steps = false;
-        node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
+        node_path_mm->for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
             ++np_size;
             has_steps = true;
         });
@@ -1265,7 +1335,7 @@ void XG::index_node_to_path(const std::string& basename) {
         np_bv[np_offset] = 1; // mark node start
         //uint64_t idx = number_bool_packing::pack(i, false)+1;
         uint64_t has_steps = false;
-        node_path_mm.for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
+        node_path_mm->for_values_of(i+1, [&](const std::tuple<uint64_t, uint64_t, uint64_t>& v) {
             np_iv[np_offset] = std::get<0>(v); // packed path and rev
             nr_iv[np_offset] = std::get<1>(v); // rank of step in path
             nx_iv[np_offset] = std::get<2>(v); // offset from path start on forward handle
@@ -1288,6 +1358,7 @@ void XG::index_node_to_path(const std::string& basename) {
 #ifdef VERBOSE_DEBUG
     std::cerr << node_count << " of " << node_count << " ~ 100.0000%" << std::endl;
 #endif
+    node_path_mm.reset();
     std::remove(node_path_idx.c_str());
     // TODO, evaluate if these should be compressed more intensely
     sdsl::util::bit_compress(np_iv);
@@ -1395,20 +1466,20 @@ edge_t XG::edge_from_encoding(const nid_t& from, const nid_t& to, int type) cons
     bool from_rev = false;
     bool to_rev = false;
     switch (type) {
-    case 1:
+    case EDGE_TYPE_END_START:
         break;
-    case 2:
+    case EDGE_TYPE_END_END:
         to_rev = true;
         break;
-    case 3:
+    case EDGE_TYPE_START_START:
         from_rev = true;
         break;
-    case 4:
+    case EDGE_TYPE_START_END:
         from_rev = true;
         to_rev = true;
         break;
     default:
-        assert(false);
+        throw std::runtime_error("Invalid edge type " + std::to_string(type) + " encountered");
         break;
     }
     return make_pair(get_handle(from, from_rev), get_handle(to, to_rev));
@@ -1440,7 +1511,8 @@ size_t XG::edge_index(const edge_t& edge) const {
             return g + i;
         }
     }
-    assert(false);
+    throw std::runtime_error("Cound not find index of edge connecting " +
+        std::to_string(get_id(from_handle)) + " and " + std::to_string(get_id(to_handle)));
     return 0;
 }
 
@@ -1461,32 +1533,33 @@ size_t XG::handle_rank(const handle_t& handle) const {
 nid_t XG::rank_to_id(const size_t& rank) const {
     if(rank == 0) {
         cerr << "[xg] error: Request for id of rank 0" << endl;
-        assert(false);
+        exit(1);
     }
     if(rank > node_count) {
         cerr << "[xg] error: Request for id of rank " << rank << "/" << node_count << endl;
-        assert(false);
+        exit(1);
     }
     return g_iv[g_bv_select(rank)];
-}
-
-int XG::edge_type(const handle_t& from, const handle_t& to) const {
-    if (get_is_reverse(from) && get_is_reverse(to)) {
-        return 4;
-    } else if (get_is_reverse(from)) {
-        return 3;
-    } else if (get_is_reverse(to)) {
-        return 2;
-    } else {
-        return 1;
-    }
 }
 
 handle_t XG::get_handle(const nid_t& node_id, bool is_reverse) const {
     // Handles will be g vector index with is_reverse in the low bit
     
+    // What rank are we looking for?
+    size_t node_rank = id_to_rank(node_id);
+    
+    if (node_rank == 0) {
+        throw runtime_error("Attempted to get handle for node " + std::to_string(node_id) + " not present in graph");
+    }
+    
     // Where in the g vector do we need to be
-    uint64_t g = g_bv_select(id_to_rank(node_id));
+    uint64_t g = g_bv_select(node_rank);
+    
+    if (g + G_NODE_HEADER_LENGTH > g_iv.size()) {
+        throw runtime_error("Handle for node " + std::to_string(node_id) + " with g vector offset " +
+            std::to_string(g) + " is too close to end of g vector at " + std::to_string(g_iv.size()));
+    }
+    
     // And set the high bit if it's reverse
     return handlegraph::number_bool_packing::pack(g, is_reverse);
 }
@@ -1573,20 +1646,27 @@ string XG::get_subsequence(const handle_t& handle, size_t index, size_t size) co
     return subsequence;
 }
 
+int XG::edge_type(const handle_t& from, const handle_t& to) const {
+    if (get_is_reverse(from) && get_is_reverse(to)) {
+        return EDGE_TYPE_START_END;
+    } else if (get_is_reverse(from)) {
+        return EDGE_TYPE_START_START;
+    } else if (get_is_reverse(to)) {
+        return EDGE_TYPE_END_END;
+    } else {
+        return EDGE_TYPE_END_START;
+    }
+}
+
 bool XG::edge_filter(int type, bool is_to, bool want_left, bool is_reverse) const {
     // Return true if we want an edge of the given type, where we are the from
     // or to node (according to is_to), when we are looking off the right or
     // left side of the node (according to want_left), and when the node is
     // forward or reverse (accoridng to is_reverse).
     
-    // Edge type encoding:
-    // 1: end to start
-    // 2: end to end
-    // 3: start to start
-    // 4: start to end
-    
     // First compute what we want looking off the right of a node in the forward direction.
-    bool wanted = !is_to && (type == 1 || type == 2) || is_to && (type == 2 || type == 4);
+    bool wanted = (!is_to && (type == EDGE_TYPE_END_START || type == EDGE_TYPE_END_END)) || 
+        (is_to && (type == EDGE_TYPE_END_END || type == EDGE_TYPE_START_END));
     
     // We computed whether we wanted it assuming we were looking off the right. The complement is what we want looking off the left.
     wanted = wanted != want_left;
@@ -1598,7 +1678,7 @@ bool XG::edge_filter(int type, bool is_to, bool want_left, bool is_reverse) cons
 }
 
 bool XG::do_edges(const size_t& g, const size_t& start, const size_t& count, bool is_to,
-    bool want_left, bool is_reverse, const function<bool(const handle_t&)>& iteratee) const {
+bool want_left, bool is_reverse, const function<bool(const handle_t&)>& iteratee) const {
     
     // OK go over all those edges
     for (size_t i = 0; i < count; i++) {
@@ -1606,8 +1686,8 @@ bool XG::do_edges(const size_t& g, const size_t& start, const size_t& count, boo
         int type = g_iv[start + i * G_EDGE_LENGTH + G_EDGE_TYPE_OFFSET];
         
         // Make sure we got a valid edge type and we haven't wandered off into non-edge data.
-        assert(type >= 1);
-        assert(type <= 4);
+        assert(type >= EDGE_TYPE_MIN);
+        assert(type <= EDGE_TYPE_MAX);
         
         if (edge_filter(type, is_to, want_left, is_reverse)) {
             
@@ -1620,7 +1700,7 @@ bool XG::do_edges(const size_t& g, const size_t& start, const size_t& count, boo
             
             // Should we invert?
             // We only invert if we cross an end to end edge. Or a start to start edge
-            bool new_reverse = is_reverse != (type == 2 || type == 3);
+            bool new_reverse = is_reverse != (type == EDGE_TYPE_END_END || type == EDGE_TYPE_START_START);
             
             // Compose the handle for where we are going
             handle_t next_handle = handlegraph::number_bool_packing::pack(g + offset, new_reverse);
@@ -1635,7 +1715,7 @@ bool XG::do_edges(const size_t& g, const size_t& start, const size_t& count, boo
         else {
             // TODO: delete this after using it to debug
             int64_t offset = g_iv[start + i * G_EDGE_LENGTH + G_EDGE_OFFSET_OFFSET];
-            bool new_reverse = is_reverse != (type == 2 || type == 3);
+            bool new_reverse = is_reverse != (type == EDGE_TYPE_END_END || type == EDGE_TYPE_START_START);
             handle_t next_handle = handlegraph::number_bool_packing::pack(g + offset, new_reverse);
         }
     }
@@ -1738,8 +1818,8 @@ path_handle_t XG::get_path_handle(const std::string& path_name) const {
     std::string query = start_marker + path_name + end_marker;
     auto occs = locate(pn_csa, query);
     if (occs.size() > 1) {
-        cerr << "multiple hits for " << query << endl;
-        assert(false);
+        cerr << "error [xg]: multiple hits for " << query << endl;
+        exit(1);
     }
     if(occs.size() == 0) {
         // This path does not exist. Give back 0, which can never be a real path
@@ -1899,6 +1979,12 @@ size_t XG::get_position_of_step(const step_handle_t& step) const {
 
 /// Get the step at a given position
 step_handle_t XG::get_step_at_position(const path_handle_t& path, const size_t& position) const {
+    
+    if (position >= get_path_length(path)) {
+        throw runtime_error("Cannot get position " + std::to_string(position) + " along path " +
+            get_path_name(path) + " of length " + std::to_string(get_path_length(path)));
+    }
+    
     const auto& xgpath = *paths[as_integer(path) - 1];
     step_handle_t step;
     as_integers(step)[0] = as_integer(path);
