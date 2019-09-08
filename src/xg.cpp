@@ -700,7 +700,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     seq_length = 0;
     edge_count = 0;
     path_count = 0;
-    min_id = std::numeric_limits<uint64_t>::max();
+    min_id = std::numeric_limits<int64_t>::max();
     max_id = 0;
     // get information about graph size and id ranges
 #ifdef VERBOSE_DEBUG
@@ -735,7 +735,8 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     std::cerr << "graph has " << seq_length << "bp in sequence, "
               << node_count << " nodes, "
               << edge_count << " edges, and "
-              << path_count << " paths " << std::endl;
+              << path_count << " paths" << std::endl
+              << "node ids run from " << min_id << " to " << max_id << std::endl;
 #endif
 
     // set up our compressed representation
