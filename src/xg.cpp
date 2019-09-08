@@ -1486,34 +1486,19 @@ edge_t XG::edge_from_encoding(const nid_t& from, const nid_t& to, int type) cons
 }
 
 size_t XG::edge_index(const edge_t& edge) const {
-    handle_t from_handle = edge.first;
-    handle_t to_handle = edge.second;
-    if (get_is_reverse(from_handle) && get_is_reverse(to_handle)) {
-        from_handle = flip(from_handle);
-        to_handle = flip(to_handle);
+    bool not_seen = true;
+    size_t idx = g_bv_select(id_to_rank(get_id(edge.first)));
+    follow_edges(edge.first, false, [&](const handle_t& next) {
+            ++idx;
+            not_seen = (next != edge.second);
+            return not_seen;
+        });
+    if (not_seen) {
+        throw std::runtime_error("Cound not find index of edge connecting " +
+                                 std::to_string(get_id(edge.first)) + " and " + std::to_string(get_id(edge.second)));
+    } else {
+        return idx;
     }
-    nid_t id = get_id(from_handle);
-    size_t g = g_bv_select(id_to_rank(id));
-    int edges_to_count = g_iv[g+G_NODE_TO_COUNT_OFFSET];
-    int edges_from_count = g_iv[g+G_NODE_FROM_COUNT_OFFSET];
-    int64_t f = g + G_NODE_HEADER_LENGTH + G_EDGE_LENGTH * edges_to_count;
-    int64_t e = f + G_EDGE_LENGTH * edges_from_count;
-    int i = 1;
-    for (int64_t j = f; j < e; ++i) {
-        int64_t to = g+g_iv[j++];
-        int type = g_iv[j++];
-        edge_t curr = edge_from_encoding(id,
-                                         (nid_t)g_iv[to+G_NODE_ID_OFFSET],
-                                         type);
-        if (curr.second == to_handle
-            && get_is_reverse(curr.first) == get_is_reverse(from_handle)
-            && get_is_reverse(curr.second) == get_is_reverse(to_handle)) {
-            return g + i;
-        }
-    }
-    throw std::runtime_error("Cound not find index of edge connecting " +
-        std::to_string(get_id(from_handle)) + " and " + std::to_string(get_id(to_handle)));
-    return 0;
 }
 
 size_t XG::get_g_iv_size(void) const {

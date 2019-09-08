@@ -70,7 +70,7 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 # libhandlegraph (full build using its cmake config)
 ExternalProject_Add(handlegraph
   GIT_REPOSITORY "https://github.com/vgteam/libhandlegraph.git"
-  GIT_TAG "47791b556bb963d7f1922548cf512749e59dab86"
+  GIT_TAG "cf0c2ab6e36c636c5a745dc7b8c2140ad372649a"
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR}
   #BUILD_COMMAND ""
   UPDATE_COMMAND ""
@@ -135,7 +135,7 @@ ExternalProject_Add(ips4o
 ExternalProject_Get_property(ips4o SOURCE_DIR)
 set(ips4o_INCLUDE "${SOURCE_DIR}")
 
-set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Release)
 
 add_library(xg_objs OBJECT src/xg.cpp)
 
