@@ -1490,11 +1490,10 @@ size_t XG::edge_index(const edge_t& edge) const {
     size_t idx = g_bv_select(id_to_rank(get_id(edge.first)));
     follow_edges(edge.first, false, [&](const handle_t& next) {
             ++idx;
-            not_seen = (next == edge.second);
+            not_seen = (next != edge.second);
             return not_seen;
         });
     if (not_seen) {
-        assert(has_edge(edge));
         throw std::runtime_error("Cound not find index of edge connecting " +
                                  std::to_string(get_id(edge.first)) + " and " + std::to_string(get_id(edge.second)));
     } else {
