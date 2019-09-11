@@ -1373,7 +1373,23 @@ void XG::to_gfa(std::ostream& out) const {
     // for each node
     for_each_handle([&out,this](const handle_t& h) {
             nid_t node_id = get_id(h);
-            out << "S\t" << node_id << "\t" << get_sequence(h) << std::endl;
+            out << "S\t" << node_id << "\t" << get_sequence(h);
+            std::vector<std::string> path_pos;
+            for_each_step_position_on_handle(h, [&](const step_handle_t& step, const bool& rev, const uint64_t& pos) {
+                    stringstream ss;
+                    ss << "[\"" << get_path_name(as_path_handle(as_integers(step)[0])) << "\"," << (rev ? "\"-\"" : "\"+\"") << "," << pos << "]";
+                    path_pos.push_back(ss.str());
+                    return true;
+                });
+            if (!path_pos.empty()) {
+                out << "\t" << "PO:J:[";
+                out << path_pos[0];
+                for (uint64_t i = 1; i < path_pos.size(); ++i) {
+                    out << "," << path_pos[i];
+                }
+                out << "]";
+            }
+            out << std::endl;
             follow_edges(h, false, [&](const handle_t& o) {
                     out << "L\t" << node_id << "\t"
                         << (get_is_reverse(h)?"-":"+")
