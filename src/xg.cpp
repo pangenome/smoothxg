@@ -356,10 +356,28 @@ void XGPath::load_from_old_version(std::istream& in, uint32_t file_version, cons
         positions.load(in);
     }
     
-    // the offsets vectors have the same encoding
-    offsets.load(in);
-    offsets_rank.load(in, &offsets);
-    offsets_select.load(in, &offsets);
+    // translate the offset from a straight bit_vector to an rrr_vector
+    {
+        sdsl::bit_vector offsets_bv;
+        offsets_bv.load(in);
+        
+        // skip its rank and select support
+        {
+            sdsl::rank_support_v<1> offsets_bv_rank;
+            offsets_bv_rank.load(in, &offsets_bv);
+        }
+        {
+            sdsl::bit_vector::select_1_type offsets_bv_select;
+            offsets_bv_select.load(in, &offsets);
+        }
+        
+        // reencode it as the rrr_vector we want
+        sdsl::util::assign(offsets, sdsl::rrr_vector<>(offsets_bv));
+    }
+    
+    // recreate the rank and select support
+    sdsl::util::assign(offsets_rank, sdsl::rrr_vector<>::rank_1_type(&offsets));
+    sdsl::util::assign(offsets_select, sdsl::rrr_vector<>::select_1_type(&offsets));
     
     if (file_version >= 10) {
         // there is support for circular paths in this version
