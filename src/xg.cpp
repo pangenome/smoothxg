@@ -368,7 +368,7 @@ void XGPath::load_from_old_version(std::istream& in, uint32_t file_version, cons
         }
         {
             sdsl::bit_vector::select_1_type offsets_bv_select;
-            offsets_bv_select.load(in, &offsets);
+            offsets_bv_select.load(in, &offsets_bv);
         }
         
         // reencode it as the rrr_vector we want
