@@ -1975,22 +1975,6 @@ bool XG::for_each_step_on_handle_impl(const handle_t& handle, const function<boo
     return true;
 }
 
-bool XG::for_each_step_position_on_handle(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const {
-    size_t off = np_bv_select(id_to_rank(get_id(handle)));
-    size_t i = off;
-    while (i < np_bv.size() && (off == i && np_iv[i] != 0 || np_bv[i] == 0)) {
-        handle_t path_and_rev = as_handle(np_iv[i]);
-        step_handle_t step_handle;
-        as_integers(step_handle)[0] = number_bool_packing::unpack_number(path_and_rev);
-        as_integers(step_handle)[1] = nr_iv[i];
-        if (!iteratee(step_handle, number_bool_packing::unpack_bit(path_and_rev), nx_iv[i])) {
-            return false;
-        }
-        ++i;
-    }
-    return true;
-}
-
 /// Gets the position of a given step in the path it's from
 size_t XG::get_position_of_step(const step_handle_t& step) const {
     const auto& xgpath = *paths[as_integer(get_path_handle_of_step(step)) - 1];
