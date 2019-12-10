@@ -2000,6 +2000,14 @@ size_t XG::get_node_count() const {
     return this->node_count;
 }
 
+size_t XG::get_edge_count() const {
+    return this->edge_count;
+}
+
+size_t XG::get_total_length() const {
+    return this->seq_length;
+}
+
 nid_t XG::min_node_id() const {
     return min_id;
 }

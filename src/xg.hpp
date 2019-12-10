@@ -271,6 +271,10 @@ public:
     virtual bool for_each_handle_impl(const std::function<bool(const handle_t&)>& iteratee, bool parallel = false) const;
     /// Return the number of nodes in the graph
     virtual size_t get_node_count() const;
+    /// Return the number of edges in the graph
+    virtual size_t get_edge_count() const;
+    /// Return the number of bases in the graph
+    virtual size_t get_total_length() const;
     /// Get the minimum node ID used in the graph, if any are used
     virtual nid_t min_node_id() const;
     /// Get the maximum node ID used in the graph, if any are used
