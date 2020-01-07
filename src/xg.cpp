@@ -1521,17 +1521,68 @@ edge_t XG::edge_from_encoding(const nid_t& from, const nid_t& to, int type) cons
 }
 
 size_t XG::edge_index(const edge_t& edge) const {
+    // We are going to get our unique indexes by starting with a starting index
+    // ofr each node, and then adding to that the number of edges we need to
+    // enumerate before we find the one we are looking for, taking all the
+    // edges off one side to be enumerated before all the edges off the other.
+    // Note that we need to make sure we enumerate edges off the left and right
+    // sides of the node in a consistent order, so that they don't end up
+    // having colliding indexes. We rely on the edge coming in in a canonical
+    // order and orientation.
+    
+    // Note that resulting indexes will not be anywhere near dense.
+    
+    // Get the g index corresponding to the first node's record. We know it
+    // owns at least as much g vector space as it has edges.
+    // Turns out the g index is just what we packed in the handle's number; no
+    // need to do a select here.
+    size_t g_start = handlegraph::number_bool_packing::unpack_number(edge.first);
+    
+    // Get the 0-based rank so that we know how many node records come before this one.
+    size_t prev_nodes = g_bv_rank(g_start);
+    
+    // Since we know where we are in g_iv, and how many previous nodes there
+    // are, and how big a node record is, and how big an edge record is, we
+    // can calculate how many edge records came before this node's start. Each
+    // edge has two records, and we can't tell how many of those were the
+    // canonical records for their edges, but we can at least restrict our
+    // non-density in edge index space to a factor of 2 expansion.
+    size_t node_start_idx = (g_start - (G_NODE_HEADER_LENGTH * prev_nodes)) / G_EDGE_LENGTH;
+   
+    // Start as the first edge for this node
+    size_t idx = node_start_idx;
+   
+    if (get_is_reverse(edge.first)) {
+        // If we have the first node in locally reverse orientation, add its degree
+        // on the locally forward right (or as-presented left) to the index.
+        // This avoids collisions between edges attached to different ends of
+        // the node.
+        idx += get_degree(edge.first, true); 
+    }
+    
+    // Then scan all the edges attached to this end of the node until we find
+    // the one we are looking for, and add that count to the index.
     bool not_seen = true;
-    size_t idx = g_bv_select(id_to_rank(get_id(edge.first)));
+    
     follow_edges(edge.first, false, [&](const handle_t& next) {
-            ++idx;
+            // For each edge on the correct side of the node
+            
+            // Set flag false if we found it
             not_seen = (next != edge.second);
+            
+            if (not_seen) {
+                // If we didn't find it, increment the index
+                ++idx;
+            }
+            
             return not_seen;
         });
     if (not_seen) {
+        // Complain if we don't eventually see the edge.
         throw std::runtime_error("Cound not find index of edge connecting " +
                                  std::to_string(get_id(edge.first)) + " and " + std::to_string(get_id(edge.second)));
     } else {
+        // We found it and we have the correct index
         return idx;
     }
 }
@@ -2037,7 +2088,11 @@ size_t XG::max_node_rank(void) const {
 }
 
 nid_t XG::node_at_vector_offset(const size_t& offset) const {
-    return rank_to_id(s_bv_rank(offset));
+    
+    // We have a rank primitive that gets us the 1s *before* a position.
+    // We want all the bases *at or after* a 1 to give us the same value.
+    // So we get the 1s before offset + 1, which is the same as at or after offset.
+    return rank_to_id(s_bv_rank(offset + 1));
 }
 
 size_t XG::node_vector_offset(const nid_t& id) const {
