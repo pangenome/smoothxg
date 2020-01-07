@@ -2088,14 +2088,19 @@ size_t XG::max_node_rank(void) const {
 }
 
 nid_t XG::node_at_vector_offset(const size_t& offset) const {
-    
+    // We expect input positions as 1-based for now.
+    // See https://github.com/vgteam/libhandlegraph/issues/41
+   
     // We have a rank primitive that gets us the 1s *before* a position.
     // We want all the bases *at or after* a 1 to give us the same value.
-    // So we get the 1s before offset + 1, which is the same as at or after offset.
-    return rank_to_id(s_bv_rank(offset + 1));
+    // So we get the 1s before (offset - 1) + 1, which is the same as at or
+    // after offset - 1, which is the 0-based version of offset.
+    return rank_to_id(s_bv_rank(offset));
 }
 
 size_t XG::node_vector_offset(const nid_t& id) const {
+    // We produce offsets as 0-based for now.
+    // See https://github.com/vgteam/libhandlegraph/issues/41
     return s_bv_select(id_to_rank(id));
 }
 
