@@ -1582,8 +1582,11 @@ size_t XG::edge_index(const edge_t& edge) const {
         throw std::runtime_error("Cound not find index of edge connecting " +
                                  std::to_string(get_id(edge.first)) + " and " + std::to_string(get_id(edge.second)));
     } else {
-        // We found it and we have the correct index
-        return idx;
+        // We found it and we have the correct index.
+        // TODO: it is 0-based, and vg pack demands 1-based indexes. So we will
+        // add 1. See
+        // https://github.com/vgteam/libhandlegraph/issues/41#issuecomment-571386849
+        return idx + 1;
     }
 }
 
