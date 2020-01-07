@@ -193,13 +193,19 @@ public:
     XG& operator=(const XG& other) = delete;
     XG& operator=(XG&& other) = delete;
 
-    /// build the graph from another simple graph
+    /// Build the graph from another simple graph.
+    /// The order in which nodes are enumerated becomes the XG's node order.
+    /// Note that we will get the best efficiency if the graph enumerates itself in topological order.
     void from_handle_graph(const HandleGraph& graph);
 
-    /// build the graph from another path handle graph
+    /// Build the graph from another path handle graph.
+    /// The order in which nodes are enumerated becomes the XG's node order.
+    /// Note that we will get the best efficiency if the graph enumerates itself in topological order.
     void from_path_handle_graph(const PathHandleGraph& graph);
 
-    /// Use external enumerators to drive graph construction
+    /// Use external enumerators to drive graph construction.
+    /// The order in which nodes are enumerated becomes the XG's node order.
+    /// Note that we will get the best efficiency if the graph is enumerated in topological order.
     void from_enumerators(const std::function<void(const std::function<void(const std::string& seq, const nid_t& node_id)>&)>& for_each_sequence,
                           const std::function<void(const std::function<void(const nid_t& from, const bool& from_rev,
                                                                             const nid_t& to, const bool& to_rev)>&)>& for_each_edge,
