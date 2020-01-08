@@ -358,8 +358,6 @@ public:
     bool for_each_path_handle_impl(const std::function<bool(const path_handle_t&)>& iteratee) const;
     /// Executes a function on each step of a handle in any path.
     bool for_each_step_on_handle_impl(const handle_t& handle, const std::function<bool(const step_handle_t&)>& iteratee) const;
-    /// Unpack the path position and orientation information alongside the steps
-    bool for_each_step_position_on_handle(const handle_t& handle, const std::function<bool(const step_handle_t&, const bool&, const uint64_t&)>& iteratee) const;
     /// Gets the position of a given step in the path it's from
     size_t get_position_of_step(const step_handle_t& step) const;
     /// Get the step at a given position
