@@ -55,8 +55,12 @@ XG::~XG(void) {
         paths.pop_back();
     }
 }
+
+uint32_t XG::get_magic_number(void) const {
+    return 4143290017ul;
+}
     
-void XG::deserialize(std::istream& in) {
+void XG::deserialize_members(std::istream& in) {
     // simple alias to match an external interface
     load(in);
 }
@@ -518,7 +522,7 @@ handle_t XGPath::external_handle(const handle_t& handle) const {
     return as_handle(as_integer(handle)+as_integer(min_handle));
 }
 
-void XG::serialize(ostream& out) const {
+void XG::serialize_members(ostream& out) const {
     serialize_and_measure(out);
 }
 
