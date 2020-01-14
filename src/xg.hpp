@@ -28,6 +28,7 @@
 #include <handlegraph/handle_graph.hpp>
 #include <handlegraph/serializable_handle_graph.hpp>
 #include <handlegraph/path_position_handle_graph.hpp>
+#include <handlegraph/serializable_handle_graph.hpp>
 
 #include <mmmultimap.hpp>
 
@@ -228,7 +229,7 @@ public:
     const static uint32_t CURRENT_VERSION = 14;
     
     /// Get the magic number used to prefix serialized streams.
-    uint32_t get_magic_number() const;
+    uint32_t get_magic_number(void) const;
    
 protected:
     /// Load this XG index from a stream from which the magic number has

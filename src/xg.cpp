@@ -55,6 +55,11 @@ XG::~XG(void) {
         paths.pop_back();
     }
 }
+
+uint32_t XG::get_magic_number(void) const {
+    // This is not a nice string
+    return 4143290017ul;
+}
     
 void XG::deserialize_members(std::istream& in) {
 
@@ -535,13 +540,6 @@ handle_t XGPath::local_handle(const handle_t& handle) const {
 
 handle_t XGPath::external_handle(const handle_t& handle) const {
     return as_handle(as_integer(handle)+as_integer(min_handle));
-}
-
-uint32_t XG::get_magic_number() const {
-    // Specify what it should look like on the wire (Next Generation XG)
-    const char* bytes = "NGXG";
-    // Convert to a host byte order number
-    return ntohl(*((const uint32_t*) bytes));
 }
 
 size_t XG::serialize_and_measure(ostream& out, sdsl::structure_tree_node* s, std::string name) const {
@@ -1556,10 +1554,16 @@ size_t XG::edge_index(const edge_t& edge) const {
     // edges off one side to be enumerated before all the edges off the other.
     // Note that we need to make sure we enumerate edges off the left and right
     // sides of the node in a consistent order, so that they don't end up
-    // having colliding indexes. We rely on the edge coming in in a canonical
-    // order and orientation.
+    // having colliding indexes.
     
     // Note that resulting indexes will not be anywhere near dense.
+    
+    edge_t canonical = edge_handle(edge.first, edge.second);
+    if (canonical != edge) {
+        // They gave us the edge backward!
+        // Look at it forward instead.
+        return edge_index(canonical);
+    }
     
     // Get the g index corresponding to the first node's record. We know it
     // owns at least as much g vector space as it has edges.
