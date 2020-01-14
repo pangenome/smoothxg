@@ -1531,10 +1531,16 @@ size_t XG::edge_index(const edge_t& edge) const {
     // edges off one side to be enumerated before all the edges off the other.
     // Note that we need to make sure we enumerate edges off the left and right
     // sides of the node in a consistent order, so that they don't end up
-    // having colliding indexes. We rely on the edge coming in in a canonical
-    // order and orientation.
+    // having colliding indexes.
     
     // Note that resulting indexes will not be anywhere near dense.
+    
+    edge_t canonical = edge_handle(edge.first, edge.second);
+    if (canonical != edge) {
+        // They gave us the edge backward!
+        // Look at it forward instead.
+        return edge_index(canonical);
+    }
     
     // Get the g index corresponding to the first node's record. We know it
     // owns at least as much g vector space as it has edges.
