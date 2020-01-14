@@ -69,21 +69,16 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 # libhandlegraph (full build using its cmake config)
 ExternalProject_Add(handlegraph
-  GIT_REPOSITORY "https://github.com/vgteam/libhandlegraph.git"
-  GIT_TAG "e2c45aae9a19a14176e3dc412b6ebc038385a31b"
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR}
-  #BUILD_COMMAND ""
-  UPDATE_COMMAND ""
-  INSTALL_COMMAND "")
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/libhandlegraph"
+  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>")
 ExternalProject_Get_property(handlegraph INSTALL_DIR)
-set(handlegraph_INCLUDE "${INSTALL_DIR}/src/handlegraph/src/include")
-set(handlegraph_LIB "${INSTALL_DIR}/src/handlegraph-build")
+set(handlegraph_INCLUDE "${INSTALL_DIR}/include")
+set(handlegraph_LIB "${INSTALL_DIR}/lib")
 
 # sdsl-lite (full build using its cmake config)
 ExternalProject_Add(sdsl-lite
-  GIT_REPOSITORY "https://github.com/simongog/sdsl-lite.git"
-  GIT_TAG "ddb0fbbc33bb183baa616f17eb48e261ac2a3672"
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR} # TODO ADD static build flag
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/sdsl-lite"
+  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
   UPDATE_COMMAND ""
   INSTALL_COMMAND "")
 ExternalProject_Get_property(sdsl-lite INSTALL_DIR)
@@ -94,46 +89,43 @@ set(sdsl-lite-divsufsort_LIB "${INSTALL_DIR}/src/sdsl-lite-build/external/libdiv
 
 # mmmultimap (memory mapped multimap)
 ExternalProject_Add(mmmultimap
-  GIT_REPOSITORY "https://github.com/ekg/mmmultimap.git"
-  GIT_TAG "38d5d70f4f9e10aae4548b022c2a7d55024c5e99"
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mmmultimap"
   BUILD_COMMAND ""
   UPDATE_COMMAND ""
   INSTALL_COMMAND "")
 ExternalProject_Get_property(mmmultimap SOURCE_DIR)
 set(mmmultimap_INCLUDE "${SOURCE_DIR}/src")
 
-# taywee's C++ args library, header only
-ExternalProject_Add(tayweeargs
-  GIT_REPOSITORY "https://github.com/Taywee/args.git"
-  GIT_TAG "3de44ec671db452cc0c4ef86399b108939768abb"
-  UPDATE_COMMAND ""
-  INSTALL_COMMAND "")
-ExternalProject_Get_property(tayweeargs SOURCE_DIR)
-set(tayweeargs_INCLUDE "${SOURCE_DIR}")
-
-# gfakluge (header only)
-ExternalProject_Add(gfakluge
-  GIT_REPOSITORY "https://github.com/vgteam/gfakluge.git"
-  GIT_TAG "3b9faa69fc27f34b9f65d78dd66bc4c97f11014b"
-  BUILD_IN_SOURCE TRUE
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR} # TODO ADD static build flag
-  UPDATE_COMMAND ""
-  INSTALL_COMMAND ""
-  BUILD_COMMAND ""
-  CONFIGURE_COMMAND "")
-ExternalProject_Get_property(gfakluge INSTALL_DIR)
-set(gfakluge_INCLUDE "${INSTALL_DIR}/src/gfakluge/src")
-set(gfakluge_tinyFA_INCLUDE "${INSTALL_DIR}/src/gfakluge/src/tinyFA")
-
 # In-place Parallel Super Scalar Samplesort (IPS⁴o), header only
 ExternalProject_Add(ips4o
-  GIT_REPOSITORY "https://github.com/vgteam/ips4o.git"
-  GIT_TAG "22069381cc1bf2df07ee1ff47f6b6073fcfb4508"
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/ips4o"
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
   CONFIGURE_COMMAND "")
 ExternalProject_Get_property(ips4o SOURCE_DIR)
 set(ips4o_INCLUDE "${SOURCE_DIR}")
+
+# taywee's C++ args library, header only
+ExternalProject_Add(tayweeargs
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/args"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND "")
+ExternalProject_Get_property(tayweeargs SOURCE_DIR)
+set(tayweeargs_INCLUDE "${SOURCE_DIR}")
+
+# gfakluge (now header only)
+ExternalProject_Add(gfakluge
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/gfakluge"
+  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(gfakluge SOURCE_DIR)
+set(gfakluge_INCLUDE "${SOURCE_DIR}/src")
+set(gfakluge_tinyFA_INCLUDE "${SOURCE_DIR}/src/tinyFA")
+ExternalProject_Get_property(gfakluge INSTALL_DIR)
+set(gfakluge_LIB "${INSTALL_DIR}/src/gfakluge")
 
 #set(CMAKE_BUILD_TYPE Release)
 

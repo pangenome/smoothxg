@@ -27,6 +27,7 @@
 #include <handlegraph/util.hpp>
 #include <handlegraph/handle_graph.hpp>
 #include <handlegraph/path_position_handle_graph.hpp>
+#include <handlegraph/serializable_handle_graph.hpp>
 
 #include <mmmultimap.hpp>
 
@@ -229,11 +230,14 @@ public:
     // Load this XG index from a stream. Throw an XGFormatError if the stream
     // does not produce a valid XG file.
     void load(std::istream& in);
+
+    // Get our magic number
+    uint32_t get_magic_number(void) const;
     
     // Alias for load() to match the SerializableHandleGraph interface
-    void deserialize(std::istream& in);
+    void deserialize_members(std::istream& in);
     
-    void serialize(std::ostream& out) const;
+    void serialize_members(std::ostream& out) const;
     size_t serialize_and_measure(std::ostream& out, sdsl::structure_tree_node* s = nullptr, std::string name = "") const;
     
     /// Dump information about the XG to the given stream for debugging
