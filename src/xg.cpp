@@ -56,12 +56,7 @@ XG::~XG(void) {
     }
 }
     
-void XG::deserialize(std::istream& in) {
-    // simple alias to match an external interface
-    load(in);
-}
-
-void XG::load(std::istream& in) {
+void XG::deserialize_members(std::istream& in) {
 
     if (!in.good()) {
         throw XGFormatError("Index file does not exist or index stream cannot be read");
@@ -70,8 +65,11 @@ void XG::load(std::istream& in) {
     // Version 0 is the last XG format without an explicit version specifier.
     // If we find a version specifier we will up this.
     uint32_t file_version = 0;
+    
+    // Magic value handling is now external.
 
-    // We need to look for the magic value
+    // We need to look for the old magic value (v13 or lower)
+    bool have_old_magic = false;
     char buffer;
     in.get(buffer);
     if (buffer == 'X') {
@@ -84,6 +82,9 @@ void XG::load(std::istream& in) {
             // Make sure to convert from network to host byte order
             file_version = ntohl(file_version);
             
+            // Remember we had the old magic value
+            have_old_magic = true;
+            
         } else {
             // Put back both characters
             in.unget();
@@ -92,6 +93,23 @@ void XG::load(std::istream& in) {
     } else {
         // Put back the one character
         in.unget();
+    }
+    
+    if (!have_old_magic) {
+        // New SerializableHandleGraph magic is done for us
+        
+        // First 4 bytes we see are version number
+        in.read((char*) &file_version, sizeof(file_version));
+        // Make sure to convert from network to host byte order
+        file_version = ntohl(file_version);
+    }
+    
+    if (have_old_magic && file_version > 13) {
+        // This shouldn't happen. If it does happen, we must be reading
+        // something wrong (new style version number started with X and G
+        // bytes)?
+        throw XGFormatError("XG index file version " + std::to_string(file_version) +
+                            " has old-style magic number.");
     }
     
     if (file_version > CURRENT_VERSION) {
@@ -118,10 +136,11 @@ void XG::load(std::istream& in) {
         case 10:
         case 11:
         case 12:
+        case 13:
             std::cerr << "warning:[XG] Loading an out-of-date XG format."
                       << "For better performance over repeated loads, consider recreating this XG index." << std::endl;
             // Fall through
-        case 13:
+        case 14:
             {
                 sdsl::read_member(seq_length, in);
                 sdsl::read_member(node_count, in);
@@ -518,20 +537,30 @@ handle_t XGPath::external_handle(const handle_t& handle) const {
     return as_handle(as_integer(handle)+as_integer(min_handle));
 }
 
-void XG::serialize(ostream& out) const {
-    serialize_and_measure(out);
+uint32_t XG::get_magic_number() const {
+    // Specify what it should look like on the wire (Next Generation XG)
+    const char* bytes = "NGXG";
+    // Convert to a host byte order number
+    return ntohl(*((const uint32_t*) bytes));
 }
 
 size_t XG::serialize_and_measure(ostream& out, sdsl::structure_tree_node* s, std::string name) const {
+    // TODO: this depends on SerializableHandleGraph's internals.
+    uint32_t magic_number = htonl(get_magic_number());
+    out.write((char*) &magic_number, sizeof(magic_number) / sizeof(char));
+    return serialize_members_and_measure(out, s, name);
+}
+
+void XG::serialize_members(ostream& out) const {
+    serialize_members_and_measure(out);
+}
+
+size_t XG::serialize_members_and_measure(ostream& out, sdsl::structure_tree_node* s, std::string name) const {
 
     sdsl::structure_tree_node* child = sdsl::structure_tree::add_child(s, name, sdsl::util::class_name(*this));
     size_t written = 0;
     
-    // Do the magic number
-    out << "XG";
-    written += 2;
-    
-    // And the version number
+    // Start with the version number; SerializableHandleGraph handles the magic
     int32_t version_buffer = htonl(CURRENT_VERSION);
     out.write((char*) &version_buffer, sizeof(version_buffer));
     written += sizeof(version_buffer) / sizeof(char);

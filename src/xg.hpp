@@ -26,6 +26,7 @@
 #include <handlegraph/iteratee.hpp>
 #include <handlegraph/util.hpp>
 #include <handlegraph/handle_graph.hpp>
+#include <handlegraph/serializable_handle_graph.hpp>
 #include <handlegraph/path_position_handle_graph.hpp>
 
 #include <mmmultimap.hpp>
@@ -224,16 +225,25 @@ public:
     //void from_path_handle_graph(const PathHandleGraph& other);
     
     // What version of an XG is this designed to read?
-    const static uint32_t CURRENT_VERSION = 13;
-               
-    // Load this XG index from a stream. Throw an XGFormatError if the stream
-    // does not produce a valid XG file.
-    void load(std::istream& in);
+    const static uint32_t CURRENT_VERSION = 14;
     
-    // Alias for load() to match the SerializableHandleGraph interface
-    void deserialize(std::istream& in);
+    /// Get the magic number used to prefix serialized streams.
+    uint32_t get_magic_number() const;
+   
+protected:
+    /// Load this XG index from a stream from which the magic number has
+    /// already been read. Throw an XGFormatError if the stream does not
+    /// produce a valid XG file.
+    void deserialize_members(std::istream& in);
     
-    void serialize(std::ostream& out) const;
+    /// Write the XG's contents to a stream aready prefixed with a magic number.
+    void serialize_members(std::ostream& out) const;
+    
+    /// Like serialize_members() but logs internal member sizes and returns total size.
+    size_t serialize_members_and_measure(std::ostream& out, sdsl::structure_tree_node* s = nullptr, std::string name = "") const;
+    
+public:
+    /// Like serialize() (inherited from SerializableHandleGraph) but logs internal member sizes and returns total size.
     size_t serialize_and_measure(std::ostream& out, sdsl::structure_tree_node* s = nullptr, std::string name = "") const;
     
     /// Dump information about the XG to the given stream for debugging
