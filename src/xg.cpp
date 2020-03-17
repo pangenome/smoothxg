@@ -342,7 +342,7 @@ void XGPath::load_from_old_version(std::istream& in, uint32_t file_version, cons
         // first make an int vector of handles
         sdsl::int_vector<> handles_iv;
         {
-            int64_t id_offset = 0;
+            nid_t id_offset = 0;
             if (file_version >= 8) {
                 // IDs are stored relative to a minimum offset
                 sdsl::read_member(id_offset, in);
@@ -745,7 +745,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     seq_length = 0;
     edge_count = 0;
     path_count = 0;
-    min_id = std::numeric_limits<int64_t>::max();
+    min_id = std::numeric_limits<nid_t>::max();
     max_id = 0;
     // get information about graph size and id ranges
 #ifdef VERBOSE_DEBUG

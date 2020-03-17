@@ -384,7 +384,6 @@ public:
     /// rank to id helper function
     nid_t rank_to_id(const size_t& rank) const;
     size_t max_node_rank(void) const;
-    int64_t node_at_seq_pos(const size_t& pos) const;
     size_t node_vector_offset(const nid_t& id) const;
     nid_t node_at_vector_offset(const size_t& offset) const;
     size_t max_path_rank(void) const;
@@ -509,8 +508,8 @@ private:
     ////////////////////////////////////////////////////////////////////////////
 
     // maintain old ids from input, ranked as in s_iv and s_bv
-    int64_t min_id = 0; // id ranges don't have to start at 0
-    int64_t max_id = 0;
+    nid_t min_id = 0; // id ranges don't have to start at 0
+    nid_t max_id = 0;
     sdsl::int_vector<> r_iv; // ids-id_min is the rank
 
     ////////////////////////////////////////////////////////////////////////////
