@@ -755,6 +755,13 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
             // min id starts at 0
             min_id = std::min(min_id, id);
             max_id = std::max(max_id, id);
+            if (seq.empty()) {
+                // XG can't store empty nodes, because of its one-1-per-node combinde sequence lookup bit vector.
+                // If the 1s collide, bad things happen.
+                // Print a useful report for a user (instead of a crash for an uncaught exception) and abort everything.
+                std::cerr << "error[XG::from_enumerators]: Graph contains empty node " << id << " which cannot be stored in an XG" << std::endl;
+                exit(1);
+            }
             seq_length += seq.size();
             ++node_count;
         });
