@@ -209,3 +209,4 @@ elseif (TRUE)
   set(CMAKE_EXE_LINKER_FLAGS "-static")
 endif()
 
+install(TARGETS xg DESTINATION bin)
