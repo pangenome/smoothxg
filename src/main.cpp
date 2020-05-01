@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
     XG graph;
     if (!args::get(xg_in).empty()) {
         std::ifstream in(args::get(xg_in));
-        graph.load(in);
+        graph.deserialize(in);
     } else if (!args::get(gfa_in).empty()) {
         graph.from_gfa(args::get(gfa_in), args::get(validate),
                        args::get(base).empty() ? args::get(gfa_in) : args::get(base));
