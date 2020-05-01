@@ -150,34 +150,29 @@ add_dependencies(xg_objs tayweeargs)
 add_dependencies(xg_objs gfakluge)
 add_dependencies(xg_objs ips4o)
 
-target_include_directories(xg_objs PUBLIC
-  "${CMAKE_SOURCE_DIR}/src"
-  "${handlegraph_INCLUDE}"
-  "${sdsl-lite_INCLUDE}"
-  "${sdsl-lite-divsufsort_INCLUDE}"
-  "${tayweeargs_INCLUDE}"
-  "${ips4o_INCLUDE}"
-  "${mmmulti_INCLUDE}"
-  "${atomicqueue_INCLUDE}"
-  "${gfakluge_INCLUDE}"
-  "${gfakluge_tinyFA_INCLUDE}")
+set_target_properties(xg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
-set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
+#set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
 
 # The following folder will be included
 include_directories("${PROJECT_SOURCE_DIR}")
 
 # build a static library
 #add_library(libxg STATIC ${CMAKE_SOURCE_DIR}/src/xg.cpp)
-add_library(libxg STATIC $<TARGET_OBJECTS:xg_objs>)
-set_target_properties(libxg PROPERTIES OUTPUT_NAME "xg")
+#add_library(libxg STATIC $<TARGET_OBJECTS:xg_objs>)
+#set_target_properties(libxg PROPERTIES OUTPUT_NAME "xg")
+
+set(xg_HEADERS
+  ${CMAKE_SOURCE_DIR}/src/xg.hpp)
 
 # set up our target executable and specify its dependencies and includes
-add_executable(xg
-  $<TARGET_OBJECTS:xg_objs>
-  ${CMAKE_SOURCE_DIR}/src/main.cpp
-  )
-target_include_directories(xg PUBLIC
+#add_executable(xg
+#  $<TARGET_OBJECTS:xg_objs>
+#  ${CMAKE_SOURCE_DIR}/src/main.cpp
+#)
+
+#target_include_directories(xg PUBLIC
+set(xg_INCLUDES
   "${CMAKE_SOURCE_DIR}/src"
   "${handlegraph_INCLUDE}"
   "${sdsl-lite_INCLUDE}"
@@ -189,24 +184,39 @@ target_include_directories(xg PUBLIC
   "${gfakluge_INCLUDE}"
   "${gfakluge_tinyFA_INCLUDE}")
 
+set(xg_LIBS
+  "${sdsl-lite_LIB}/libsdsl.a"
+  "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
+  "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
+  "${handlegraph_LIB}/libhandlegraph.a"
+  "-latomic")
 
-# macOS doesn't want you to link in libatomic this way
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  target_link_libraries(xg
-    "${sdsl-lite_LIB}/libsdsl.a"
-    "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
-    "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
-    "${handlegraph_LIB}/libhandlegraph.a"
-    )
-elseif (TRUE)
-  target_link_libraries(xg
-    "${sdsl-lite_LIB}/libsdsl.a"
-    "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
-    "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
-    "${handlegraph_LIB}/libhandlegraph.a"
-    "-latomic"
-    )
-  set(CMAKE_EXE_LINKER_FLAGS "-static")
-endif()
+target_include_directories(xg_objs PUBLIC ${xg_INCLUDES})
+
+add_executable(xg
+  $<TARGET_OBJECTS:xg_objs>
+  ${CMAKE_SOURCE_DIR}/src/main.cpp)
+target_link_libraries(xg ${xg_LIBS})
+set_target_properties(xg PROPERTIES OUTPUT_NAME "xg")
+target_include_directories(xg PUBLIC ${xg_INCLUDES})
+
+add_library(libxg_static STATIC $<TARGET_OBJECTS:xg_objs>)
+set_target_properties(libxg_static PROPERTIES OUTPUT_NAME "xg")
+set_target_properties(libxg_static PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+add_library(libxg_shared SHARED $<TARGET_OBJECTS:xg_objs>)
+set_target_properties(libxg_shared PROPERTIES OUTPUT_NAME "xg")
+set_target_properties(libxg_shared PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+
+set_target_properties(libxg_static PROPERTIES PUBLIC_HEADER "${xg_HEADERS}")
+set_target_properties(libxg_shared PROPERTIES PUBLIC_HEADER "${xg_HEADERS}")
 
 install(TARGETS xg DESTINATION bin)
+install(TARGETS libxg_static ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/xg)
+install(TARGETS libxg_shared ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/xg)
+
+if (APPLE)
+elseif (TRUE)
+  if (BUILD_STATIC)
+    set(CMAKE_EXE_LINKER_FLAGS "-static")
+  endif()
+endif()
