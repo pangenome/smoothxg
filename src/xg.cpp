@@ -863,8 +863,8 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
             edge_to_from_mm->append(as_integer(to_handle), as_integer(from_handle));
         });
     handle_t max_handle = number_bool_packing::pack(r_iv.size(), true);
-    edge_from_to_mm->index(as_integer(max_handle));
-    edge_to_from_mm->index(as_integer(max_handle));
+    edge_from_to_mm->index(get_thread_count(), as_integer(max_handle));
+    edge_to_from_mm->index(get_thread_count(), as_integer(max_handle));
 
     // calculate g_iv size
     size_t g_iv_size =
@@ -1355,7 +1355,7 @@ void XG::index_node_to_path(const std::string& basename) {
 #ifdef VERBOSE_DEBUG
     std::cerr << path_count << " of " << path_count << " ~ 100.0000%" << std::endl;
 #endif
-    node_path_mm->index(node_count+1);
+    node_path_mm->index(get_thread_count(), node_count+1);
     
 #ifdef VERBOSE_DEBUG
     std::cerr << "determining size of node to path position mappings" << std::endl;
@@ -2457,6 +2457,16 @@ std::string get_dir() {
     return temp_dir;
 }
 
+}
+
+int get_thread_count(void) {
+    int thread_count = 1;
+#pragma omp parallel
+    {
+#pragma omp master
+        thread_count = omp_get_num_threads();
+    }
+    return thread_count;
 }
 
 }

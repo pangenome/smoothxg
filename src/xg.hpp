@@ -607,4 +607,7 @@ std::string get_dir();
 
 } // namespace temp_file
 
+/// Uses OMP to get the count of threads
+int get_thread_count(void);
+
 }
