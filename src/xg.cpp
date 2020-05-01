@@ -854,6 +854,8 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     std::string edge_t_f_idx = basename + ".to_from.mm";
     auto edge_from_to_mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(edge_f_t_idx);
     auto edge_to_from_mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(edge_t_f_idx);
+    edge_from_to_mm->open_writer();
+    edge_to_from_mm->open_writer();
     for_each_edge([&](const nid_t& from_id, const bool& from_rev, const nid_t& to_id, const bool& to_rev) {
             handle_t from_handle = temp_get_handle(from_id, from_rev);
             handle_t to_handle = temp_get_handle(to_id, to_rev);
@@ -1312,6 +1314,7 @@ void XG::index_node_to_path(const std::string& basename) {
     // use the mmmultimap...
     std::string node_path_idx = basename + ".node_path.mm";
     auto node_path_mm = std::make_unique<mmmulti::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>>>(node_path_idx);
+    node_path_mm->open_writer();
     uint64_t path_step_count = 0;
     // for each path...
     // could be done in parallel
