@@ -631,9 +631,6 @@ void XG::dump_to_stream(std::ostream& out) const {
 }
 
 void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string basename) {
-    if (basename.empty()) {
-        basename = temp_file::create();
-    }
     char* filename = (char*)gfa_filename.c_str();
     gfak::GFAKluge gfa;
     // set up our enumerators
@@ -667,7 +664,7 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
             lambda(path_name, node_id, is_rev, cigar, is_empty, is_circular);
         });
     };
-    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, validate);
+    from_enumerators(for_each_sequence, for_each_edge, for_each_path_element, validate, basename);
 }
 
 
