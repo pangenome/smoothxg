@@ -1049,6 +1049,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     string path_name_file = basename + ".pathnames.iv";
     sdsl::store_to_file((const char*)path_names.c_str(), path_name_file);
     sdsl::construct(pn_csa, path_name_file, 1);
+    std::remove(path_name_file.c_str());
 
 #ifdef VERBOSE_DEBUG
     cerr << "computing node to path membership" << endl;

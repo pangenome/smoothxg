@@ -56,17 +56,6 @@ include_directories("${PROJECT_SOURCE_DIR}")
 # Add external projects
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
-# TODO: We're using INSTALL_DIR very wrong. We *should* be actually installing
-# the external projects into their prefixes and working with the installed
-# files. Instead we're building but not installing them and trying to work with
-# the non-installed build trees.
-# 
-# Hence the blanked out INSTALL_COMMANDs to suppress the install step.
-#
-# By blanking out UPDATE_COMMAND, we have to blow away (rm -rf) the build directories
-# for projects when we update their git tag.
-# The alternative is that we have to reconfigure/rebuild certain repos every single time.
-
 # libhandlegraph (full build using its cmake config)
 ExternalProject_Add(handlegraph
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/libhandlegraph"
