@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.1)
 
 # Project's name
-project(xg)
+project(smoothxg)
 # We build using c++14
 set(CMAKE_CXX_STANDARD 14)
 
@@ -127,19 +127,32 @@ set(gfakluge_tinyFA_INCLUDE "${SOURCE_DIR}/src/tinyFA")
 ExternalProject_Get_property(gfakluge INSTALL_DIR)
 set(gfakluge_LIB "${INSTALL_DIR}/src/gfakluge")
 
+# cgranges, header only
+ExternalProject_Add(cgranges
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/cgranges"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(cgranges SOURCE_DIR)
+set(cgranges_INCLUDE "${SOURCE_DIR}/cpp")
+
 #set(CMAKE_BUILD_TYPE Release)
 
-add_library(xg_objs OBJECT src/xg.cpp)
+add_library(smoothxg_objs OBJECT
+  src/xg.cpp
+  src/chain.cpp)
 
-add_dependencies(xg_objs handlegraph)
-add_dependencies(xg_objs sdsl-lite)
-add_dependencies(xg_objs mmmulti)
-add_dependencies(xg_objs atomicqueue)
-add_dependencies(xg_objs tayweeargs)
-add_dependencies(xg_objs gfakluge)
-add_dependencies(xg_objs ips4o)
+add_dependencies(smoothxg_objs handlegraph)
+add_dependencies(smoothxg_objs sdsl-lite)
+add_dependencies(smoothxg_objs mmmulti)
+add_dependencies(smoothxg_objs atomicqueue)
+add_dependencies(smoothxg_objs tayweeargs)
+add_dependencies(smoothxg_objs gfakluge)
+add_dependencies(smoothxg_objs ips4o)
+add_dependencies(smoothxg_objs cgranges)
 
-set_target_properties(xg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+set_target_properties(smoothxg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
 #set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
 
@@ -147,21 +160,22 @@ set_target_properties(xg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 include_directories("${PROJECT_SOURCE_DIR}")
 
 # build a static library
-#add_library(libxg STATIC ${CMAKE_SOURCE_DIR}/src/xg.cpp)
-#add_library(libxg STATIC $<TARGET_OBJECTS:xg_objs>)
-#set_target_properties(libxg PROPERTIES OUTPUT_NAME "xg")
+#add_library(libsmoothxg STATIC ${CMAKE_SOURCE_DIR}/src/smoothxg.cpp)
+#add_library(libsmoothxg STATIC $<TARGET_OBJECTS:smoothxg_objs>)
+#set_target_properties(libsmoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 
-set(xg_HEADERS
-  ${CMAKE_SOURCE_DIR}/src/xg.hpp)
+set(smoothxg_HEADERS
+  ${CMAKE_SOURCE_DIR}/src/xg.hpp
+  ${CMAKE_SOURCE_DIR}/src/smoothxg.hpp)
 
 # set up our target executable and specify its dependencies and includes
-#add_executable(xg
-#  $<TARGET_OBJECTS:xg_objs>
+#add_executable(smoothxg
+#  $<TARGET_OBJECTS:smoothxg_objs>
 #  ${CMAKE_SOURCE_DIR}/src/main.cpp
 #)
 
-#target_include_directories(xg PUBLIC
-set(xg_INCLUDES
+#target_include_directories(smoothxg PUBLIC
+set(smoothxg_INCLUDES
   "${CMAKE_SOURCE_DIR}/src"
   "${handlegraph_INCLUDE}"
   "${sdsl-lite_INCLUDE}"
@@ -171,37 +185,38 @@ set(xg_INCLUDES
   "${mmmulti_INCLUDE}"
   "${atomicqueue_INCLUDE}"
   "${gfakluge_INCLUDE}"
-  "${gfakluge_tinyFA_INCLUDE}")
+  "${gfakluge_tinyFA_INCLUDE}"
+  "${cgranges_INCLUDE}")
 
-set(xg_LIBS
+set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
   "${handlegraph_LIB}/libhandlegraph.a"
   "-latomic")
 
-target_include_directories(xg_objs PUBLIC ${xg_INCLUDES})
+target_include_directories(smoothxg_objs PUBLIC ${smoothxg_INCLUDES})
 
-add_executable(xg
-  $<TARGET_OBJECTS:xg_objs>
+add_executable(smoothxg
+  $<TARGET_OBJECTS:smoothxg_objs>
   ${CMAKE_SOURCE_DIR}/src/main.cpp)
-target_link_libraries(xg ${xg_LIBS})
-set_target_properties(xg PROPERTIES OUTPUT_NAME "xg")
-target_include_directories(xg PUBLIC ${xg_INCLUDES})
+target_link_libraries(smoothxg ${smoothxg_LIBS})
+set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
+target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
 
-add_library(libxg_static STATIC $<TARGET_OBJECTS:xg_objs>)
-set_target_properties(libxg_static PROPERTIES OUTPUT_NAME "xg")
-set_target_properties(libxg_static PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
-add_library(libxg_shared SHARED $<TARGET_OBJECTS:xg_objs>)
-set_target_properties(libxg_shared PROPERTIES OUTPUT_NAME "xg")
-set_target_properties(libxg_shared PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+add_library(libsmoothxg_static STATIC $<TARGET_OBJECTS:smoothxg_objs>)
+set_target_properties(libsmoothxg_static PROPERTIES OUTPUT_NAME "smoothxg")
+set_target_properties(libsmoothxg_static PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+add_library(libsmoothxg_shared SHARED $<TARGET_OBJECTS:smoothxg_objs>)
+set_target_properties(libsmoothxg_shared PROPERTIES OUTPUT_NAME "smoothxg")
+set_target_properties(libsmoothxg_shared PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
-set_target_properties(libxg_static PROPERTIES PUBLIC_HEADER "${xg_HEADERS}")
-set_target_properties(libxg_shared PROPERTIES PUBLIC_HEADER "${xg_HEADERS}")
+set_target_properties(libsmoothxg_static PROPERTIES PUBLIC_HEADER "${smoothxg_HEADERS}")
+set_target_properties(libsmoothxg_shared PROPERTIES PUBLIC_HEADER "${smoothxg_HEADERS}")
 
-install(TARGETS xg DESTINATION bin)
-install(TARGETS libxg_static ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/xg)
-install(TARGETS libxg_shared ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/xg)
+install(TARGETS smoothxg DESTINATION bin)
+install(TARGETS libsmoothxg_static ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
+install(TARGETS libsmoothxg_shared ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
 
 if (APPLE)
 elseif (TRUE)
