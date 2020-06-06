@@ -2,6 +2,39 @@
 
 namespace smoothxg {
 
+std::vector<anchor_t> anchors_for_path(
+    const xg::XG& graph,
+    const path_handle_t& path) {
+    std::vector<anchor_t> anchors;
+    graph.for_each_step_in_path(
+        path,
+        [&](const step_handle_t& query_step) {
+            seq_pos_t query_position = seq_pos::encode(graph.get_position_of_step(query_step), false);
+            const handle_t& handle = graph.get_handle_of_step(query_step);
+            size_t handle_length = graph.get_length(handle);
+            //size_t query_is_rev = graph.get_is_reverse(handle);
+            graph.for_each_step_position_on_handle(
+                handle,
+                [&](const step_handle_t& target_step,
+                    const bool& target_rev_vs_query,
+                    const size_t& target_pos) {
+                    path_handle_t target_path = graph.get_path_handle_of_step(target_step);
+                    seq_pos_t target_position = seq_pos::encode(target_pos, target_rev_vs_query);
+                    if (query_step != target_step) {
+                        anchors.emplace_back(
+                            path,
+                            query_position,
+                            query_position + handle_length,
+                            target_path,
+                            target_position,
+                            target_position + handle_length);
+                    }
+                    return true;
+                });
+        });
+    return anchors;
+}
+
 /*
 std::vector<anchor_t>
 anchors_for_query(
@@ -28,7 +61,7 @@ anchors_for_query(
 }
 */
 
-void chain_t::compute_boundaries(const uint64_t& seed_length, const double& mismatch_rate) {
+void chain_t::compute_boundaries(const double& mismatch_rate) {
     // find the longest contiguous range covered by the chain
     // where the size is no more than some function of our seed_length * number of anchors * 1+mismatch_rate
     /*
@@ -69,7 +102,6 @@ void chain_t::compute_boundaries(const uint64_t& seed_length, const double& mism
 
 std::vector<chain_t>
 chains(std::vector<anchor_t>& anchors,
-       const uint64_t& seed_length,
        const uint64_t& max_gap,
        const double& mismatch_rate,
        const uint64_t& chain_min_n_anchors,
@@ -87,7 +119,7 @@ chains(std::vector<anchor_t>& anchors,
     for (int64_t i = 0; i < anchors.size(); ++i) {
         anchor_t& anchor_i = anchors[i];
         //std::cerr << "anchor_i " << anchor_i.query_begin << ".." << anchor_i.query_end << std::endl;
-        anchor_i.max_chain_score = seed_length;
+        anchor_i.max_chain_score = 1; // XXXXXXX TODO // seed_length;
         int64_t min_j = bandwidth > i ? 0 : i - bandwidth;
         for (int64_t j = i-1; j >= min_j; --j) {
             anchor_t& anchor_j = anchors[j];
@@ -95,7 +127,6 @@ chains(std::vector<anchor_t>& anchors,
             //if (anchor_i.target_end - anchor_j.target_end > max_gap) break;
             double proposed_score = score_anchors(anchor_j,
                                                   anchor_i,
-                                                  seed_length,
                                                   max_gap);
             //std::cerr << "proposed " << proposed_score << " vs " << anchor_i.max_chain_score << std::endl;
             //std::cerr << "diff " << proposed_score - anchor_i.max_chain_score << std::endl;
@@ -131,7 +162,7 @@ chains(std::vector<anchor_t>& anchors,
         anchor_t* a = &anchors[i];
         //std::cerr << "best predecessor " << a->best_predecessor << " "<< a->max_chain_score <<std::endl;
         if (a->best_predecessor != nullptr
-            && a->max_chain_score > seed_length) { //!curr_chain) {
+            && a->max_chain_score > 1) { /// XXXXXXX FIXME // seed_length) { //!curr_chain) {
             chains.emplace_back();
             auto& curr_chain = chains.back();
             curr_chain.anchors.push_back(a);
@@ -212,17 +243,17 @@ chains(std::vector<anchor_t>& anchors,
         }
     }
     for (auto& chain : chains) {
-        chain.compute_boundaries(seed_length, mismatch_rate);
+        chain.compute_boundaries(mismatch_rate);
     }
     return chains;
 }
 
 double score_anchors(const anchor_t& a,
                      const anchor_t& b,
-                     const uint64_t& seed_length,
                      const uint64_t& max_gap) {
-    if (a.query_end >= b.query_end
-        ||
+    if (a.query_path != b.query_path ||
+        a.target_path != b.target_path ||
+        a.query_end >= b.query_end ||
         !( seq_pos::is_rev(a.target_end)
            == seq_pos::is_rev(b.target_end)
            == seq_pos::is_rev(a.target_begin)
@@ -242,10 +273,9 @@ double score_anchors(const anchor_t& a,
         } else {
             //std::cerr << "query_length " << query_length << " target_length " << target_length << std::endl;
             double gap_cost = gap_length == 0 ? 0
-                : 0.01 * seed_length * gap_length + 0.5 * log2(gap_length);
-            uint64_t match_length = std::min(std::min(query_length,
-                                                      target_length),
-                                             seed_length);
+                : 0.01 * gap_length + 0.5 * log2(gap_length);
+                //: 0.01 * seed_length * gap_length + 0.5 * log2(gap_length);
+            uint64_t match_length = std::min(query_length, target_length);
             //std::cerr << "chain score is " << a.max_chain_score + match_length - gap_cost << std::endl;
             // round to 3 decimal digits, avoid problems with floating point instability causing chain truncation
             return std::round((a.max_chain_score + match_length - gap_cost) * 1000.0) / 1000.0 + query_overlap;
@@ -259,7 +289,6 @@ uint64_t chain_query_length(const chain_t& chain) {
 
 std::vector<superchain_t>
 superchains(std::vector<chain_t>& chains,
-            const uint64_t& kmer_length,
             const double& mismatch_rate,
             const double& chain_overlap_max,
             const uint64_t bandwidth) {
@@ -289,7 +318,7 @@ superchains(std::vector<chain_t>& chains,
             chain_node_t& chain_node_j = chain_nodes[j];
             //anchor_t& anchor_j = anchors[j];
             //std::cerr << "anchor_j " << anchor_j.query_begin << ".." << anchor_j.query_end << std::endl;
-            double proposed_score = score_chain_nodes(chain_node_j, chain_node_i, kmer_length, chain_overlap_max);
+            double proposed_score = score_chain_nodes(chain_node_j, chain_node_i, chain_overlap_max);
             //std::cerr << "proposed " << proposed_score << " vs " << chain_node_i.max_superchain_score << std::endl;
             //std::cerr << "diff " << proposed_score - chain_node_i.max_superchain_score << std::endl;
             if (proposed_score > chain_node_i.max_superchain_score) {
@@ -299,6 +328,7 @@ superchains(std::vector<chain_t>& chains,
             }
         }
     }
+
     /*
     std::ofstream out("superchains.dot");
     out << "digraph G {" << std::endl;
@@ -319,6 +349,7 @@ superchains(std::vector<chain_t>& chains,
     out << "}" << std::endl;
     out.close();
     */
+
     // collect superchains
     std::vector<superchain_t> superchains;
     int64_t i = chain_nodes.size()-1;
@@ -371,7 +402,6 @@ superchains(std::vector<chain_t>& chains,
 
 double score_chain_nodes(const chain_node_t& a,
                          const chain_node_t& b,
-                         const uint64_t& kmer_length,
                          const double& overlap_max) {
     // ignore if the a chain is contained in b by more than our overlap_max
     if ((int64_t)seq_pos::offset(a.chain->query_end()) - (int64_t)seq_pos::offset(b.chain->query_begin())
@@ -384,8 +414,28 @@ double score_chain_nodes(const chain_node_t& a,
     }
 }
 
-std::vector<std::vector<superchain_t>> collinear_blocks(const xg::XG& graph) {
-    return {};
+std::vector<std::pair<path_handle_t, std::vector<superchain_t>>>
+collinear_blocks(
+    const xg::XG& graph,
+    const uint64_t& max_gap,
+    const double& mismatch_rate,
+    const uint64_t& chain_min_n_anchors,
+    const double& chain_overlap_max) {
+
+    std::vector<std::pair<path_handle_t, std::vector<superchain_t>>> blocks;
+    graph.for_each_path_handle(
+        [&](const path_handle_t& path) {
+            auto anchors = anchors_for_path(graph, path);
+            auto query_chains = chains(anchors,
+                                       max_gap,
+                                       mismatch_rate,
+                                       chain_min_n_anchors);
+            auto query_superchains = superchains(query_chains,
+                                                 mismatch_rate,
+                                                 chain_overlap_max);
+            blocks.emplace_back(std::make_pair(path, query_superchains));
+        });
+    return blocks;
 }
 
 }

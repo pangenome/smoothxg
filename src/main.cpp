@@ -24,6 +24,11 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag gfa_out(parser, "FILE", "write the graph in GFA to stdout", {'G', "gfa-out"});
+    args::ValueFlag<uint64_t> max_gap_length(parser, "N", "maximum gap length in chaining (default 1000)", {'g', "max-gap-length"});
+    args::ValueFlag<double> max_mismatch_rate(parser, "FLOAT", "maximum allowed mismatch rate (default 0.1)", {'r', "max-mismatch-rate"});
+    args::ValueFlag<double> chain_overlap(parser, "FLOAT", "maximum allowed query overlap between chains superchains (default 0.75)", {'c', "chain-overlap-max"});
+    args::ValueFlag<uint64_t> chain_min_anchors(parser, "N", "minimum number of anchors in a chain (3)", {'a', "chain-min-n-anchors"});
+    args::ValueFlag<uint64_t> align_best_n(parser, "N", "align the best N superchains", {'n', "align-best-n"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
@@ -58,7 +63,28 @@ int main(int argc, char** argv) {
                        args::get(base).empty() ? args::get(gfa_in) : args::get(base));
     }
 
-    auto blocks = smoothxg::collinear_blocks(graph);
+    uint64_t max_gap = args::get(max_gap_length)
+        ? args::get(max_gap_length) : 1000;
+
+    double mismatch_rate = args::get(max_mismatch_rate)
+        ? args::get(max_mismatch_rate)
+        : 0.2;
+
+    double chain_overlap_max = args::get(chain_overlap)
+        ? args::get(chain_overlap)
+        : 0.75;
+
+    uint64_t chain_min_n_anchors = args::get(chain_min_anchors)
+        ? args::get(chain_min_anchors)
+        : 3;
+
+    uint64_t best_n = args::get(align_best_n) ? args::get(align_best_n) : 1;
+
+    auto blocks = smoothxg::collinear_blocks(graph,
+                                             max_gap,
+                                             mismatch_rate,
+                                             chain_min_n_anchors,
+                                             chain_overlap_max);
 
     if (!args::get(xg_out).empty()) {
         std::ofstream out(args::get(xg_out));
