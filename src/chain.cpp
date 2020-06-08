@@ -101,7 +101,8 @@ void chain_t::compute_boundaries(const double& mismatch_rate) {
 }
 
 std::vector<chain_t>
-chains(std::vector<anchor_t>& anchors,
+chains(const std::string& query_name,
+       std::vector<anchor_t>& anchors,
        const uint64_t& max_gap,
        const double& mismatch_rate,
        const uint64_t& chain_min_n_anchors,
@@ -138,8 +139,7 @@ chains(std::vector<anchor_t>& anchors,
         }
     }
 
-    /*
-    std::ofstream out("chains.dot");
+    std::ofstream out(query_name + ".chains.dot");
     out << "digraph G {" << std::endl;
     //out << "rankdir=LR;" << std::endl;
     for (auto& anchor : anchors) {
@@ -153,7 +153,6 @@ chains(std::vector<anchor_t>& anchors,
     }
     out << "}" << std::endl;
     out.close();
-    */
 
     // collect chains
     std::vector<chain_t> chains;
@@ -288,7 +287,8 @@ uint64_t chain_query_length(const chain_t& chain) {
 }
 
 std::vector<superchain_t>
-superchains(std::vector<chain_t>& chains,
+superchains(const std::string& query_name,
+            std::vector<chain_t>& chains,
             const double& mismatch_rate,
             const double& chain_overlap_max,
             const uint64_t bandwidth) {
@@ -329,8 +329,7 @@ superchains(std::vector<chain_t>& chains,
         }
     }
 
-    /*
-    std::ofstream out("superchains.dot");
+    std::ofstream out(query_name + ".superchains.dot");
     out << "digraph G {" << std::endl;
     //out << "rankdir=LR;" << std::endl;
     for (auto& chain_node : chain_nodes) {
@@ -348,7 +347,6 @@ superchains(std::vector<chain_t>& chains,
     }
     out << "}" << std::endl;
     out.close();
-    */
 
     // collect superchains
     std::vector<superchain_t> superchains;
@@ -426,11 +424,14 @@ collinear_blocks(
     graph.for_each_path_handle(
         [&](const path_handle_t& path) {
             auto anchors = anchors_for_path(graph, path);
-            auto query_chains = chains(anchors,
+            std::string path_name = graph.get_path_name(path);
+            auto query_chains = chains(path_name,
+                                       anchors,
                                        max_gap,
                                        mismatch_rate,
                                        chain_min_n_anchors);
-            auto query_superchains = superchains(query_chains,
+            auto query_superchains = superchains(path_name,
+                                                 query_chains,
                                                  mismatch_rate,
                                                  chain_overlap_max);
             blocks.emplace_back(std::make_pair(path, query_superchains));

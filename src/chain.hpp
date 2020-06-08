@@ -124,7 +124,8 @@ struct chain_node_t {
 };
 
 std::vector<chain_t>
-chains(std::vector<anchor_t>& anchors,
+chains(const std::string& query_name,
+       std::vector<anchor_t>& anchors,
        const uint64_t& max_gap,
        const double& mismatch_rate,
        const uint64_t& chain_min_n_anchors,
@@ -152,7 +153,8 @@ struct superchain_t {
 };
 
 std::vector<superchain_t>
-superchains(std::vector<chain_t>& chains,
+superchains(const std::string& query_name,
+            std::vector<chain_t>& chains,
             const double& mismatch_rate,
             const double& chain_overlap_max,
             const uint64_t bandwidth = 1000);
