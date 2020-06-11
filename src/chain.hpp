@@ -107,9 +107,11 @@ struct chain_t {
         return mapping_quality != std::numeric_limits<double>::min();
     }
     // inner target boundaries
+    path_handle_t target_path = as_path_handle(0);
     seq_pos_t target_begin = 0;
     seq_pos_t target_end = 0;
     // query boundaries are fixed
+    path_handle_t query_path(void) const { return anchors.front()->query_path; }
     seq_pos_t query_begin(void) const { return anchors.front()->query_begin; }
     seq_pos_t query_end(void) const { return anchors.back()->query_end; }
     void compute_boundaries(const double& mismatch_rate);
@@ -142,7 +144,7 @@ uint64_t chain_query_length(const chain_t& chain);
 struct superchain_t {
     std::vector<chain_t*> chains;
     double score = 0;
-    bool is_secondary = true;
+    bool is_secondary = false;
     /*
     double mapping_quality = std::numeric_limits<double>::min();
     //bool is_secondary = false;
@@ -152,12 +154,37 @@ struct superchain_t {
     */
 };
 
+void for_handle_at_anchor_begin_in_chain(
+    const chain_t& chain,
+    const xg::XG& index,
+    const std::function<void(const handle_t&)>& func);
+
+void write_chain_gaf(
+    std::ostream& out,
+    const chain_t& chain,
+    const xg::XG& index,
+    const std::string& query_name,
+    const uint64_t& query_length);
+
+void write_superchain_gaf(
+    std::ostream& out,
+    const superchain_t& superchain,
+    const xg::XG& index,
+    const std::string& query_name,
+    const uint64_t& query_length);
+
 std::vector<superchain_t>
 superchains(const std::string& query_name,
             std::vector<chain_t>& chains,
             const double& mismatch_rate,
             const double& chain_overlap_max,
             const uint64_t bandwidth = 1000);
+
+double score_chain_pair(const chain_t& a,
+                        const double& score_a,
+                        const chain_t& b,
+                        const double& score_b,
+                        const double& overlap_max);
 
 double score_chain_nodes(const chain_node_t& a,
                          const chain_node_t& b,

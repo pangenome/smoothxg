@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
     args::Flag gfa_out(parser, "FILE", "write the graph in GFA to stdout", {'G', "gfa-out"});
     args::ValueFlag<uint64_t> max_gap_length(parser, "N", "maximum gap length in chaining (default 1000)", {'l', "max-gap-length"});
     args::ValueFlag<double> max_mismatch_rate(parser, "FLOAT", "maximum allowed mismatch rate (default 0.1)", {'r', "max-mismatch-rate"});
-    args::ValueFlag<double> chain_overlap(parser, "FLOAT", "maximum allowed query overlap between chains superchains (default 0.75)", {'c', "chain-overlap-max"});
+    args::ValueFlag<double> chain_overlap(parser, "FLOAT", "maximum allowed query overlap between chains superchains (default 1.0 / disabled)", {'c', "chain-overlap-max"});
     args::ValueFlag<uint64_t> chain_min_anchors(parser, "N", "minimum number of anchors in a chain (3)", {'a', "chain-min-n-anchors"});
     args::ValueFlag<uint64_t> align_best_n(parser, "N", "align the best N superchains", {'n', "align-best-n"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
 
     double chain_overlap_max = args::get(chain_overlap)
         ? args::get(chain_overlap)
-        : 0.75;
+        : 1.0;
 
     uint64_t chain_min_n_anchors = args::get(chain_min_anchors)
         ? args::get(chain_min_anchors)

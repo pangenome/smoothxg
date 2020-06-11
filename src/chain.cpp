@@ -74,6 +74,8 @@ void chain_t::compute_boundaries(const double& mismatch_rate) {
                   << seq_pos::to_string(anchor->target_end) << ")\"];" << std::endl;
     }
     */
+    // assign target path
+    target_path = anchors.front()->target_path;
     // find the inner boundaries
     const seq_pos_t& first_target_end = anchors.front()->target_end;
     const seq_pos_t& last_target_begin = anchors.back()->target_begin;
@@ -110,10 +112,12 @@ chains(const std::string& query_name,
        const double secondary_chain_threshold,
        const double max_mapq) {
     // sort the anchors by their ending position in the target
-    std::sort(anchors.begin(), anchors.end(),
+    std::sort(anchors.begin(),
+              anchors.end(),
               [](const anchor_t& a,
                  const anchor_t& b) {
-                  return a.target_end < b.target_end;
+                  return as_integer(a.target_path) < as_integer(b.target_path)
+                        || (a.target_path == b.target_path && a.target_end < b.target_end);
               });
     // calculate max chaining scores under our bandwidth
     // we walk from the last to first anchor
@@ -213,7 +217,8 @@ chains(const std::string& query_name,
             tree.overlap(chain_begin, chain_end, ovlp);
             for (auto& idx : ovlp) {
                 chain_t* other_chain = tree.data(idx);
-                if (other_chain != &chain && other_chain->score <= chain.score) {
+                if (other_chain->target_path == chain.target_path
+                    && other_chain != &chain && other_chain->score <= chain.score) {
                     const seq_pos_t& other_begin = tree.start(idx);
                     const seq_pos_t& other_end = tree.end(idx);
                     uint64_t other_length = other_end - other_begin;
@@ -294,7 +299,7 @@ superchains(const std::string& query_name,
             const uint64_t bandwidth) {
     // sort the chains by end coordinate in the query
     // score each with the previous N
-    std::vector<chain_node_t> chain_nodes; chain_nodes.reserve(chains.size());
+    std::vector<chain_node_t> chain_nodes; //chain_nodes.reserve(chains.size());
     // collect primary chains
     for (auto& chain : chains) {
         if (!chain.is_secondary) {
@@ -387,8 +392,21 @@ superchains(const std::string& query_name,
             superchain.score = chain_node.chain->score;
         }
     }
-    //std::cerr << "chain count " <<chains.size() <<std::endl;
-    //std::cerr << "superchain count " <<superchains.size() <<std::endl;
+    // re-score the chains
+    for (auto& superchain : superchains) {
+        superchain.score = 0;
+        for (uint64_t i = 0; i < superchain.chains.size()-1; ++i) {
+            superchain.score = std::max(superchain.score,
+                                        score_chain_pair(*superchain.chains[i],
+                                                         superchain.score,
+                                                         *superchain.chains[i+1],
+                                                         superchain.chains[i+1]->score,
+                                                         chain_overlap_max));
+        }
+    }
+    std::cerr << "superchains for " << query_name << std::endl;
+    std::cerr << "chain count " << chains.size() <<std::endl;
+    std::cerr << "superchain count " << superchains.size() <<std::endl;
     // sort the superchains by score, descending
     std::sort(superchains.begin(), superchains.end(),
               [](const superchain_t& a,
@@ -398,18 +416,120 @@ superchains(const std::string& query_name,
     return superchains;
 }
 
+double score_chain_pair(const chain_t& a,
+                        const double& score_a,
+                        const chain_t& b,
+                        const double& score_b,
+                        const double& overlap_max) {
+    // ignore if the a chain is contained in b by more than our overlap_max
+    if (a.target_path != b.target_path
+        || (int64_t)seq_pos::offset(a.query_end()) - (int64_t)seq_pos::offset(b.query_begin())
+        > std::round((b.query_end() - b.query_begin()) * overlap_max)) {
+        return -std::numeric_limits<double>::max();
+    } else {
+        // otherwise, add scores
+        return score_a + score_b;
+    }
+}
+    
 double score_chain_nodes(const chain_node_t& a,
                          const chain_node_t& b,
                          const double& overlap_max) {
-    // ignore if the a chain is contained in b by more than our overlap_max
-    if ((int64_t)seq_pos::offset(a.chain->query_end()) - (int64_t)seq_pos::offset(b.chain->query_begin())
-        > std::round((b.chain->query_end() - b.chain->query_begin()) * overlap_max)) {
-        return -std::numeric_limits<double>::max();
-        //return a.max_superchain_score;
-    } else {
-        // otherwise, add scores
-        return a.max_superchain_score + b.chain->score;
+    return score_chain_pair(*a.chain, a.max_superchain_score, *b.chain, b.chain->score, overlap_max);
+}
+
+/*
+GAF format
+https://github.com/lh3/gfatools/blob/master/doc/rGFA.md#the-graph-alignment-format-gaf
+
+Col     Type    Description
+1       string  Query sequence name
+2       int     Query sequence length
+3       int     Query start (0-based; closed)
+4       int     Query end (0-based; open)
+5       char    Strand relative to the path: "+" or "-"
+6       string  Path matching /([><][^\s><]+(:\d+-\d+)?)+|([^\s><]+)/
+7       int     Path length
+8       int     Start position on the path (0-based)
+9       int     End position on the path (0-based)
+10      int     Number of residue matches
+11      int     Alignment block length
+12      int     Mapping quality (0-255; 255 for missing)
+*/
+
+void for_handle_at_anchor_begin_in_chain(
+    const chain_t& chain,
+    const xg::XG& index,
+    const std::function<void(const handle_t&)>& func) {
+    handle_t last = max_handle();
+    for (auto& anchor : chain.anchors) {
+        handle_t curr = index.get_handle_of_step(
+            index.get_step_at_position(anchor->target_path,
+                                       seq_pos::offset(anchor->target_begin)));
+        if (curr != last) {
+            func(curr);
+            last = curr;
+        }
     }
+}
+
+void write_chain_gaf(
+    std::ostream& out,
+    const chain_t& chain,
+    const xg::XG& index,
+    const std::string& query_name,
+    const uint64_t& query_length) {
+    out << query_name << "\t"
+        << query_length << "\t"
+        << chain.anchors.front()->query_begin << "\t"
+        << chain.anchors.back()->query_end << "\t"
+        << "+" << "\t";  // we're always forward strand relative to our path
+    uint64_t path_length = 0;
+    for_handle_at_anchor_begin_in_chain(
+        chain, index,
+        [&out,&index,&path_length](const handle_t& h) {
+            path_length += index.get_length(h);
+            out << (handle_is_rev(h) ? "<" : ">") << to_id(h);
+        });
+    out << "\t"
+        << path_length << "\t"
+        << 0 << "\t" // fixme
+        << path_length << "\t" // fixme
+        << path_length << "\t" // fixme
+        << path_length << "\t" // fixme
+        << std::min((int)std::round(chain.mapping_quality), 254) << "\t"
+        << "ta:Z:chain" << std::endl;
+}
+
+void write_superchain_gaf(
+    std::ostream& out,
+    const superchain_t& superchain,
+    const xg::XG& index,
+    const std::string& query_name,
+    const uint64_t& query_length) {
+    out << query_name << "\t"
+        << query_length << "\t"
+        << superchain.chains.front()->anchors.front()->query_begin << "\t"
+        << superchain.chains.back()->anchors.back()->query_end << "\t"
+        << "+" << "\t";  // we're always forward strand relative to our path
+    uint64_t path_length = 0;
+    for (auto& chain : superchain.chains) {
+        for_handle_at_anchor_begin_in_chain(
+            *chain, index,
+            [&out,&index,&path_length](const handle_t& h) {
+                path_length += index.get_length(h);
+                out << (handle_is_rev(h) ? "<" : ">") << to_id(h);
+            });
+    }
+    out << "\t"
+        << path_length << "\t"
+        << 0 << "\t" // fixme
+        << path_length << "\t" // fixme
+        << path_length << "\t" // fixme
+        << path_length << "\t" // fixme
+        << 0 << "\t"
+        << "ta:Z:superchain" << std::endl;
+        //<< std::min((int)std::round(superchain.mapping_quality), 254) << std::endl;
 }
 
 std::vector<std::pair<path_handle_t, std::vector<superchain_t>>>
@@ -425,15 +545,22 @@ collinear_blocks(
         [&](const path_handle_t& path) {
             auto anchors = anchors_for_path(graph, path);
             std::string path_name = graph.get_path_name(path);
+            uint64_t path_length = graph.get_path_length(path);
             auto query_chains = chains(path_name,
                                        anchors,
                                        max_gap,
                                        mismatch_rate,
                                        chain_min_n_anchors);
+            for (auto& chain : query_chains) {
+                write_chain_gaf(std::cerr, chain, graph, path_name, path_length);
+            }
             auto query_superchains = superchains(path_name,
                                                  query_chains,
                                                  mismatch_rate,
                                                  chain_overlap_max);
+            for (auto& superchain : query_superchains) {
+                std::cerr << path_name << " -- " << graph.get_path_name(superchain.chains.front()->target_path) << " length " << superchain.chains.size() << " score " << superchain.score << std::endl;
+               }
             blocks.emplace_back(std::make_pair(path, query_superchains));
         });
     return blocks;
