@@ -14,17 +14,13 @@ namespace smoothxg {
 using namespace handlegraph;
 
 // wrap some long-winded but simple functions for manipulating handles
-
+/*
 inline uint64_t handle_rank(const handle_t& handle) {
     return number_bool_packing::unpack_number(handle);
 }
 
 inline bool handle_is_rev(const handle_t& handle) { 
     return number_bool_packing::unpack_bit(handle);
-}
-
-inline handle_t make_handle(const uint64_t& rank, const bool& is_rev) {
-    return number_bool_packing::pack(rank, is_rev);
 }
 
 inline handle_t flip_handle(const handle_t& handle) {
@@ -34,6 +30,11 @@ inline handle_t flip_handle(const handle_t& handle) {
 // hard coded ID/handle mapping
 inline nid_t to_id(const handle_t& handle) {
     return handle_rank(handle) + 1;
+}
+*/
+
+inline handle_t make_handle(const uint64_t& rank, const bool& is_rev) {
+    return number_bool_packing::pack(rank, is_rev);
 }
 
 inline handle_t max_handle(void) {
@@ -131,7 +132,7 @@ chains(const std::string& query_name,
        const uint64_t& max_gap,
        const double& mismatch_rate,
        const uint64_t& chain_min_n_anchors,
-       const uint64_t bandwidth = 50,
+       const uint64_t bandwidth = 1000,
        const double secondary_chain_threshold = 0.5,
        const double max_mapq = 60);
 
@@ -196,7 +197,8 @@ collinear_blocks(
     const uint64_t& max_gap,
     const double& mismatch_rate,
     const uint64_t& chain_min_n_anchors,
-    const double& chain_overlap_max);
+    const double& chain_overlap_max,
+    const uint64_t& chain_bandwidth);
 
 
 }

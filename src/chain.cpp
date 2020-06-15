@@ -20,7 +20,8 @@ std::vector<anchor_t> anchors_for_path(
                     const size_t& target_pos) {
                     path_handle_t target_path = graph.get_path_handle_of_step(target_step);
                     seq_pos_t target_position = seq_pos::encode(target_pos, target_rev_vs_query);
-                    if (query_step != target_step) {
+                    if (path != target_path
+                        && query_step != target_step) {
                         anchors.emplace_back(
                             path,
                             query_position,
@@ -119,16 +120,23 @@ chains(const std::string& query_name,
                   return as_integer(a.target_path) < as_integer(b.target_path)
                         || (a.target_path == b.target_path && a.target_end < b.target_end);
               });
+    /*
+    for (auto& anchor : anchors) {
+        std::cerr << "anchor " << as_integer(anchor.target_path) << " " << seq_pos::to_string(anchor.target_begin) << std::endl;
+    }
+    */
     // calculate max chaining scores under our bandwidth
     // we walk from the last to first anchor
     for (int64_t i = 0; i < anchors.size(); ++i) {
         anchor_t& anchor_i = anchors[i];
-        //std::cerr << "anchor_i " << anchor_i.query_begin << ".." << anchor_i.query_end << std::endl;
-        anchor_i.max_chain_score = 1; // XXXXXXX TODO // seed_length;
+        //std::cerr << "-----------------------------------------" << std::endl;
+        //std::cerr << "anchor_i " << seq_pos::to_string(anchor_i.query_begin) << ".." << seq_pos::to_string(anchor_i.query_end) << std::endl;
+        anchor_i.max_chain_score = anchor_i.query_end - anchor_i.query_begin;
         int64_t min_j = bandwidth > i ? 0 : i - bandwidth;
         for (int64_t j = i-1; j >= min_j; --j) {
             anchor_t& anchor_j = anchors[j];
-            //std::cerr << "anchor_j " << anchor_j.query_begin << ".." << anchor_j.query_end << std::endl;
+            if (anchor_i.target_path != anchor_j.target_path) break;
+            //std::cerr << "anchor_j " << seq_pos::to_string(anchor_j.query_begin) << ".." << seq_pos::to_string(anchor_j.query_end) << std::endl;
             //if (anchor_i.target_end - anchor_j.target_end > max_gap) break;
             double proposed_score = score_anchors(anchor_j,
                                                   anchor_i,
@@ -200,20 +208,25 @@ chains(const std::string& query_name,
     }
     */
     // find the primary chains by examining their overlaps in the query
-    IITree<seq_pos_t, chain_t*> tree;
+    std::unordered_map<path_handle_t, IITree<seq_pos_t, chain_t*>> trees;
     for (auto& chain : chains) {
         const seq_pos_t& query_begin = chain.anchors.front()->query_begin;
         const seq_pos_t& query_end = chain.anchors.back()->query_end;
-        tree.add(query_begin, query_end, &chain);
+        trees[chain.target_path].add(query_begin, query_end, &chain);
     }
-    tree.index();
+    for (auto& tree : trees) {
+        tree.second.index();
+    }
     for (auto& chain : chains) {
         if (!chain.processed()) {
             const seq_pos_t& chain_begin = chain.anchors.front()->query_begin;
             const seq_pos_t& chain_end = chain.anchors.back()->query_end;
             uint64_t chain_length = chain_end - chain_begin;
-            chain_t* best_secondary = nullptr;
+            //chain_t* best_secondary = nullptr;
+            // here we need to keep the best secondary per target
+            std::unordered_map<path_handle_t, chain_t*> best_secondary;
             std::vector<size_t> ovlp;
+            auto& tree = trees[chain.target_path];
             tree.overlap(chain_begin, chain_end, ovlp);
             for (auto& idx : ovlp) {
                 chain_t* other_chain = tree.data(idx);
@@ -230,17 +243,26 @@ chains(const std::string& query_name,
                         other_chain->mapping_quality = 0;
                         other_chain->is_secondary = true;
                     }
-                    if (best_secondary == nullptr
-                        || best_secondary->score < other_chain->score) {
-                        best_secondary = other_chain;
+                    chain_t* next_best = nullptr;
+                    auto f = best_secondary.find(other_chain->target_path);
+                    if (f != best_secondary.end()) next_best = f->second;
+                    if (next_best == nullptr
+                        || next_best->score < other_chain->score) {
+                        //best_secondary = other_chain;
+                        best_secondary[other_chain->target_path] = other_chain;
                     }
                 }
             }
-            if (best_secondary == nullptr) {
+            //
+            chain_t* next_best = nullptr;
+            auto f = best_secondary.find(chain.target_path);
+            if (f != best_secondary.end()) next_best = f->second;
+            // todo
+            if (next_best == nullptr) {
                 chain.mapping_quality = max_mapq;
             } else {
                 chain.mapping_quality =
-                    40 * (1 - best_secondary->score / chain.score)
+                    40 * (1 - next_best->score / chain.score)
                     * std::min(1.0, (double)chain.anchors.size()/10.0)
                     * log(chain.score);
             }
@@ -267,6 +289,7 @@ double score_anchors(const anchor_t& a,
         uint64_t query_length = std::min(b.query_begin - a.query_begin,
                                          b.query_end - a.query_end);
         uint64_t query_overlap = (a.query_end > b.query_begin ? a.query_end - b.query_begin : 0);
+        assert(query_overlap==0);
         uint64_t target_length = std::min(b.target_begin - a.target_begin,
                                           b.target_end - a.target_end);
         //std::cerr << "query_length " << query_length << " target_length " << target_length << std::endl;
@@ -278,8 +301,10 @@ double score_anchors(const anchor_t& a,
             //std::cerr << "query_length " << query_length << " target_length " << target_length << std::endl;
             double gap_cost = gap_length == 0 ? 0
                 : 0.01 * gap_length + 0.5 * log2(gap_length);
-                //: 0.01 * seed_length * gap_length + 0.5 * log2(gap_length);
-            uint64_t match_length = std::min(query_length, target_length);
+            // todo get length of matches
+            // question: what part of the match do we add
+            uint64_t match_length = b.query_end - b.query_begin; //std::min(a.query_end - a.query_begin, b.query_end - b.query_begin);\
+            //uint64_t match_length = //seed_length; // std::min(query_length, target_length);
             //std::cerr << "chain score is " << a.max_chain_score + match_length - gap_cost << std::endl;
             // round to 3 decimal digits, avoid problems with floating point instability causing chain truncation
             return std::round((a.max_chain_score + match_length - gap_cost) * 1000.0) / 1000.0 + query_overlap;
@@ -489,7 +514,7 @@ void write_chain_gaf(
         chain, index,
         [&out,&index,&path_length](const handle_t& h) {
             path_length += index.get_length(h);
-            out << (handle_is_rev(h) ? "<" : ">") << to_id(h);
+            out << (index.get_is_reverse(h) ? "<" : ">") << index.get_id(h);
         });
     out << "\t"
         << path_length << "\t"
@@ -518,7 +543,7 @@ void write_superchain_gaf(
             *chain, index,
             [&out,&index,&path_length](const handle_t& h) {
                 path_length += index.get_length(h);
-                out << (handle_is_rev(h) ? "<" : ">") << to_id(h);
+                out << (index.get_is_reverse(h) ? "<" : ">") << index.get_id(h);
             });
     }
     out << "\t"
@@ -538,7 +563,8 @@ collinear_blocks(
     const uint64_t& max_gap,
     const double& mismatch_rate,
     const uint64_t& chain_min_n_anchors,
-    const double& chain_overlap_max) {
+    const double& chain_overlap_max,
+    const uint64_t& chain_bandwidth) {
 
     std::vector<std::pair<path_handle_t, std::vector<superchain_t>>> blocks;
     graph.for_each_path_handle(
@@ -550,16 +576,19 @@ collinear_blocks(
                                        anchors,
                                        max_gap,
                                        mismatch_rate,
-                                       chain_min_n_anchors);
+                                       chain_min_n_anchors,
+                                       chain_bandwidth);
             for (auto& chain : query_chains) {
                 write_chain_gaf(std::cerr, chain, graph, path_name, path_length);
             }
             auto query_superchains = superchains(path_name,
                                                  query_chains,
                                                  mismatch_rate,
-                                                 chain_overlap_max);
+                                                 chain_overlap_max,
+                                                 chain_bandwidth);
             for (auto& superchain : query_superchains) {
-                std::cerr << path_name << " -- " << graph.get_path_name(superchain.chains.front()->target_path) << " length " << superchain.chains.size() << " score " << superchain.score << std::endl;
+                //std::cerr << path_name << " -- " << graph.get_path_name(superchain.chains.front()->target_path) << " length " << superchain.chains.size() << " score " << superchain.score << std::endl;
+                write_superchain_gaf(std::cerr, superchain, graph, path_name, path_length);
                }
             blocks.emplace_back(std::make_pair(path, query_superchains));
         });

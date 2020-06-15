@@ -28,6 +28,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<double> max_mismatch_rate(parser, "FLOAT", "maximum allowed mismatch rate (default 0.1)", {'r', "max-mismatch-rate"});
     args::ValueFlag<double> chain_overlap(parser, "FLOAT", "maximum allowed query overlap between chains superchains (default 1.0 / disabled)", {'c', "chain-overlap-max"});
     args::ValueFlag<uint64_t> chain_min_anchors(parser, "N", "minimum number of anchors in a chain (3)", {'a', "chain-min-n-anchors"});
+    args::ValueFlag<uint64_t> bandwidth(parser, "N", "bandwidth for chaining (1000)", {'B', "chain-bandwidth"});
     args::ValueFlag<uint64_t> align_best_n(parser, "N", "align the best N superchains", {'n', "align-best-n"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
@@ -78,13 +79,18 @@ int main(int argc, char** argv) {
         ? args::get(chain_min_anchors)
         : 3;
 
+    uint64_t chain_bandwidth = args::get(bandwidth)
+        ? args::get(bandwidth)
+        : 1000;
+
     uint64_t best_n = args::get(align_best_n) ? args::get(align_best_n) : 1;
 
     auto blocks = smoothxg::collinear_blocks(graph,
                                              max_gap,
                                              mismatch_rate,
                                              chain_min_n_anchors,
-                                             chain_overlap_max);
+                                             chain_overlap_max,
+                                             chain_bandwidth);
 
     if (!args::get(xg_out).empty()) {
         std::ofstream out(args::get(xg_out));
