@@ -105,6 +105,16 @@ ExternalProject_Add(atomicqueue
 ExternalProject_Get_property(atomicqueue SOURCE_DIR)
 set(atomicqueue_INCLUDE "${SOURCE_DIR}")
 
+# atomic bitvector class
+ExternalProject_Add(atomicbitvector
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/atomicbitvector"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(atomicbitvector SOURCE_DIR)
+set(atomicbitvector_INCLUDE "${SOURCE_DIR}/include")
+
 # taywee's C++ args library, header only
 ExternalProject_Add(tayweeargs
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/args"
@@ -141,12 +151,14 @@ set(cgranges_INCLUDE "${SOURCE_DIR}/cpp")
 
 add_library(smoothxg_objs OBJECT
   src/xg.cpp
-  src/chain.cpp)
+  src/chain.cpp
+  src/blocks.cpp)
 
 add_dependencies(smoothxg_objs handlegraph)
 add_dependencies(smoothxg_objs sdsl-lite)
 add_dependencies(smoothxg_objs mmmulti)
 add_dependencies(smoothxg_objs atomicqueue)
+add_dependencies(smoothxg_objs atomicbitvector)
 add_dependencies(smoothxg_objs tayweeargs)
 add_dependencies(smoothxg_objs gfakluge)
 add_dependencies(smoothxg_objs ips4o)
@@ -165,8 +177,7 @@ include_directories("${PROJECT_SOURCE_DIR}")
 #set_target_properties(libsmoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 
 set(smoothxg_HEADERS
-  ${CMAKE_SOURCE_DIR}/src/xg.hpp
-  ${CMAKE_SOURCE_DIR}/src/smoothxg.hpp)
+  ${CMAKE_SOURCE_DIR}/src/*.hpp)
 
 # set up our target executable and specify its dependencies and includes
 #add_executable(smoothxg
@@ -184,6 +195,7 @@ set(smoothxg_INCLUDES
   "${ips4o_INCLUDE}"
   "${mmmulti_INCLUDE}"
   "${atomicqueue_INCLUDE}"
+  "${atomicbitvector_INCLUDE}"
   "${gfakluge_INCLUDE}"
   "${gfakluge_tinyFA_INCLUDE}"
   "${cgranges_INCLUDE}")

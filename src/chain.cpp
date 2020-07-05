@@ -6,13 +6,16 @@ std::vector<anchor_t> anchors_for_path(
     const xg::XG& graph,
     const path_handle_t& path) {
     std::vector<anchor_t> anchors;
+    uint64_t path_pos = 0;
     graph.for_each_step_in_path(
         path,
         [&](const step_handle_t& query_step) {
-            seq_pos_t query_position = seq_pos::encode(graph.get_position_of_step(query_step), false);
             const handle_t& handle = graph.get_handle_of_step(query_step);
             size_t handle_length = graph.get_length(handle);
-            //size_t query_is_rev = graph.get_is_reverse(handle);
+            // this is also possible, but we can simply sum up the length
+            //seq_pos_t query_position = seq_pos::encode(graph.get_position_of_step(query_step), false);
+            seq_pos_t query_position = seq_pos::encode(path_pos, false);
+            path_pos += handle_length;
             graph.for_each_step_position_on_handle(
                 handle,
                 [&](const step_handle_t& target_step,
@@ -557,7 +560,7 @@ void write_superchain_gaf(
         //<< std::min((int)std::round(superchain.mapping_quality), 254) << std::endl;
 }
 
-std::vector<std::pair<path_handle_t, std::vector<superchain_t>>>
+std::vector<std::pair<path_handle_t, std::vector<chain_t>>>
 collinear_blocks(
     const xg::XG& graph,
     const uint64_t& max_gap,
@@ -566,7 +569,7 @@ collinear_blocks(
     const double& chain_overlap_max,
     const uint64_t& chain_bandwidth) {
 
-    std::vector<std::pair<path_handle_t, std::vector<superchain_t>>> blocks;
+    std::vector<std::pair<path_handle_t, std::vector<chain_t>>> blocks;
     graph.for_each_path_handle(
         [&](const path_handle_t& path) {
             auto anchors = anchors_for_path(graph, path);
@@ -581,16 +584,7 @@ collinear_blocks(
             for (auto& chain : query_chains) {
                 write_chain_gaf(std::cerr, chain, graph, path_name, path_length);
             }
-            auto query_superchains = superchains(path_name,
-                                                 query_chains,
-                                                 mismatch_rate,
-                                                 chain_overlap_max,
-                                                 chain_bandwidth);
-            for (auto& superchain : query_superchains) {
-                //std::cerr << path_name << " -- " << graph.get_path_name(superchain.chains.front()->target_path) << " length " << superchain.chains.size() << " score " << superchain.score << std::endl;
-                write_superchain_gaf(std::cerr, superchain, graph, path_name, path_length);
-               }
-            blocks.emplace_back(std::make_pair(path, query_superchains));
+            blocks.emplace_back(std::make_pair(path, query_chains));
         });
     return blocks;
 }

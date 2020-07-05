@@ -191,7 +191,7 @@ double score_chain_nodes(const chain_node_t& a,
                          const chain_node_t& b,
                          const double& overlap_max);
 
-std::vector<std::pair<path_handle_t, std::vector<superchain_t>>>
+std::vector<std::pair<path_handle_t, std::vector<chain_t>>>
 collinear_blocks(
     const xg::XG& graph,
     const uint64_t& max_gap,

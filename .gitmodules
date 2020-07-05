@@ -25,3 +25,6 @@
 [submodule "deps/cgranges"]
 	path = deps/cgranges
 	url = https://github.com/lh3/cgranges.git
+[submodule "deps/atomicbitvector"]
+	path = deps/atomicbitvector
+	url = https://github.com/ekg/atomicbitvector.git
