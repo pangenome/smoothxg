@@ -147,12 +147,16 @@ ExternalProject_Add(cgranges
 ExternalProject_Get_property(cgranges SOURCE_DIR)
 set(cgranges_INCLUDE "${SOURCE_DIR}/cpp")
 
+add_subdirectory(deps/spoa EXCLUDE_FROM_ALL)
+set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
+
 #set(CMAKE_BUILD_TYPE Release)
 
 add_library(smoothxg_objs OBJECT
   src/xg.cpp
   src/chain.cpp
-  src/blocks.cpp)
+  src/blocks.cpp
+  src/smooth.cpp)
 
 add_dependencies(smoothxg_objs handlegraph)
 add_dependencies(smoothxg_objs sdsl-lite)
@@ -198,7 +202,8 @@ set(smoothxg_INCLUDES
   "${atomicbitvector_INCLUDE}"
   "${gfakluge_INCLUDE}"
   "${gfakluge_tinyFA_INCLUDE}"
-  "${cgranges_INCLUDE}")
+  "${cgranges_INCLUDE}"
+  "${spoa_INCLUDE}")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
@@ -213,6 +218,7 @@ add_executable(smoothxg
   $<TARGET_OBJECTS:smoothxg_objs>
   ${CMAKE_SOURCE_DIR}/src/main.cpp)
 target_link_libraries(smoothxg ${smoothxg_LIBS})
+target_link_libraries(smoothxg spoa)
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
 

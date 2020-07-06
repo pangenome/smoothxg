@@ -12,6 +12,7 @@
 #include "sdsl/bit_vectors.hpp"
 #include "chain.hpp"
 #include "blocks.hpp"
+#include "smooth.hpp"
 #include "xg.hpp"
 
 using namespace std;
@@ -79,6 +80,7 @@ int main(int argc, char** argv) {
                   << "-" << graph.get_id(block.handles.back()) << "\t"
                   << block.path_ranges.size()
                   << std::endl;
+        smoothxg::smooth(graph, block);
     }
 
     if (!args::get(xg_out).empty()) {
