@@ -11,6 +11,7 @@
 #include "args.hxx"
 #include "sdsl/bit_vectors.hpp"
 #include "chain.hpp"
+#include "blocks.hpp"
 #include "xg.hpp"
 
 using namespace std;
@@ -24,12 +25,9 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag gfa_out(parser, "FILE", "write the graph in GFA to stdout", {'G', "gfa-out"});
-    args::ValueFlag<uint64_t> max_gap_length(parser, "N", "maximum gap length in chaining (default 1000)", {'l', "max-gap-length"});
-    args::ValueFlag<double> max_mismatch_rate(parser, "FLOAT", "maximum allowed mismatch rate (default 0.1)", {'r', "max-mismatch-rate"});
-    args::ValueFlag<double> chain_overlap(parser, "FLOAT", "maximum allowed query overlap between chains superchains (default 1.0 / disabled)", {'c', "chain-overlap-max"});
-    args::ValueFlag<uint64_t> chain_min_anchors(parser, "N", "minimum number of anchors in a chain (3)", {'a', "chain-min-n-anchors"});
-    args::ValueFlag<uint64_t> bandwidth(parser, "N", "bandwidth for chaining (1000)", {'B', "chain-bandwidth"});
-    args::ValueFlag<uint64_t> align_best_n(parser, "N", "align the best N superchains", {'n', "align-best-n"});
+    args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block (default: 10000)", {'w', "max-block-weight"});
+    args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block (default: 1000)", {'j', "max-path-jump"});
+    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment (default: 16)", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
@@ -64,33 +62,24 @@ int main(int argc, char** argv) {
                        args::get(base).empty() ? args::get(gfa_in) : args::get(base));
     }
 
-    uint64_t max_gap = args::get(max_gap_length)
-        ? args::get(max_gap_length) : 1000;
+    uint64_t max_block_weight = args::get(_max_block_weight) ? args::get(_max_block_weight) : 10000;
+    uint64_t max_block_jump = args::get(_max_block_jump) ? args::get(_max_block_jump) : 1000;
+    uint64_t min_subpath = args::get(_min_subpath) ? args::get(_min_subpath) : 16;
 
-    double mismatch_rate = args::get(max_mismatch_rate)
-        ? args::get(max_mismatch_rate)
-        : 0.2;
+    auto blocks = smoothxg::smoothable_blocks(graph,
+                                              max_block_weight,
+                                              max_block_jump);
 
-    double chain_overlap_max = args::get(chain_overlap)
-        ? args::get(chain_overlap)
-        : 1.0;
-
-    uint64_t chain_min_n_anchors = args::get(chain_min_anchors)
-        ? args::get(chain_min_anchors)
-        : 3;
-
-    uint64_t chain_bandwidth = args::get(bandwidth)
-        ? args::get(bandwidth)
-        : 1000;
-
-    uint64_t best_n = args::get(align_best_n) ? args::get(align_best_n) : 1;
-
-    auto blocks = smoothxg::collinear_blocks(graph,
-                                             max_gap,
-                                             mismatch_rate,
-                                             chain_min_n_anchors,
-                                             chain_overlap_max,
-                                             chain_bandwidth);
+    uint64_t block_id = 0;
+    for (auto& block : blocks) {
+        std::cout << "block" << block_id++ << "\t"
+                  << block.total_path_length << "\t"
+                  << block.max_path_length << "\t"
+                  << graph.get_id(block.handles.front())
+                  << "-" << graph.get_id(block.handles.back()) << "\t"
+                  << block.path_ranges.size()
+                  << std::endl;
+    }
 
     if (!args::get(xg_out).empty()) {
         std::ofstream out(args::get(xg_out));

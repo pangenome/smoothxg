@@ -30,7 +30,6 @@ struct block_t {
     std::vector<handle_t> handles;
     uint64_t total_path_length = 0;
     uint64_t max_path_length = 0;
-    //std::unordered_map<path_handle_t, uint64_t> path_lengths;
     std::vector<path_range_t> path_ranges;
 };
 
