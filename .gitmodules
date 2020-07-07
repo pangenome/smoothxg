@@ -30,4 +30,4 @@
 	url = https://github.com/ekg/atomicbitvector.git
 [submodule "deps/spoa"]
 	path = deps/spoa
-	url = https://github.com/rvaser/spoa.git
+	url = https://github.com/ekg/spoa.git

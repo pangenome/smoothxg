@@ -17,4 +17,9 @@ using namespace handlegraph;
 void smooth(const xg::XG& graph,
             const block_t& block);
 
+void write_gfa(std::unique_ptr<spoa::Graph>& graph,
+               std::ostream& out,
+               const std::vector<std::string>& sequence_names,
+               bool include_consensus);
+
 }

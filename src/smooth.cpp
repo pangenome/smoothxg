@@ -58,10 +58,68 @@ void smooth(const xg::XG& graph,
             assert(false);
         }
     }
+    // todo make the consensus generation optional
+    
     // force consensus genertion for graph annotation
     std::string consensus = poa_graph->generate_consensus();
     // write the graph, with consensus as a path if requested
-    poa_graph->print_gfa(std::cout, names, true);
+    //poa_graph->print_gfa(poa_graph, std::cout, names, true);
+    write_gfa(poa_graph, std::cout, names, true);
 }
+
+void write_gfa(std::unique_ptr<spoa::Graph>& graph,
+               std::ostream& out,
+               const std::vector<std::string>& sequence_names,
+               bool include_consensus) {
+
+    auto& nodes = graph->nodes();
+    std::vector<std::int32_t> in_consensus(nodes.size(), -1);
+    std::int32_t rank = 0;
+    auto consensus = graph->consensus();
+    for (const auto& id: consensus) {
+        in_consensus[id] = rank++;
+    }
+
+    out << "H" << "\t" << "VN:Z:1.0" << std::endl;
+
+    for (std::uint32_t i = 0; i < nodes.size(); ++i) {
+        out << "S" << "\t" << i+1 << "\t" << static_cast<char>(graph->decoder(nodes[i]->code()));
+        if (in_consensus[i] != -1) {
+            out << "\t" << "ic:Z:true";
+        }
+        out << std::endl;
+        for (const auto& edge: nodes[i]->out_edges()) {
+            out << "L" << "\t" << i+1 << "\t" << "+" << "\t" << edge->end_node_id()+1 << "\t" << "+" << "\t" << "0M" << "\t"
+                << "ew:f:" << edge->total_weight();
+            if (in_consensus[i] + 1 == in_consensus[edge->end_node_id()]) {
+                out << "\t" << "ic:Z:true";
+            }
+            out << std::endl;
+        }
+    }
+
+    for (std::uint32_t i = 0; i < sequence_names.size(); ++i) {
+        out << "P" << "\t" << sequence_names[i] << "\t";
+        std::uint32_t node_id = graph->sequences_begin_nodes_ids()[i];
+        while (true) {
+            out << node_id+1 << "+";
+            if (!nodes[node_id]->successor(node_id, i)) {
+                break;
+            } else {
+                out << ",";
+            }
+        }
+        out << "\t" << "*" << std::endl;
+    }
+
+    if (include_consensus) {
+        out << "P" << "\t" << "Consensus" << "\t";
+        for (auto& id : graph->consensus()) {
+            out << id+1 << "+";
+        }
+        out << "\t" << "*" << std::endl;
+    }
+}
+
 
 }
