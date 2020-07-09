@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
                   << "-" << graph.get_id(block.handles.back()) << "\t"
                   << block.path_ranges.size()
                   << std::endl;
-        smoothxg::smooth(graph, block);
+        smoothxg::smooth(graph, block, std::cout);
     }
 
     if (!args::get(xg_out).empty()) {

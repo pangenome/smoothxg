@@ -3,9 +3,16 @@
 
 namespace smoothxg {
 
+void smooth_and_lace(const xg::XG& graph,
+                     const std::vector<block_t>& blocks) {
+    // for each block, smooth into a file
+    // record the start and end points of all the path ranges and the consensus
+    // 
+}
 
 void smooth(const xg::XG& graph,
-            const block_t& block) {
+            const block_t& block,
+            std::ostream& out) {
 
     // TODO we should take these as input
     std::int8_t poa_m = 5;
@@ -64,7 +71,7 @@ void smooth(const xg::XG& graph,
     std::string consensus = poa_graph->generate_consensus();
     // write the graph, with consensus as a path if requested
     //poa_graph->print_gfa(poa_graph, std::cout, names, true);
-    write_gfa(poa_graph, std::cout, names, true);
+    write_gfa(poa_graph, out, names, true);
 }
 
 void write_gfa(std::unique_ptr<spoa::Graph>& graph,

@@ -15,7 +15,8 @@ namespace smoothxg {
 using namespace handlegraph;
 
 void smooth(const xg::XG& graph,
-            const block_t& block);
+            const block_t& block,
+            std::ostream& out);
 
 void write_gfa(std::unique_ptr<spoa::Graph>& graph,
                std::ostream& out,
