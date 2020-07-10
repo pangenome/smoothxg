@@ -31,3 +31,6 @@
 [submodule "deps/spoa"]
 	path = deps/spoa
 	url = https://github.com/ekg/spoa.git
+[submodule "deps/odgi"]
+	path = deps/odgi
+	url = https://github.com/vgteam/odgi.git

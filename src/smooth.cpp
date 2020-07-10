@@ -71,7 +71,11 @@ void smooth(const xg::XG& graph,
     std::string consensus = poa_graph->generate_consensus();
     // write the graph, with consensus as a path if requested
     //poa_graph->print_gfa(poa_graph, std::cout, names, true);
+    // optionally write in a different format?
+    // or build a graph?
     write_gfa(poa_graph, out, names, true);
+    odgi::graph_t output;
+    build_odgi(poa_graph, output, names, true);
 }
 
 void write_gfa(std::unique_ptr<spoa::Graph>& graph,
@@ -125,6 +129,49 @@ void write_gfa(std::unique_ptr<spoa::Graph>& graph,
             out << id+1 << "+";
         }
         out << "\t" << "*" << std::endl;
+    }
+}
+
+void build_odgi(std::unique_ptr<spoa::Graph>& graph,
+                odgi::graph_t& output,
+                const std::vector<std::string>& sequence_names,
+                bool include_consensus) {
+
+    auto& nodes = graph->nodes();
+    std::vector<std::int32_t> in_consensus(nodes.size(), -1);
+    std::int32_t rank = 0;
+    auto consensus = graph->consensus();
+    for (const auto& id: consensus) {
+        in_consensus[id] = rank++;
+    }
+
+    for (std::uint32_t i = 0; i < nodes.size(); ++i) {
+        std::string seq = std::string(static_cast<char>(graph->decoder(nodes[i]->code())), 1);
+        output.create_handle(seq, i+1);
+    }
+
+    for (std::uint32_t i = 0; i < nodes.size(); ++i) {
+        for (const auto& edge: nodes[i]->out_edges()) {
+            output.create_edge(output.get_handle(i+1), output.get_handle(edge->end_node_id()+1));
+        }
+    }
+
+    for (std::uint32_t i = 0; i < sequence_names.size(); ++i) {
+        path_handle_t p = output.create_path_handle(sequence_names[i]);
+        std::uint32_t node_id = graph->sequences_begin_nodes_ids()[i];
+        while (true) {
+            output.append_step(p, output.get_handle(node_id+1));
+            if (!nodes[node_id]->successor(node_id, i)) {
+                break;
+            }
+        }
+    }
+
+    if (include_consensus) {
+        path_handle_t p = output.create_path_handle("Consensus"); // TODO configure name
+        for (auto& id : graph->consensus()) {
+            output.append_step(p, output.get_handle(id+1));
+        }
     }
 }
 

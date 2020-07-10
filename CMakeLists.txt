@@ -76,6 +76,24 @@ set(sdsl-lite-divsufsort_INCLUDE "${INSTALL_DIR}/src/sdsl-lite-build/external/li
 set(sdsl-lite_LIB "${INSTALL_DIR}/src/sdsl-lite-build/lib")
 set(sdsl-lite-divsufsort_LIB "${INSTALL_DIR}/src/sdsl-lite-build/external/libdivsufsort/lib")
 
+# odgi
+ExternalProject_Add(odgi
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/odgi"
+  UPDATE_COMMAND ""
+  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>")
+#  INSTALL_COMMAND ""
+#  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(odgi INSTALL_DIR)
+set(odgi_INCLUDE "${INSTALL_DIR}/include")
+set(odgi_LIB "${INSTALL_DIR}/lib")
+set(dynamic_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/DYNAMIC/include)
+set(hopscotch_map_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/hopscotch-map/include)
+set(sparsepp_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/sparsepp/sparsepp)
+set(flathashmap_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/flat_hash_map)
+
+file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/odgi/include)
+execute_process(COMMAND bash scripts/generate_git_version.sh include WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/odgi)
+
 # mmmulti (memory mapped multimap)
 ExternalProject_Add(mmmulti
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mmmulti"
@@ -156,10 +174,13 @@ add_library(smoothxg_objs OBJECT
   src/xg.cpp
   src/chain.cpp
   src/blocks.cpp
-  src/smooth.cpp)
+  src/smooth.cpp
+  ${CMAKE_SOURCE_DIR}/deps/libhandlegraph/src/handle.cpp)
+#  ${CMAKE_SOURCE_DIR}/deps/odgi/src/odgi.cpp)
 
 add_dependencies(smoothxg_objs handlegraph)
 add_dependencies(smoothxg_objs sdsl-lite)
+add_dependencies(smoothxg_objs odgi)
 add_dependencies(smoothxg_objs mmmulti)
 add_dependencies(smoothxg_objs atomicqueue)
 add_dependencies(smoothxg_objs atomicbitvector)
@@ -192,6 +213,7 @@ set(smoothxg_HEADERS
 #target_include_directories(smoothxg PUBLIC
 set(smoothxg_INCLUDES
   "${CMAKE_SOURCE_DIR}/src"
+  "${odgi_INCLUDE}"
   "${handlegraph_INCLUDE}"
   "${sdsl-lite_INCLUDE}"
   "${sdsl-lite-divsufsort_INCLUDE}"
@@ -203,13 +225,18 @@ set(smoothxg_INCLUDES
   "${gfakluge_INCLUDE}"
   "${gfakluge_tinyFA_INCLUDE}"
   "${cgranges_INCLUDE}"
-  "${spoa_INCLUDE}")
+  "${spoa_INCLUDE}"
+  "${dynamic_INCLUDE}"
+  "${hopscotch_map_INCLUDE}"
+  "${sparsepp_INCLUDE}"
+  "${flathashmap_INCLUDE}")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
   "${handlegraph_LIB}/libhandlegraph.a"
+  "${odgi_LIB}/libodgi.a"
   "-latomic")
 
 target_include_directories(smoothxg_objs PUBLIC ${smoothxg_INCLUDES})
@@ -217,24 +244,24 @@ target_include_directories(smoothxg_objs PUBLIC ${smoothxg_INCLUDES})
 add_executable(smoothxg
   $<TARGET_OBJECTS:smoothxg_objs>
   ${CMAKE_SOURCE_DIR}/src/main.cpp)
-target_link_libraries(smoothxg ${smoothxg_LIBS})
 target_link_libraries(smoothxg spoa)
+target_link_libraries(smoothxg ${smoothxg_LIBS})
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
 
-add_library(libsmoothxg_static STATIC $<TARGET_OBJECTS:smoothxg_objs>)
-set_target_properties(libsmoothxg_static PROPERTIES OUTPUT_NAME "smoothxg")
-set_target_properties(libsmoothxg_static PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
-add_library(libsmoothxg_shared SHARED $<TARGET_OBJECTS:smoothxg_objs>)
-set_target_properties(libsmoothxg_shared PROPERTIES OUTPUT_NAME "smoothxg")
-set_target_properties(libsmoothxg_shared PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+#add_library(libsmoothxg_static STATIC $<TARGET_OBJECTS:smoothxg_objs>)
+#set_target_properties(libsmoothxg_static PROPERTIES OUTPUT_NAME "smoothxg")
+#set_target_properties(libsmoothxg_static PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+#add_library(libsmoothxg_shared SHARED $<TARGET_OBJECTS:smoothxg_objs>)
+#set_target_properties(libsmoothxg_shared PROPERTIES OUTPUT_NAME "smoothxg")
+#set_target_properties(libsmoothxg_shared PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
-set_target_properties(libsmoothxg_static PROPERTIES PUBLIC_HEADER "${smoothxg_HEADERS}")
-set_target_properties(libsmoothxg_shared PROPERTIES PUBLIC_HEADER "${smoothxg_HEADERS}")
+#set_target_properties(libsmoothxg_static PROPERTIES PUBLIC_HEADER "${smoothxg_HEADERS}")
+#set_target_properties(libsmoothxg_shared PROPERTIES PUBLIC_HEADER "${smoothxg_HEADERS}")
 
 install(TARGETS smoothxg DESTINATION bin)
-install(TARGETS libsmoothxg_static ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
-install(TARGETS libsmoothxg_shared ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
+#install(TARGETS libsmoothxg_static ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
+#install(TARGETS libsmoothxg_shared ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
 
 if (APPLE)
 elseif (TRUE)
