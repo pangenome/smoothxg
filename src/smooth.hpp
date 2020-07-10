@@ -10,7 +10,8 @@
 #include "xg.hpp"
 #include "blocks.hpp"
 #include "odgi/odgi.hpp"
-//#include "odgi/unchop.hpp"
+#include "odgi/unchop.hpp"
+#include "odgi/topological_sort.hpp"
 
 namespace smoothxg {
 

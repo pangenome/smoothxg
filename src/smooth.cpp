@@ -57,6 +57,7 @@ void smooth(const xg::XG& graph,
     }
     alignment_engine->prealloc(max_sequence_size, 4);
     for (auto& seq : seqs) {
+        // TODO determine alignment orientation somehow!!
         auto alignment = alignment_engine->align(seq, poa_graph);
         try {
             poa_graph->add_alignment(alignment, seq); // could give weight
@@ -73,9 +74,12 @@ void smooth(const xg::XG& graph,
     //poa_graph->print_gfa(poa_graph, std::cout, names, true);
     // optionally write in a different format?
     // or build a graph?
-    write_gfa(poa_graph, out, names, true);
-    odgi::graph_t output;
-    build_odgi(poa_graph, output, names, true);
+    //write_gfa(poa_graph, out, names, true);
+    odgi::graph_t output_graph;
+    build_odgi(poa_graph, output_graph, names, true);
+    odgi::algorithms::unchop(output_graph);
+    output_graph.apply_ordering(odgi::algorithms::topological_order(&output_graph), true);
+    output_graph.to_gfa(out);
 }
 
 void write_gfa(std::unique_ptr<spoa::Graph>& graph,
@@ -146,7 +150,7 @@ void build_odgi(std::unique_ptr<spoa::Graph>& graph,
     }
 
     for (std::uint32_t i = 0; i < nodes.size(); ++i) {
-        std::string seq = std::string(static_cast<char>(graph->decoder(nodes[i]->code())), 1);
+        std::string seq = std::string(1, static_cast<char>(graph->decoder(nodes[i]->code())));
         output.create_handle(seq, i+1);
     }
 
