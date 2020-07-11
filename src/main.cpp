@@ -14,6 +14,7 @@
 #include "blocks.hpp"
 #include "smooth.hpp"
 #include "xg.hpp"
+#include "odgi/odgi.hpp"
 
 using namespace std;
 using namespace xg;
@@ -25,7 +26,8 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> xg_out(parser, "FILE", "write the resulting xg index to this file", {'o', "out"});
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
-    args::Flag gfa_out(parser, "FILE", "write the graph in GFA to stdout", {'G', "gfa-out"});
+    args::Flag gfa_out(parser, "bool", "write the graph in GFA to stdout", {'G', "gfa-out"});
+    args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block (default: 10000)", {'w', "max-block-weight"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block (default: 1000)", {'j', "max-path-jump"});
     args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment (default: 16)", {'k', "min-subpath"});
@@ -71,6 +73,15 @@ int main(int argc, char** argv) {
                                               max_block_weight,
                                               max_block_jump);
 
+    auto smoothed = smoothxg::smooth_and_lace(graph,
+                                              blocks,
+                                              args::get(add_consensus) ? "Consensus_" : "");
+
+    smoothed.to_gfa(std::cout);
+    
+    /*
+
+
     uint64_t block_id = 0;
     for (auto& block : blocks) {
         std::cout << "block" << block_id++ << "\t"
@@ -80,8 +91,11 @@ int main(int argc, char** argv) {
                   << "-" << graph.get_id(block.handles.back()) << "\t"
                   << block.path_ranges.size()
                   << std::endl;
-        smoothxg::smooth(graph, block, std::cout);
+        std::string consensus_id = (args::get(add_consensus) ? "Consensus." + std::to_string(block_id) : "");
+        auto block_graph = smoothxg::smooth(graph, block, consensus_id);
+        block_graph.to_gfa(std::cout);
     }
+    */
 
     if (!args::get(xg_out).empty()) {
         std::ofstream out(args::get(xg_out));

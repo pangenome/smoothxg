@@ -3,16 +3,8 @@
 
 namespace smoothxg {
 
-void smooth_and_lace(const xg::XG& graph,
-                     const std::vector<block_t>& blocks) {
-    //
-    // record the start and end points of all the path ranges and the consensus
-    // 
-}
-
 odgi::graph_t smooth(const xg::XG& graph,
                      const block_t& block,
-                     std::ostream& out,
                      const std::string& consensus_name) {
 
     // TODO we should take these as input
@@ -37,6 +29,8 @@ odgi::graph_t smooth(const xg::XG& graph,
             seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
         }
         std::stringstream namess;
+        // TODO
+        // preserve mapping between these entities and the global path handles
         namess << graph.get_path_name(graph.get_path_handle_of_step(path_range.begin))
                << "_" << graph.get_position_of_step(path_range.begin);
         names.push_back(namess.str());
@@ -82,6 +76,96 @@ odgi::graph_t smooth(const xg::XG& graph,
     output_graph.apply_ordering(odgi::algorithms::topological_order(&output_graph), true);
     //output_graph.to_gfa(out);
     return output_graph;
+}
+
+odgi::graph_t smooth_and_lace(const xg::XG& graph,
+                              const std::vector<block_t>& blocks,
+                              const std::string& consensus_base_name) {
+    //
+    // record the start and end points of all the path ranges and the consensus
+    //
+    //std::vector<odgi::graph_t> block_graphs;
+    //block_graphs.reserve(blocks.size());
+    std::vector<path_position_range_t> path_mapping;
+    std::vector<path_position_range_t> consensus_mapping;
+    bool add_consensus = !consensus_base_name.empty();
+    odgi::graph_t smoothed;
+    std::vector<uint64_t> id_mapping;
+    uint64_t block_id = 0;
+    for (auto& block : blocks) {
+        std::string consensus_name = consensus_base_name + std::to_string(block_id);
+        auto block_graph = smooth(graph, block, consensus_name);
+        // record the start and end paths
+        // nb: the path order is the same in the input block and output graph
+        uint64_t path_id = 0;
+        for (auto& path_range : block.path_ranges) {
+            auto path_handle = graph.get_path_handle_of_step(path_range.begin);
+            auto last_step = graph.get_previous_step(path_range.end);
+            path_mapping.push_back({
+                    path_handle, // target path
+                    graph.get_position_of_step(path_range.begin), // start position
+                    (graph.get_position_of_step(last_step) // end position
+                     + graph.get_length(graph.get_handle_of_step(last_step))),
+                    as_path_handle(++path_id),
+                    block_id
+                });
+        }
+        // make the graph
+        
+        // record the consensus path
+        if (add_consensus) {
+            auto consensus_handle = block_graph.get_path_handle(consensus_name);
+            uint64_t path_end = 0;
+            block_graph.for_each_step_in_path(
+                consensus_handle,
+                [&](const step_handle_t& step) {
+                    path_end += block_graph.get_length(block_graph.get_handle_of_step(step));
+                });
+            consensus_mapping.push_back({
+                    as_path_handle(0), // consensus = 0 path handle
+                    0, // start position
+                    path_end, // end position
+                    consensus_handle,
+                    block_id
+                });
+        }
+
+        // record the id translation
+        uint64_t id_trans = smoothed.get_node_count();
+        id_mapping.push_back(id_trans);
+        //std::cerr << "block graph " << block_graph.get_node_count() << std::endl;
+        block_graph.for_each_handle(
+            [&](const handle_t& h) {
+                smoothed.create_handle(block_graph.get_sequence(h));
+            });
+        block_graph.for_each_edge(
+            [&](const edge_t& e) {
+                smoothed.create_edge(
+                    smoothed.get_handle(id_trans + block_graph.get_id(e.first)),
+                    smoothed.get_handle(id_trans + block_graph.get_id(e.second))
+                    );
+            });
+        
+        // increment our block id
+        ++block_id;
+    }
+    // for debugging
+    /*
+    for (auto& block_graph : block_graphs) {
+        block_graph.to_gfa(std::cout);
+    }
+    */
+
+    // add the nodes and edges to the graph
+
+    //for (auto& block : block_graphs) {
+//}
+    // sort the path range mappings by path handle id, then start position
+    // this will allow us to walk through them in order
+    // then for each path, ensure that it's embedded in the graph by walking through its block segments in order
+    // and linking them up
+    // if we find a segment that's not included in any path, we'll add it to the final graph and link it in
+    return smoothed;
 }
 
 void write_gfa(std::unique_ptr<spoa::Graph>& graph,

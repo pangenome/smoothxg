@@ -15,10 +15,21 @@
 
 namespace smoothxg {
 
+struct path_position_range_t {
+    path_handle_t base_path;
+    uint64_t start_pos;
+    uint64_t end_pos;
+    path_handle_t target_path;
+    uint64_t target_graph_id;
+};
+
 odgi::graph_t smooth(const xg::XG& graph,
                      const block_t& block,
-                     std::ostream& out,
                      const std::string& consensus_name = "");
+
+odgi::graph_t smooth_and_lace(const xg::XG& graph,
+                              const std::vector<block_t>& blocks,
+                              const std::string& consensus_name = "");
 
 void write_gfa(std::unique_ptr<spoa::Graph>& graph,
                std::ostream& out,
