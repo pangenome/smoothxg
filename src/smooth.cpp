@@ -5,14 +5,15 @@ namespace smoothxg {
 
 void smooth_and_lace(const xg::XG& graph,
                      const std::vector<block_t>& blocks) {
-    // for each block, smooth into a file
+    //
     // record the start and end points of all the path ranges and the consensus
     // 
 }
 
-void smooth(const xg::XG& graph,
-            const block_t& block,
-            std::ostream& out) {
+odgi::graph_t smooth(const xg::XG& graph,
+                     const block_t& block,
+                     std::ostream& out,
+                     const std::string& consensus_name) {
 
     // TODO we should take these as input
     std::int8_t poa_m = 5;
@@ -58,6 +59,7 @@ void smooth(const xg::XG& graph,
     alignment_engine->prealloc(max_sequence_size, 4);
     for (auto& seq : seqs) {
         // TODO determine alignment orientation somehow!!
+        // or try both orientations here
         auto alignment = alignment_engine->align(seq, poa_graph);
         try {
             poa_graph->add_alignment(alignment, seq); // could give weight
@@ -70,16 +72,16 @@ void smooth(const xg::XG& graph,
     
     // force consensus genertion for graph annotation
     std::string consensus = poa_graph->generate_consensus();
-    // write the graph, with consensus as a path if requested
-    //poa_graph->print_gfa(poa_graph, std::cout, names, true);
-    // optionally write in a different format?
-    // or build a graph?
-    //write_gfa(poa_graph, out, names, true);
+    // write the graph, with consensus as a path
     odgi::graph_t output_graph;
-    build_odgi(poa_graph, output_graph, names, true);
+    // convert the poa graph into our output format
+    build_odgi(poa_graph, output_graph, names, consensus_name, !consensus_name.empty());
+    // normalize the representation, allowing for nodes > 1bp
     odgi::algorithms::unchop(output_graph);
+    // order the graph
     output_graph.apply_ordering(odgi::algorithms::topological_order(&output_graph), true);
-    output_graph.to_gfa(out);
+    //output_graph.to_gfa(out);
+    return output_graph;
 }
 
 void write_gfa(std::unique_ptr<spoa::Graph>& graph,
@@ -139,6 +141,7 @@ void write_gfa(std::unique_ptr<spoa::Graph>& graph,
 void build_odgi(std::unique_ptr<spoa::Graph>& graph,
                 odgi::graph_t& output,
                 const std::vector<std::string>& sequence_names,
+                const std::string& consensus_name,
                 bool include_consensus) {
 
     auto& nodes = graph->nodes();
@@ -172,7 +175,7 @@ void build_odgi(std::unique_ptr<spoa::Graph>& graph,
     }
 
     if (include_consensus) {
-        path_handle_t p = output.create_path_handle("Consensus"); // TODO configure name
+        path_handle_t p = output.create_path_handle(consensus_name);
         for (auto& id : graph->consensus()) {
             output.append_step(p, output.get_handle(id+1));
         }
