@@ -51,9 +51,12 @@ odgi::graph_t smooth(const xg::XG& graph,
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
     alignment_engine->prealloc(max_sequence_size, 4);
+    //std::vector<bool> aln_is_reverse;
     for (auto& seq : seqs) {
-        // TODO determine alignment orientation somehow!!
+        // TODO determine alignment orientation somehow!!!!!!!!
         // or try both orientations here
+        // we'll need to record the orientation in the path somehow
+        // to structure the lacing
         auto alignment = alignment_engine->align(seq, poa_graph);
         try {
             poa_graph->add_alignment(alignment, seq); // could give weight
@@ -131,6 +134,17 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
         // increment our block id
         ++block_id;
     }
+    // sort the path range mappings by path handle id, then start position
+    // this will allow us to walk through them in order
+    ips4o::parallel::sort(
+        path_mapping.begin(),
+        path_mapping.end(),
+        [](const path_position_range_t& a,
+           const path_position_range_t& b) {
+            auto& a_id = as_integer(a.base_path);
+            auto& b_id = as_integer(b.base_path);
+            return (a_id < b_id || a_id == b_id && a.start_pos < b.start_pos);
+        });
     // build the sequence and edges into the output graph
     odgi::graph_t smoothed;
     // add the nodes and edges to the graph
@@ -152,11 +166,24 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
                     );
             });
     }
-    // sort the path range mappings by path handle id, then start position
-    // this will allow us to walk through them in order
     // then for each path, ensure that it's embedded in the graph by walking through its block segments in order
-    // and linking them up
-    // if we find a segment that's not included in any path, we'll add it to the final graph and link it in
+    // and linking them up in the output graph
+    for (uint64_t i = 0; i < path_mapping.size(); ++i) {
+        path_position_range_t* pos_range = &path_mapping[i];
+        path_position_range_t* last_pos_range = nullptr;
+        // add the path to the graph
+        // walk the path from start to end
+        do {
+            // if we find a segment that's not included in any path, we'll add it to the final graph and link it in
+            if (last_pos_range != nullptr) {
+                // if we have a gap in length, collect the sequence in the gap and add it to the graph as a node
+                // then add it as a traversal to the path
+            }
+            // write the path steps into the graph using the id translation
+            
+            last_pos_range = pos_range;
+        } while (path_mapping[++i].base_path == pos_range->base_path);
+    }
     return smoothed;
 }
 

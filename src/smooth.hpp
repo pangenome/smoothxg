@@ -9,6 +9,7 @@
 #include "spoa/spoa.hpp"
 #include "xg.hpp"
 #include "blocks.hpp"
+#include "ips4o.hpp"
 #include "odgi/odgi.hpp"
 #include "odgi/unchop.hpp"
 #include "odgi/topological_sort.hpp"
