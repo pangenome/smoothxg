@@ -18,11 +18,13 @@
 namespace smoothxg {
 
 struct path_position_range_t {
-    path_handle_t base_path;
-    uint64_t start_pos;
-    uint64_t end_pos;
-    path_handle_t target_path;
-    uint64_t target_graph_id;
+    path_handle_t base_path; // base path in input graph
+    uint64_t start_pos; // start position of the range
+    uint64_t end_pos; // end position of the range
+    step_handle_t start_step; // start step in the base graph
+    step_handle_t end_step; // end step in the base graph
+    path_handle_t target_path; // target path in smoothed block graph
+    uint64_t target_graph_id; // the block graph id
 };
 
 odgi::graph_t smooth(const xg::XG& graph,
