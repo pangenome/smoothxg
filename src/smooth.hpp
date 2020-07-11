@@ -13,6 +13,7 @@
 #include "odgi/odgi.hpp"
 #include "odgi/unchop.hpp"
 #include "odgi/topological_sort.hpp"
+#include "odgi/dna.hpp"
 
 namespace smoothxg {
 
@@ -40,6 +41,7 @@ void write_gfa(std::unique_ptr<spoa::Graph>& graph,
 void build_odgi(std::unique_ptr<spoa::Graph>& graph,
                 odgi::graph_t& output,
                 const std::vector<std::string>& sequence_names,
+                const std::vector<bool>& aln_is_reverse,
                 const std::string& consensus_name,
                 bool include_consensus = true);
 

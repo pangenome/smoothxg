@@ -51,15 +51,26 @@ odgi::graph_t smooth(const xg::XG& graph,
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
     alignment_engine->prealloc(max_sequence_size, 4);
-    //std::vector<bool> aln_is_reverse;
+    std::vector<bool> aln_is_reverse;
     for (auto& seq : seqs) {
         // TODO determine alignment orientation somehow!!!!!!!!
         // or try both orientations here
         // we'll need to record the orientation in the path somehow
         // to structure the lacing
-        auto alignment = alignment_engine->align(seq, poa_graph);
+        std::int32_t score_fwd = 0;
+        auto alignment_fwd = alignment_engine->align(seq, poa_graph, &score_fwd);
+        auto rev_seq = odgi::reverse_complement(seq);
+        std::int32_t score_rev = 0;
+        auto alignment_rev = alignment_engine->align(rev_seq, poa_graph, &score_rev);
         try {
-            poa_graph->add_alignment(alignment, seq); // could give weight
+            // could give weight here to influence consensus
+            if (score_fwd >= score_rev) {
+                poa_graph->add_alignment(alignment_fwd, seq);
+                aln_is_reverse.push_back(false);
+            } else {
+                poa_graph->add_alignment(alignment_rev, rev_seq);
+                aln_is_reverse.push_back(true);
+            }
         } catch(std::invalid_argument& exception) {
             std::cerr << exception.what() << std::endl;
             assert(false);
@@ -69,10 +80,16 @@ odgi::graph_t smooth(const xg::XG& graph,
     
     // force consensus genertion for graph annotation
     std::string consensus = poa_graph->generate_consensus();
+    aln_is_reverse.push_back(false);
     // write the graph, with consensus as a path
     odgi::graph_t output_graph;
     // convert the poa graph into our output format
-    build_odgi(poa_graph, output_graph, names, consensus_name, !consensus_name.empty());
+    build_odgi(poa_graph,
+               output_graph,
+               names,
+               aln_is_reverse,
+               consensus_name,
+               !consensus_name.empty());
     // normalize the representation, allowing for nodes > 1bp
     odgi::algorithms::unchop(output_graph);
     // order the graph
@@ -174,9 +191,12 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
         // add the path to the graph
         // walk the path from start to end
         do {
-            // if we find a segment that's not included in any path, we'll add it to the final graph and link it in
+            // what's our graph?
+            // what's the path in the graph?
+            
             if (last_pos_range != nullptr) {
-                // if we have a gap in length, collect the sequence in the gap and add it to the graph as a node
+                // if we find a segment that's not included in any block, we'll add it to the final graph and link it in
+                // to do so, we detect a gap in length, collect the sequence in the gap and add it to the graph as a node
                 // then add it as a traversal to the path
             }
             // write the path steps into the graph using the id translation
@@ -244,6 +264,7 @@ void write_gfa(std::unique_ptr<spoa::Graph>& graph,
 void build_odgi(std::unique_ptr<spoa::Graph>& graph,
                 odgi::graph_t& output,
                 const std::vector<std::string>& sequence_names,
+                const std::vector<bool>& aln_is_reverse,
                 const std::string& consensus_name,
                 bool include_consensus) {
 
@@ -269,10 +290,20 @@ void build_odgi(std::unique_ptr<spoa::Graph>& graph,
     for (std::uint32_t i = 0; i < sequence_names.size(); ++i) {
         path_handle_t p = output.create_path_handle(sequence_names[i]);
         std::uint32_t node_id = graph->sequences_begin_nodes_ids()[i];
+        std::vector<handle_t> steps;
         while (true) {
-            output.append_step(p, output.get_handle(node_id+1));
+            steps.push_back(output.get_handle(node_id+1));
             if (!nodes[node_id]->successor(node_id, i)) {
                 break;
+            }
+        }
+        if (aln_is_reverse[i]) {
+            for (auto handle_itr = steps.rbegin(); handle_itr != steps.rend(); ++handle_itr) {
+                output.append_step(p, output.flip(*handle_itr));
+            }
+        } else {
+            for (auto& handle : steps) {
+                output.append_step(p, handle);
             }
         }
     }
