@@ -93,6 +93,7 @@ smoothable_blocks(
                 }
             }
 
+            // erase any empty path ranges that we picked up
             block.path_ranges.erase(
                 std::remove_if(
                     block.path_ranges.begin(), block.path_ranges.end(),
@@ -156,6 +157,7 @@ smoothable_blocks(
                 } else {
                     // if not, add and update
                     block.handles.push_back(handle);
+                    block.total_path_length += sequence_to_add;
                 }
             }
         });

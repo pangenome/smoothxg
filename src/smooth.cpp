@@ -48,10 +48,16 @@ odgi::graph_t smooth(const xg::XG& graph,
     for (auto& seq : seqs) {
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
+    odgi::graph_t output_graph;
+    // if the graph would be empty, bail out
+    if (max_sequence_size == 0) {
+        return output_graph;
+    }
     alignment_engine->prealloc(max_sequence_size, 4);
     std::vector<bool> aln_is_reverse;
     int i = 0;
     for (auto& seq : seqs) {
+        //std::cerr << names[i++] << "\t" << seq << std::endl;
         // TODO determine alignment orientation somehow!!!!!!!!
         // or try both orientations here
         // we'll need to record the orientation in the path somehow
@@ -76,12 +82,12 @@ odgi::graph_t smooth(const xg::XG& graph,
         }
     }
     // todo make the consensus generation optional
-    
+    // ...
     // force consensus genertion for graph annotation
     std::string consensus = poa_graph->generate_consensus();
     aln_is_reverse.push_back(false);
     // write the graph, with consensus as a path
-    odgi::graph_t output_graph;
+    //odgi::graph_t output_graph;
     // convert the poa graph into our output format
     //poa_graph->print_gfa(std::cout, names, true);
     build_odgi(poa_graph,
@@ -112,7 +118,12 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
     uint64_t block_id = 0;
     for (auto& block : blocks) {
         std::string consensus_name = consensus_base_name + std::to_string(block_id);
+        //std::cerr << "on block " << block_id+1 << " of " << blocks.size() << std::endl;
         block_graphs.push_back(smooth(graph, block, consensus_name));
+        if (block_graphs.back().get_node_count() == 0) {
+            block_graphs.pop_back();
+            continue;
+        }
         auto& block_graph = block_graphs.back();
         // record the start and end paths
         // nb: the path order is the same in the input block and output graph
@@ -272,6 +283,31 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             smoothed.create_edge(smoothed.get_handle_of_step(last_step), h);
         }
     }
+    // now verify that smoothed has paths that are equal to the base graph
+    // and that all the paths are fully embedded in the graph
+    smoothed.for_each_path_handle(
+        [&](const path_handle_t& path) {
+            // collect sequence
+            std::string orig_seq, smoothed_seq;
+            graph.for_each_step_in_path(
+                graph.get_path_handle(smoothed.get_path_name(path)),
+                [&](const step_handle_t& step) {
+                    orig_seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+                });
+            smoothed.for_each_step_in_path(
+                path,
+                [&](const step_handle_t& step) {
+                    smoothed_seq.append(smoothed.get_sequence(smoothed.get_handle_of_step(step)));
+                });
+            if (orig_seq != smoothed_seq) {
+                std::cerr << "[smoothxg] error! path " << smoothed.get_path_name(path) << " was corrupted in the smoothed graph" << std::endl
+                          << "original\t" << orig_seq << std::endl
+                          << "smoothed\t" << smoothed_seq << std::endl;
+                exit(1);
+            }
+            assert(orig_seq == smoothed_seq);
+        });
+
     // consensus path and connections
     ips4o::parallel::sort(
         consensus_mapping.begin(),
@@ -282,6 +318,7 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             auto& b_id = as_integer(b.base_path);
             return (a_id < b_id || a_id == b_id && a.start_pos < b.start_pos);
         });
+
     // by definition, the consensus paths are embedded in our blocks, which simplifies things
     // we'll still need to add a new path for each consensus path
     for (auto& pos_range : consensus_mapping) {
@@ -300,8 +337,7 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
                 // the consensus paths should have all their edges embedded
             });
     }
-    // now verify that smoothed has paths that are equal to the base graph
-    // and that all the paths are fully embedded in the graph
+    // todo: validate the consensus paths as well
     return smoothed;
 }
 
