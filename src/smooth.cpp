@@ -271,6 +271,36 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             smoothed.create_edge(smoothed.get_handle_of_step(last_step), h);
         }
     }
+    // consensus path and connections
+    ips4o::parallel::sort(
+        consensus_mapping.begin(),
+        consensus_mapping.end(),
+        [](const path_position_range_t& a,
+           const path_position_range_t& b) {
+            auto& a_id = as_integer(a.base_path);
+            auto& b_id = as_integer(b.base_path);
+            return (a_id < b_id || a_id == b_id && a.start_pos < b.start_pos);
+        });
+    // by definition, the consensus paths are embedded in our blocks, which simplifies things
+    // we'll still need to add a new path for each consensus path
+    for (auto& pos_range : consensus_mapping) {
+        auto& block = block_graphs[pos_range.target_graph_id];
+        path_handle_t smoothed_path = smoothed.create_path_handle(block.get_path_name(pos_range.target_path));
+        auto& id_trans = id_mapping[pos_range.target_graph_id];
+        block.for_each_step_in_path(
+            pos_range.target_path,
+            [&](const step_handle_t& step) {
+                handle_t h = block.get_handle_of_step(step);
+                handle_t t = smoothed.get_handle(
+                    block.get_id(h) + id_trans,
+                    block.get_is_reverse(h));
+                smoothed.append_step(smoothed_path, t);
+                // nb: by definition of our construction of smoothed
+                // the consensus paths should have all their edges embedded
+            });
+    }
+    // now verify that smoothed has paths that are equal to the base graph
+    // and that all the paths are fully embedded in the graph
     return smoothed;
 }
 
