@@ -50,6 +50,7 @@ odgi::graph_t smooth(const xg::XG& graph,
     }
     alignment_engine->prealloc(max_sequence_size, 4);
     std::vector<bool> aln_is_reverse;
+    int i = 0;
     for (auto& seq : seqs) {
         // TODO determine alignment orientation somehow!!!!!!!!
         // or try both orientations here
@@ -82,6 +83,7 @@ odgi::graph_t smooth(const xg::XG& graph,
     // write the graph, with consensus as a path
     odgi::graph_t output_graph;
     // convert the poa graph into our output format
+    //poa_graph->print_gfa(std::cout, names, true);
     build_odgi(poa_graph,
                output_graph,
                names,
@@ -175,7 +177,6 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
         // record the id translation
         uint64_t id_trans = smoothed.get_node_count();
         id_mapping.push_back(id_trans);
-        //std::cerr << "block graph " << block.get_node_count() << std::endl;
         block.for_each_handle(
             [&](const handle_t& h) {
                 smoothed.create_handle(block.get_sequence(h));

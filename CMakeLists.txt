@@ -168,15 +168,14 @@ set(cgranges_INCLUDE "${SOURCE_DIR}/cpp")
 add_subdirectory(deps/spoa EXCLUDE_FROM_ALL)
 set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 
+set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
 
 add_library(smoothxg_objs OBJECT
   src/xg.cpp
   src/chain.cpp
   src/blocks.cpp
-  src/smooth.cpp
-  ${CMAKE_SOURCE_DIR}/deps/libhandlegraph/src/handle.cpp)
-#  ${CMAKE_SOURCE_DIR}/deps/odgi/src/odgi.cpp)
+  src/smooth.cpp)
 
 add_dependencies(smoothxg_objs handlegraph)
 add_dependencies(smoothxg_objs sdsl-lite)

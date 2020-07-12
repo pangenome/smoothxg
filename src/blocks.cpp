@@ -93,6 +93,15 @@ smoothable_blocks(
                 }
             }
 
+            block.path_ranges.erase(
+                std::remove_if(
+                    block.path_ranges.begin(), block.path_ranges.end(),
+                    [](const path_range_t& path_range) {
+                        // these are empty, could be at the end of paths
+                        return path_range.begin == path_range.end;
+                    }),
+                block.path_ranges.end());
+
             // finally, mark which steps we've kept and record the total length
             block.total_path_length = 0; // recalculate how much sequence we have
             block.max_path_length = 0; // and the longest path range
