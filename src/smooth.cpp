@@ -111,63 +111,66 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
     // record the start and end points of all the path ranges and the consensus
     //
     std::vector<odgi::graph_t> block_graphs;
-    block_graphs.reserve(blocks.size());
+    block_graphs.resize(blocks.size());
     std::vector<path_position_range_t> path_mapping;
     std::vector<path_position_range_t> consensus_mapping;
     bool add_consensus = !consensus_base_name.empty();
-    uint64_t block_id = 0;
-    for (auto& block : blocks) {
+#pragma omp parallel for schedule(dynamic, 1)
+    for (uint64_t block_id = 0; block_id < blocks.size(); ++block_id) {
+        //for (auto& block : blocks) {
+        auto& block = blocks[block_id];
         std::string consensus_name = consensus_base_name + std::to_string(block_id);
         //std::cerr << "on block " << block_id+1 << " of " << blocks.size() << std::endl;
-        block_graphs.push_back(smooth(graph, block, consensus_name));
-        if (block_graphs.back().get_node_count() == 0) {
-            block_graphs.pop_back();
-            continue;
-        }
-        auto& block_graph = block_graphs.back();
-        // record the start and end paths
-        // nb: the path order is the same in the input block and output graph
-        uint64_t path_id = 0;
-        for (auto& path_range : block.path_ranges) {
-            auto path_handle = graph.get_path_handle_of_step(path_range.begin);
-            auto last_step = graph.get_previous_step(path_range.end);
-            path_mapping.push_back({
-                    path_handle, // target path
-                    graph.get_position_of_step(path_range.begin), // start position
-                    (graph.get_position_of_step(last_step) // end position
-                     + graph.get_length(graph.get_handle_of_step(last_step))),
-                    path_range.begin,
-                    path_range.end,
-                    as_path_handle(++path_id),
-                    block_id
-                });
-        }
-        // make the graph
+        block_graphs[block_id] = smooth(graph, block, consensus_name);
+        auto& block_graph = block_graphs[block_id];
+        if (block_graph.get_node_count() > 0) {
+            //auto& block_graph = block_graphs.back();
+            // record the start and end paths
+            // nb: the path order is the same in the input block and output graph
+            uint64_t path_id = 0;
+            for (auto& path_range : block.path_ranges) {
+                auto path_handle = graph.get_path_handle_of_step(path_range.begin);
+                auto last_step = graph.get_previous_step(path_range.end);
+#pragma omp critical (path_mapping)
+                path_mapping.push_back({
+                        path_handle, // target path
+                        graph.get_position_of_step(path_range.begin), // start position
+                        (graph.get_position_of_step(last_step) // end position
+                         + graph.get_length(graph.get_handle_of_step(last_step))),
+                        path_range.begin,
+                        path_range.end,
+                        as_path_handle(++path_id),
+                        block_id
+                    });
+            }
+            // make the graph
         
-        // record the consensus path
-        if (add_consensus) {
-            auto consensus_handle = block_graph.get_path_handle(consensus_name);
-            uint64_t path_end = 0;
-            step_handle_t empty_step;
-            as_integers(empty_step)[0] = 0;
-            as_integers(empty_step)[1] = 0;
-            block_graph.for_each_step_in_path(
-                consensus_handle,
-                [&](const step_handle_t& step) {
-                    path_end += block_graph.get_length(block_graph.get_handle_of_step(step));
-                });
-            consensus_mapping.push_back({
-                    as_path_handle(0), // consensus = 0 path handle
-                    0, // start position
-                    path_end, // end position
-                    empty_step,
-                    empty_step,
+            // record the consensus path
+            if (add_consensus) {
+                auto consensus_handle = block_graph.get_path_handle(consensus_name);
+                uint64_t path_end = 0;
+                step_handle_t empty_step;
+                as_integers(empty_step)[0] = 0;
+                as_integers(empty_step)[1] = 0;
+                block_graph.for_each_step_in_path(
                     consensus_handle,
-                    block_id
-                });
+                    [&](const step_handle_t& step) {
+                        path_end += block_graph.get_length(block_graph.get_handle_of_step(step));
+                    });
+#pragma omp critical (consensus_mapping)
+                consensus_mapping.push_back({
+                        as_path_handle(0), // consensus = 0 path handle
+                        0, // start position
+                        path_end, // end position
+                        empty_step,
+                        empty_step,
+                        consensus_handle,
+                        block_id
+                    });
+            }
+            // increment our block id
+            //++block_id;
         }
-        // increment our block id
-        ++block_id;
     }
     // sort the path range mappings by path handle id, then start position
     // this will allow us to walk through them in order
@@ -185,9 +188,12 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
     // add the nodes and edges to the graph
     std::vector<uint64_t> id_mapping;
     for (auto& block : block_graphs) {
-        // record the id translation
         uint64_t id_trans = smoothed.get_node_count();
+        // record the id translation
         id_mapping.push_back(id_trans);
+        if (block.get_node_count() == 0) {
+            continue;
+        }
         block.for_each_handle(
             [&](const handle_t& h) {
                 smoothed.create_handle(block.get_sequence(h));
