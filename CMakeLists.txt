@@ -165,6 +165,16 @@ ExternalProject_Add(cgranges
 ExternalProject_Get_property(cgranges SOURCE_DIR)
 set(cgranges_INCLUDE "${SOURCE_DIR}/cpp")
 
+# paryfor parallel_for
+ExternalProject_Add(paryfor
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/paryfor"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(paryfor SOURCE_DIR)
+set(paryfor_INCLUDE "${SOURCE_DIR}")
+
 add_subdirectory(deps/spoa EXCLUDE_FROM_ALL)
 set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 
@@ -187,6 +197,7 @@ add_dependencies(smoothxg_objs tayweeargs)
 add_dependencies(smoothxg_objs gfakluge)
 add_dependencies(smoothxg_objs ips4o)
 add_dependencies(smoothxg_objs cgranges)
+add_dependencies(smoothxg_objs paryfor)
 
 set_target_properties(smoothxg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
@@ -228,7 +239,8 @@ set(smoothxg_INCLUDES
   "${dynamic_INCLUDE}"
   "${hopscotch_map_INCLUDE}"
   "${sparsepp_INCLUDE}"
-  "${flathashmap_INCLUDE}")
+  "${flathashmap_INCLUDE}"
+  "${paryfor_INCLUDE}")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"

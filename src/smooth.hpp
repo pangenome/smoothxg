@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <sstream>
+#include <mutex>
 #include "spoa/spoa.hpp"
 #include "xg.hpp"
 #include "blocks.hpp"
@@ -14,6 +15,7 @@
 #include "odgi/unchop.hpp"
 #include "odgi/topological_sort.hpp"
 #include "odgi/dna.hpp"
+#include "paryfor.hpp"
 
 namespace smoothxg {
 
