@@ -95,12 +95,11 @@ smoothable_blocks(
             }
 
             // erase any empty path ranges that we picked up
+            // and any path ranges that are shorter than our minimum subpath size
             block.path_ranges.erase(
                 std::remove_if(
                     block.path_ranges.begin(), block.path_ranges.end(),
                     [&graph,&min_subpath](const path_range_t& path_range) {
-                        // these are empty, could be at the end of paths
-                        //- (graph.get_position_of_step(last) + graph.get_length(graph.get_handle_of_step(last)))
                         uint64_t range_length =
                             graph.get_position_of_step(graph.get_previous_step(path_range.end))
                             - graph.get_position_of_step(path_range.begin);
@@ -113,7 +112,8 @@ smoothable_blocks(
             block.total_path_length = 0; // recalculate how much sequence we have
             block.max_path_length = 0; // and the longest path range
             for (auto& path_range : block.path_ranges) {
-                uint64_t included_path_length = 0;
+                auto& included_path_length = path_range.length;
+                included_path_length = 0;
                 /*
                 std::cerr << "on path range for " << graph.get_path_name(graph.get_path_handle_of_step(path_range.begin))
                           << " " << graph.get_id(graph.get_handle_of_step(path_range.begin))
@@ -131,6 +131,24 @@ smoothable_blocks(
                 block.max_path_length = std::max(included_path_length,
                                                  block.max_path_length);
             }
+
+            // order the path ranges from longest to shortest
+            ips4o::parallel::sort(
+                block.path_ranges.begin(), block.path_ranges.end(),
+                [](const path_range_t& a,
+                   const path_range_t& b) {
+                    return a.length > b.length;
+                });
+            /*
+            std::cerr << "block----" << std::endl;
+            for (auto& path_range : block.path_ranges) {
+                std::cerr << "path_range " << path_range.length << " "
+                          << graph.get_path_name(graph.get_path_handle_of_step(path_range.begin))
+                          << " " << graph.get_id(graph.get_handle_of_step(path_range.begin))
+                          << "-"
+                          << graph.get_id(graph.get_handle_of_step(graph.get_previous_step(path_range.end))) << std::endl;
+            }
+            */                    
         };
     graph.for_each_handle(
         [&](const handle_t& handle) {

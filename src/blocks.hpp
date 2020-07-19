@@ -25,6 +25,7 @@ inline uint64_t step_rank(const step_handle_t& step) {
 struct path_range_t {
     step_handle_t begin;
     step_handle_t end;
+    uint64_t length;
 };
 
 struct block_t {
