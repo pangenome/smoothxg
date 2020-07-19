@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block (default: 10000)", {'w', "max-block-weight"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block (default: 1000)", {'j', "max-path-jump"});
-    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment (default: 16)", {'k', "min-subpath"});
+    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment (default: 0)", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
@@ -67,11 +67,12 @@ int main(int argc, char** argv) {
 
     uint64_t max_block_weight = args::get(_max_block_weight) ? args::get(_max_block_weight) : 10000;
     uint64_t max_block_jump = args::get(_max_block_jump) ? args::get(_max_block_jump) : 1000;
-    uint64_t min_subpath = args::get(_min_subpath) ? args::get(_min_subpath) : 16;
+    uint64_t min_subpath = args::get(_min_subpath) ? args::get(_min_subpath) : 0;
 
     auto blocks = smoothxg::smoothable_blocks(graph,
                                               max_block_weight,
-                                              max_block_jump);
+                                              max_block_jump,
+                                              min_subpath);
 
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,

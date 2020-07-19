@@ -247,8 +247,8 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
                 smoothed.append_step(smoothed_path, h);
                 if (as_integers(last_step)[0] != 0) {
                     smoothed.create_edge(smoothed.get_handle_of_step(last_step), h);
-                    last_step = smoothed.path_back(smoothed_path);
                 }
+                last_step = smoothed.path_back(smoothed_path);
             }
             // write the path steps into the graph using the id translation
             auto& block = block_graphs[pos_range->target_graph_id];
@@ -292,6 +292,7 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             }
             handle_t h = smoothed.create_handle(seq);
             smoothed.create_edge(smoothed.get_handle_of_step(last_step), h);
+            smoothed.append_step(smoothed_path, h);
         }
     }
     // now verify that smoothed has paths that are equal to the base graph

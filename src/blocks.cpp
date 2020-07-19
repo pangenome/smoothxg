@@ -6,7 +6,8 @@ std::vector<block_t>
 smoothable_blocks(
     const xg::XG& graph,
     const uint64_t& max_block_weight,
-    const uint64_t& max_path_jump) {
+    const uint64_t& max_path_jump,
+    const uint64_t& min_subpath) {
     // iterate over the handles in their vectorized order
     std::vector<block_t> blocks;
     std::vector<std::vector<bool>> seen_steps;
@@ -97,9 +98,14 @@ smoothable_blocks(
             block.path_ranges.erase(
                 std::remove_if(
                     block.path_ranges.begin(), block.path_ranges.end(),
-                    [](const path_range_t& path_range) {
+                    [&graph,&min_subpath](const path_range_t& path_range) {
                         // these are empty, could be at the end of paths
-                        return path_range.begin == path_range.end;
+                        //- (graph.get_position_of_step(last) + graph.get_length(graph.get_handle_of_step(last)))
+                        uint64_t range_length =
+                            graph.get_position_of_step(graph.get_previous_step(path_range.end))
+                            - graph.get_position_of_step(path_range.begin);
+                        return (min_subpath ? range_length < min_subpath : false)
+                            || path_range.begin == path_range.end;
                     }),
                 block.path_ranges.end());
 
