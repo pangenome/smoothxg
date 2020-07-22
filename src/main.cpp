@@ -23,10 +23,10 @@ int main(int argc, char** argv) {
     args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator");
     args::HelpFlag help(parser, "help", "display this help menu", {'h', "help"});
     args::ValueFlag<std::string> gfa_in(parser, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
-    args::ValueFlag<std::string> xg_out(parser, "FILE", "write the resulting xg index to this file", {'o', "out"});
+    //args::ValueFlag<std::string> xg_out(parser, "FILE", "write the resulting xg index to this file", {'o', "out"});
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
-    args::Flag gfa_out(parser, "bool", "write the graph in GFA to stdout", {'G', "gfa-out"});
+    //args::Flag gfa_out(parser, "bool", "write the graph in GFA to stdout", {'G', "gfa-out"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block (default: 10000)", {'w', "max-block-weight"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block (default: 1000)", {'j', "max-path-jump"});
@@ -98,6 +98,7 @@ int main(int argc, char** argv) {
     }
     */
 
+    /*
     if (!args::get(xg_out).empty()) {
         std::ofstream out(args::get(xg_out));
         graph.serialize(out);
@@ -106,6 +107,7 @@ int main(int argc, char** argv) {
     if (args::get(gfa_out)) {
         graph.to_gfa(std::cout);
     }
+    */
 
     return 0;
 }

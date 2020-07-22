@@ -11,6 +11,7 @@ smoothable_blocks(
     // iterate over the handles in their vectorized order
     std::vector<block_t> blocks;
     std::vector<std::vector<bool>> seen_steps;
+    std::cerr << "[smoothxg::smoothable_blocks] computing blocks" << std::endl;
     graph.for_each_path_handle(
         [&](const path_handle_t& path) {
             seen_steps.emplace_back();
@@ -150,8 +151,14 @@ smoothable_blocks(
             }
             */                    
         };
+    //uint64_t id = 0;
     graph.for_each_handle(
         [&](const handle_t& handle) {
+            if (graph.get_id(handle) % 100 == 0) {
+                std::cerr << std::fixed << std::showpoint << std::setprecision(3)
+                          << "[smoothxg::smoothable_blocks] computing blocks "
+                          << (float)graph.get_id(handle) / (float)graph.get_node_count() * 100 << "%\r";
+            }
             if (blocks.empty()) {
                 blocks.emplace_back();
                 auto& block = blocks.back();
@@ -185,6 +192,7 @@ smoothable_blocks(
                 }
             }
         });
+    std::cerr << "[smoothxg::smoothable_blocks] computing blocks 100.00%" << std::endl;
     if (blocks.back().path_ranges.empty()) {
         finalize_block(blocks.back());
     }

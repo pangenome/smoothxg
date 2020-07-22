@@ -115,11 +115,18 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
     std::vector<path_position_range_t> path_mapping;
     std::vector<path_position_range_t> consensus_mapping;
     bool add_consensus = !consensus_base_name.empty();
-    std::mutex path_mapping_mutex, consensus_mapping_mutex;
+    std::mutex path_mapping_mutex, consensus_mapping_mutex, logging_mutex;
     paryfor::parallel_for<uint64_t>(
         0, blocks.size(),
         odgi::get_thread_count(),
         [&](uint64_t block_id, int tid) {
+            if (block_id % 100 == 0) {
+                std::lock_guard<std::mutex> guard(logging_mutex);
+                std::cerr << "[smoothxg::smooth_and_lace] applying spoa to block "
+                          << block_id << "/" << blocks.size() << " "
+                          << std::fixed << std::showpoint << std::setprecision(3)
+                          << (float) block_id / (float) blocks.size() * 100 << "%\r";
+            }
             auto& block = blocks[block_id];
             std::string consensus_name = consensus_base_name + std::to_string(block_id);
             //std::cerr << "on block " << block_id+1 << " of " << blocks.size() << std::endl;
@@ -177,6 +184,12 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             }
         });
 
+    std::cerr << "[smoothxg::smooth_and_lace] block "
+              << blocks.size() << "/" << blocks.size() << " "
+              << std::fixed << std::showpoint << std::setprecision(3)
+              << 100.0 << "%" << std::endl;
+
+    std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings" << std::endl;
     // sort the path range mappings by path handle id, then start position
     // this will allow us to walk through them in order
     ips4o::parallel::sort(
@@ -192,8 +205,16 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
     odgi::graph_t smoothed;
     // add the nodes and edges to the graph
     std::vector<uint64_t> id_mapping;
+    std::cerr << "[smoothxg::smooth_and_lace] building final graph" << std::endl;
+    uint64_t j = 0;
     for (auto& block : block_graphs) {
         uint64_t id_trans = smoothed.get_node_count();
+        if (j++ % 100 == 0) {
+            std::cerr << "[smoothxg::smooth_and_lace] adding graph "
+                      << j << "/" << block_graphs.size() << " "
+                      << std::fixed << std::showpoint << std::setprecision(3)
+                      << (float)j / (float)block_graphs.size() << "%\r";
+        }
         // record the id translation
         id_mapping.push_back(id_trans);
         if (block.get_node_count() == 0) {
@@ -211,9 +232,13 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
                     );
             });
     }
+    std::cerr << "[smoothxg::smooth_and_lace] adding graph " << ++j << "/" << block_graphs.size() << " 100.000%" << std::endl;
     // then for each path, ensure that it's embedded in the graph by walking through its block segments in order
     // and linking them up in the output graph
     for (uint64_t i = 0; i < path_mapping.size(); ++i) {
+        if (j % 100 == 0) {
+            std::cerr << "[smoothxg::smooth_and_lace] embedding path fragment " << ++i << "/" << path_mapping.size() << "\r";
+        }
         path_position_range_t* pos_range = &path_mapping[i];
         path_position_range_t* last_pos_range = nullptr;
         step_handle_t last_step = {0, 0};
@@ -295,8 +320,10 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             smoothed.append_step(smoothed_path, h);
         }
     }
+    std::cerr << "[smoothxg::smooth_and_lace] embedding path fragment " << path_mapping.size() << "/" << path_mapping.size() << std::endl;
     // now verify that smoothed has paths that are equal to the base graph
     // and that all the paths are fully embedded in the graph
+    std::cerr << "[smoothxg::smooth_and_lace] verifying paths" << std::endl;
     smoothed.for_each_path_handle(
         [&](const path_handle_t& path) {
             // collect sequence
@@ -320,6 +347,9 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             assert(orig_seq == smoothed_seq);
         });
 
+    if (consensus_mapping.size()) {
+        std::cerr << "[smoothxg::smooth_and_lace] sorting consensus" << std::endl;
+    }
     // consensus path and connections
     ips4o::parallel::sort(
         consensus_mapping.begin(),
@@ -333,6 +363,9 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
 
     // by definition, the consensus paths are embedded in our blocks, which simplifies things
     // we'll still need to add a new path for each consensus path
+    if (consensus_mapping.size()) {
+        std::cerr << "[smoothxg::smooth_and_lace] embedding consensus" << std::endl;
+    }
     for (auto& pos_range : consensus_mapping) {
         auto& block = block_graphs[pos_range.target_graph_id];
         path_handle_t smoothed_path = smoothed.create_path_handle(block.get_path_name(pos_range.target_path));
