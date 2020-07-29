@@ -90,6 +90,7 @@ set(dynamic_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/DYNAMIC/include)
 set(hopscotch_map_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/hopscotch-map/include)
 set(sparsepp_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/sparsepp/sparsepp)
 set(flathashmap_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/flat_hash_map)
+set(random_dist_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/cpp_random_distributions)
 
 file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/odgi/include)
 execute_process(COMMAND bash scripts/generate_git_version.sh include WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/odgi)
@@ -175,6 +176,14 @@ ExternalProject_Add(paryfor
 ExternalProject_Get_property(paryfor SOURCE_DIR)
 set(paryfor_INCLUDE "${SOURCE_DIR}")
 
+ExternalProject_Add(libbf
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/libbf"
+  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>")
+ExternalProject_Get_property(libbf INSTALL_DIR)
+#message(STATUS "libbf target " ${INSTALL_DIR})
+set(libbf_INCLUDE "${INSTALL_DIR}/include")
+set(libbf_LIB "${INSTALL_DIR}/lib")
+
 add_subdirectory(deps/spoa EXCLUDE_FROM_ALL)
 set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 
@@ -184,6 +193,7 @@ set(CMAKE_BUILD_TYPE Debug)
 add_library(smoothxg_objs OBJECT
   src/xg.cpp
   src/chain.cpp
+  src/prep.cpp
   src/blocks.cpp
   src/smooth.cpp)
 
@@ -198,6 +208,7 @@ add_dependencies(smoothxg_objs gfakluge)
 add_dependencies(smoothxg_objs ips4o)
 add_dependencies(smoothxg_objs cgranges)
 add_dependencies(smoothxg_objs paryfor)
+add_dependencies(smoothxg_objs libbf)
 
 set_target_properties(smoothxg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
@@ -240,7 +251,9 @@ set(smoothxg_INCLUDES
   "${hopscotch_map_INCLUDE}"
   "${sparsepp_INCLUDE}"
   "${flathashmap_INCLUDE}"
-  "${paryfor_INCLUDE}")
+  "${paryfor_INCLUDE}"
+  "${libbf_INCLUDE}"
+  "${random_dist_INCLUDE}")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"

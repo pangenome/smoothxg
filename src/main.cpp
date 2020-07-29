@@ -56,6 +56,8 @@ int main(int argc, char** argv) {
         omp_set_num_threads(1);
     }
 
+    // ? should we prep the graph here?
+    
     XG graph;
     if (!args::get(xg_in).empty()) {
         std::ifstream in(args::get(xg_in));

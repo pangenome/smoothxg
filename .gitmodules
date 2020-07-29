@@ -37,3 +37,6 @@
 [submodule "deps/paryfor"]
 	path = deps/paryfor
 	url = https://github.com/ekg/paryfor.git
+[submodule "deps/libbf"]
+	path = deps/libbf
+	url = https://github.com/mavam/libbf.git
