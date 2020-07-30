@@ -14,6 +14,7 @@
 #include "blocks.hpp"
 #include "smooth.hpp"
 #include "xg.hpp"
+#include "prep.hpp"
 #include "odgi/odgi.hpp"
 
 using namespace std;
@@ -26,13 +27,14 @@ int main(int argc, char** argv) {
     //args::ValueFlag<std::string> xg_out(parser, "FILE", "write the resulting xg index to this file", {'o', "out"});
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
-    //args::Flag gfa_out(parser, "bool", "write the graph in GFA to stdout", {'G', "gfa-out"});
+    args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block (default: 10000)", {'w', "max-block-weight"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block (default: 1000)", {'j', "max-path-jump"});
     args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment (default: 0)", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
+    args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
     try {
         parser.ParseCLI(argc, argv);
@@ -56,15 +58,24 @@ int main(int argc, char** argv) {
         omp_set_num_threads(1);
     }
 
-    // ? should we prep the graph here?
-    
     XG graph;
     if (!args::get(xg_in).empty()) {
         std::ifstream in(args::get(xg_in));
         graph.deserialize(in);
     } else if (!args::get(gfa_in).empty()) {
-        graph.from_gfa(args::get(gfa_in), args::get(validate),
-                       args::get(base).empty() ? args::get(gfa_in) : args::get(base));
+        // prep the graph by default
+        std::string gfa_in_name;
+        if (!args::get(no_prep)) {
+            gfa_in_name = args::get(gfa_in) + ".prep.gfa";
+            smoothxg::prep(args::get(gfa_in), gfa_in_name);
+        } else {
+            gfa_in_name = args::get(gfa_in);
+        }
+        graph.from_gfa(gfa_in_name, args::get(validate),
+                       args::get(base).empty() ? gfa_in_name : args::get(base));
+        if (!args::get(keep_temp) && !args::get(no_prep)) {
+            std::remove(gfa_in_name.c_str());
+        }
     }
 
     uint64_t max_block_weight = args::get(_max_block_weight) ? args::get(_max_block_weight) : 10000;
