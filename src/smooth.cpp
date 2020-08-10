@@ -5,15 +5,15 @@ namespace smoothxg {
 
 odgi::graph_t smooth(const xg::XG& graph,
                      const block_t& block,
+                     std::int8_t poa_m,
+                     std::int8_t poa_n,
+                     std::int8_t poa_g,
+                     std::int8_t poa_e,
+                     std::int8_t poa_q,
+                     std::int8_t poa_c,
                      const std::string& consensus_name) {
 
     // TODO we should take these as input
-    std::int8_t poa_m = 5;
-    std::int8_t poa_n = -4;
-    std::int8_t poa_g = -8;
-    std::int8_t poa_e = -6;
-    std::int8_t poa_q = -10;
-    std::int8_t poa_c = -4;
     std::uint8_t poa_algorithm = 0;
     
     auto poa_graph = spoa::createGraph();
@@ -106,7 +106,14 @@ odgi::graph_t smooth(const xg::XG& graph,
 
 odgi::graph_t smooth_and_lace(const xg::XG& graph,
                               const std::vector<block_t>& blocks,
+                              std::int8_t poa_m,
+                              std::int8_t poa_n,
+                              std::int8_t poa_g,
+                              std::int8_t poa_e,
+                              std::int8_t poa_q,
+                              std::int8_t poa_c,
                               const std::string& consensus_base_name) {
+
     //
     // record the start and end points of all the path ranges and the consensus
     //
@@ -120,7 +127,7 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
         0, blocks.size(),
         odgi::get_thread_count(),
         [&](uint64_t block_id, int tid) {
-            if (block_id % 100 == 0) {
+            { //if (block_id % 100 == 0) {
                 std::lock_guard<std::mutex> guard(logging_mutex);
                 std::cerr << "[smoothxg::smooth_and_lace] applying spoa to block "
                           << block_id << "/" << blocks.size() << " "
@@ -131,7 +138,15 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             std::string consensus_name = consensus_base_name + std::to_string(block_id);
             //std::cerr << "on block " << block_id+1 << " of " << blocks.size() << std::endl;
             auto& block_graph = block_graphs[block_id];
-            block_graph = smooth(graph, block, consensus_name);
+            block_graph = smooth(graph,
+                                 block,
+                                 poa_m,
+                                 poa_n,
+                                 poa_g,
+                                 poa_e,
+                                 poa_q,
+                                 poa_c,
+                                 consensus_name);
             if (block_graph.get_node_count() > 0) {
                 //auto& block_graph = block_graphs.back();
                 // record the start and end paths
@@ -184,7 +199,7 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             }
         });
 
-    std::cerr << "[smoothxg::smooth_and_lace] block "
+    std::cerr << "[smoothxg::smooth_and_lace] applying spoa to block "
               << blocks.size() << "/" << blocks.size() << " "
               << std::fixed << std::showpoint << std::setprecision(3)
               << 100.0 << "%" << std::endl;
@@ -209,12 +224,13 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
     uint64_t j = 0;
     for (auto& block : block_graphs) {
         uint64_t id_trans = smoothed.get_node_count();
-        if (j++ % 100 == 0) {
+        { //if (j % 100 == 0) {
             std::cerr << "[smoothxg::smooth_and_lace] adding graph "
                       << j << "/" << block_graphs.size() << " "
                       << std::fixed << std::showpoint << std::setprecision(3)
                       << (float)j / (float)block_graphs.size() << "%\r";
         }
+        ++j;
         // record the id translation
         id_mapping.push_back(id_trans);
         if (block.get_node_count() == 0) {
@@ -232,13 +248,15 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
                     );
             });
     }
-    std::cerr << "[smoothxg::smooth_and_lace] adding graph " << ++j << "/" << block_graphs.size() << " 100.000%" << std::endl;
+    std::cerr << "[smoothxg::smooth_and_lace] adding graph " << j++ << "/" << block_graphs.size() << " 100.000%" << std::endl;
     // then for each path, ensure that it's embedded in the graph by walking through its block segments in order
     // and linking them up in the output graph
+    j = 0;
     for (uint64_t i = 0; i < path_mapping.size(); ++i) {
-        if (j % 100 == 0) {
-            std::cerr << "[smoothxg::smooth_and_lace] embedding path fragment " << ++i << "/" << path_mapping.size() << "\r";
+        { //if (j % 100 == 0) {
+            std::cerr << "[smoothxg::smooth_and_lace] embedding path fragment " << j << "/" << path_mapping.size() << "\r";
         }
+        ++j;
         path_position_range_t* pos_range = &path_mapping[i];
         path_position_range_t* last_pos_range = nullptr;
         step_handle_t last_step = {0, 0};

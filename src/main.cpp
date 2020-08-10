@@ -29,10 +29,18 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
-    args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block (default: 10000)", {'w', "max-block-weight"});
-    args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block (default: 1000)", {'j', "max-path-jump"});
-    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment (default: 0)", {'k', "min-subpath"});
+    args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "max-block-weight"});
+    args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 1000]", {'j', "max-path-jump"});
+    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0]", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
+    args::ValueFlag<int> _poa_m(parser, "N", "spoa score for matching bases [default: 5]", {'M', "poa-match"});
+    args::ValueFlag<int> _poa_n(parser, "N", "spoa score for mismatching bases [default: -4]", {'N', "poa-mismatch"});
+    args::ValueFlag<int> _poa_g(parser, "N", "spoa gap opening penalty (must be negative) [default: -8]", {'G', "poa-gap-open"});
+    args::ValueFlag<int> _poa_e(parser, "N", "spoa gap extension penalty (must be negative) [default: -6]", {'E', "poa-gap-extend"});
+    args::ValueFlag<int> _poa_q(parser, "N", "spoa gap opening penalty of the second affine function (must be negative) [default: -10]", {'Q', "poa-2nd-gap-open"});
+    args::ValueFlag<int> _poa_c(parser, "N", "spoa gap extension penalty of the second affine function (must be negative) [default: -4]", {'C', "poa-2nd-gap-extend"});
+    args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 32]", {'X', "chop-to"});
+    args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N*graph_size updates per iteration) for graph prep [default: 10]", {'U', "path-sgd-term-updates"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
@@ -67,7 +75,9 @@ int main(int argc, char** argv) {
         std::string gfa_in_name;
         if (!args::get(no_prep)) {
             gfa_in_name = args::get(gfa_in) + ".prep.gfa";
-            smoothxg::prep(args::get(gfa_in), gfa_in_name);
+            float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 10);
+            float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 32);
+            smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates);
         } else {
             gfa_in_name = args::get(gfa_in);
         }
@@ -82,6 +92,20 @@ int main(int argc, char** argv) {
     uint64_t max_block_jump = args::get(_max_block_jump) ? args::get(_max_block_jump) : 1000;
     uint64_t min_subpath = args::get(_min_subpath) ? args::get(_min_subpath) : 0;
 
+    std::int8_t poa_m = 5;
+    std::int8_t poa_n = -4;
+    std::int8_t poa_g = -8;
+    std::int8_t poa_e = -6;
+    std::int8_t poa_q = -10;
+    std::int8_t poa_c = -4;
+
+    if (_poa_m) poa_m = args::get(_poa_m);
+    if (_poa_n) poa_n = args::get(_poa_n);
+    if (_poa_g) poa_g = args::get(_poa_g);
+    if (_poa_e) poa_e = args::get(_poa_e);
+    if (_poa_q) poa_q = args::get(_poa_q);
+    if (_poa_c) poa_c = args::get(_poa_c);
+
     auto blocks = smoothxg::smoothable_blocks(graph,
                                               max_block_weight,
                                               max_block_jump,
@@ -89,6 +113,12 @@ int main(int argc, char** argv) {
 
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,
+                                              poa_m,
+                                              poa_n,
+                                              poa_g,
+                                              poa_e,
+                                              poa_q,
+                                              poa_c,
                                               args::get(add_consensus) ? "Consensus_" : "");
 
     smoothed.to_gfa(std::cout);

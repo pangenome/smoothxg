@@ -8,9 +8,8 @@ namespace smoothxg {
 void prep(
     const std::string& gfa_in,
     const std::string& gfa_out,
-    const uint64_t& max_node_length
-    ) {
-
+    const uint64_t& max_node_length,
+    const float& p_sgd_min_term_updates) {
 
     // load it into an odgi
     odgi::graph_t graph;
@@ -60,11 +59,12 @@ void prep(
     path_index.from_handle_graph(graph);
 
     uint64_t sum_path_length = get_sum_path_lengths(path_sgd_use_paths, path_index);
-    float p_sgd_min_term_updates = 0.1; // -G parameter to odgi sort
-    uint64_t path_sgd_min_term_updates = p_sgd_min_term_updates * sum_path_length;
+    uint64_t path_sgd_min_term_updates = p_sgd_min_term_updates * graph.get_node_count();
     uint64_t path_sgd_zipf_space = get_max_path_length(path_sgd_use_paths, path_index);
+    double path_sgd_max_eta = graph.get_node_count();
     std::string path_sgd_seed = "pangenomic!";
 
+    /*
     std::cerr
         << path_sgd_iter_max << " "
         << path_sgd_min_term_updates << " "
@@ -72,7 +72,27 @@ void prep(
         << path_sgd_eps << " "
         << path_sgd_zipf_theta << " "
         << path_sgd_zipf_space << std::endl;
+    */
+/*
+    std::vector<handle_t> path_linear_sgd_order(const PathHandleGraph &graph,
+                                            const xp::XP &path_index,
+                                            const std::vector<path_handle_t>& path_sgd_use_paths,
+                                            const uint64_t &iter_max,
+                                            const uint64_t &iter_with_max_learning_rate,
+                                            const uint64_t &min_term_updates,
+                                            const double &delta,
+                                            const double &eps,
+                                            const double &eta_max,
+                                            const double &theta,
+                                            const uint64_t &space,
+                                            const uint64_t &nthreads,
+                                            const bool &progress,
+                                            const std::string &seed,
+                                            const bool &snapshot,
+                                            std::vector<std::vector<handle_t>> &snapshots);
+*/
 
+    std::vector<std::vector<handlegraph::handle_t>> null_snapshots;
     
     auto order
         = odgi::algorithms::path_linear_sgd_order(
@@ -80,14 +100,18 @@ void prep(
             path_index,
             path_sgd_use_paths,
             path_sgd_iter_max,
+            0,
             path_sgd_min_term_updates,
             path_sgd_delta,
             path_sgd_eps,
+            path_sgd_max_eta,
             path_sgd_zipf_theta,
             path_sgd_zipf_space,
             odgi::get_thread_count(),
             true,
-            path_sgd_seed);
+            path_sgd_seed,
+            false,
+            null_snapshots);
 
     graph.apply_ordering(order, true);
 

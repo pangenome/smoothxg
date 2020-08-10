@@ -49,6 +49,7 @@ smoothable_blocks(
             // determine the path ranges in the block
             // break them when we pass some threshold for how much block-external sequence to include
             // (this parameter is meant to allow us to reduce dispersed collapses in the graph)
+            // TODO optionally break when we have a significant change in coverage relative to the average in the region
             std::vector<path_range_t> path_ranges;
             for (auto& step : traversals) {
                 if (path_ranges.empty()) {
@@ -69,7 +70,6 @@ smoothable_blocks(
                 }
             }
             // break the blocks on ranges of seen steps
-            //block.path_ranges
             for (auto& path_range : path_ranges) {
                 uint64_t included_path_length = 0;
                 // update the path range end to point to the one-past element

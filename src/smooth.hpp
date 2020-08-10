@@ -31,10 +31,22 @@ struct path_position_range_t {
 
 odgi::graph_t smooth(const xg::XG& graph,
                      const block_t& block,
+                     std::int8_t poa_m,
+                     std::int8_t poa_n,
+                     std::int8_t poa_g,
+                     std::int8_t poa_e,
+                     std::int8_t poa_q,
+                     std::int8_t poa_c,
                      const std::string& consensus_name = "");
 
 odgi::graph_t smooth_and_lace(const xg::XG& graph,
                               const std::vector<block_t>& blocks,
+                              std::int8_t poa_m,
+                              std::int8_t poa_n,
+                              std::int8_t poa_g,
+                              std::int8_t poa_e,
+                              std::int8_t poa_q,
+                              std::int8_t poa_c,
                               const std::string& consensus_name = "");
 
 void write_gfa(std::unique_ptr<spoa::Graph>& graph,
