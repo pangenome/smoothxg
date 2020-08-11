@@ -88,9 +88,9 @@ int main(int argc, char** argv) {
         }
     }
 
-    uint64_t max_block_weight = args::get(_max_block_weight) ? args::get(_max_block_weight) : 10000;
-    uint64_t max_block_jump = args::get(_max_block_jump) ? args::get(_max_block_jump) : 1000;
-    uint64_t min_subpath = args::get(_min_subpath) ? args::get(_min_subpath) : 0;
+    uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
+    uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 1000;
+    uint64_t min_subpath = _min_subpath ? args::get(_min_subpath) : 0;
 
     std::int8_t poa_m = 5;
     std::int8_t poa_n = -4;
