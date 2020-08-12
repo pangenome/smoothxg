@@ -6,6 +6,7 @@ namespace smoothxg {
 odgi::graph_t smooth(const xg::XG& graph,
                      const block_t& block,
                      const uint64_t& block_id,
+                     std::unique_ptr<spoa::AlignmentEngine>& alignment_engine,
                      std::int8_t poa_m,
                      std::int8_t poa_n,
                      std::int8_t poa_g,
@@ -14,9 +15,6 @@ odgi::graph_t smooth(const xg::XG& graph,
                      std::int8_t poa_c,
                      const std::string& consensus_name) {
 
-    // TODO we should take these as input
-    std::uint8_t poa_algorithm = 0;
-    
     auto poa_graph = spoa::createGraph();
     // collect sequences
     std::vector<std::string> seqs;
@@ -44,15 +42,7 @@ odgi::graph_t smooth(const xg::XG& graph,
     fasta.close();
     */
     // set up POA
-    std::unique_ptr<spoa::AlignmentEngine> alignment_engine;
-    try {
-        alignment_engine = spoa::createAlignmentEngine(
-            static_cast<spoa::AlignmentType>(poa_algorithm),
-            poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
-    } catch(std::invalid_argument& exception) {
-        std::cerr << exception.what() << std::endl;
-        assert(false);
-    }
+    // done...
     // run POA
     std::size_t max_sequence_size = 0;
     for (auto& seq : seqs) {
@@ -134,9 +124,29 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
     std::vector<path_position_range_t> consensus_mapping;
     bool add_consensus = !consensus_base_name.empty();
     std::mutex path_mapping_mutex, consensus_mapping_mutex, logging_mutex;
+    uint64_t thread_count = odgi::get_thread_count();
+
+    // setup our alignment engines
+    std::vector<std::unique_ptr<spoa::AlignmentEngine>> alignment_engines;
+    // todo make configurable?
+    std::uint8_t poa_algorithm = 0;
+    for (uint64_t i = 0; i < thread_count; ++i) {
+        try {
+            alignment_engines.emplace_back();
+            auto& alignment_engine = alignment_engines.back();
+            alignment_engine = spoa::createAlignmentEngine(
+                static_cast<spoa::AlignmentType>(poa_algorithm),
+                poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
+            //alignment_engines.push_back(alignment_engine);
+        } catch(std::invalid_argument& exception) {
+            std::cerr << exception.what() << std::endl;
+            assert(false);
+        }
+    }
+
     paryfor::parallel_for<uint64_t>(
         0, blocks.size(),
-        odgi::get_thread_count(),
+        thread_count,
         [&](uint64_t block_id, int tid) {
             { //if (block_id % 100 == 0) {
                 std::lock_guard<std::mutex> guard(logging_mutex);
@@ -152,6 +162,7 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             block_graph = smooth(graph,
                                  block,
                                  block_id,
+                                 alignment_engines[tid],
                                  poa_m,
                                  poa_n,
                                  poa_g,
