@@ -132,6 +132,7 @@ smoothable_blocks(
                 block.max_path_length = std::max(included_path_length,
                                                  block.max_path_length);
             }
+            //std::cerr << "max_path_length " << block.max_path_length << std::endl;
 
             // order the path ranges from longest to shortest
             ips4o::parallel::sort(

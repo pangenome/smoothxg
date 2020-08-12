@@ -5,6 +5,7 @@ namespace smoothxg {
 
 odgi::graph_t smooth(const xg::XG& graph,
                      const block_t& block,
+                     const uint64_t& block_id,
                      std::int8_t poa_m,
                      std::int8_t poa_n,
                      std::int8_t poa_g,
@@ -33,6 +34,15 @@ odgi::graph_t smooth(const xg::XG& graph,
                << "_" << graph.get_position_of_step(path_range.begin);
         names.push_back(namess.str());
     }
+    /*
+    std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
+    std::ofstream fasta(s.c_str());
+    for (uint64_t i = 0; i < seqs.size(); ++i) {
+        fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
+              << seqs[i] << std::endl;
+    }
+    fasta.close();
+    */
     // set up POA
     std::unique_ptr<spoa::AlignmentEngine> alignment_engine;
     try {
@@ -53,7 +63,8 @@ odgi::graph_t smooth(const xg::XG& graph,
     if (max_sequence_size == 0) {
         return output_graph;
     }
-    alignment_engine->prealloc(max_sequence_size, 4);
+    // todo this makes alignment faster, but requires 500M for 10kb sequences
+    //alignment_engine->prealloc(max_sequence_size, 4);
     std::vector<bool> aln_is_reverse;
     int i = 0;
     for (auto& seq : seqs) {
@@ -140,6 +151,7 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             auto& block_graph = block_graphs[block_id];
             block_graph = smooth(graph,
                                  block,
+                                 block_id,
                                  poa_m,
                                  poa_n,
                                  poa_g,

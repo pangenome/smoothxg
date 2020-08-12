@@ -31,6 +31,7 @@ struct path_position_range_t {
 
 odgi::graph_t smooth(const xg::XG& graph,
                      const block_t& block,
+                     const uint64_t& block_id,
                      std::int8_t poa_m,
                      std::int8_t poa_n,
                      std::int8_t poa_g,
