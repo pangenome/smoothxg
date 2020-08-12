@@ -74,7 +74,7 @@ void prep(
         << path_sgd_zipf_space << std::endl;
     */
 /*
-    std::vector<handle_t> path_linear_sgd_order(const PathHandleGraph &graph,
+std::vector<handle_t> path_linear_sgd_order(const PathHandleGraph &graph,
                                             const xp::XP &path_index,
                                             const std::vector<path_handle_t>& path_sgd_use_paths,
                                             const uint64_t &iter_max,
@@ -89,7 +89,10 @@ void prep(
                                             const bool &progress,
                                             const std::string &seed,
                                             const bool &snapshot,
-                                            std::vector<std::vector<handle_t>> &snapshots);
+                                            std::vector<std::vector<handle_t>> &snapshots,
+                                            const bool &sample_from_paths,
+                                            const bool &path_sgd_deterministic,
+                                            const bool &sample_from_path_steps);
 */
 
     std::vector<std::vector<handlegraph::handle_t>> null_snapshots;
@@ -111,7 +114,10 @@ void prep(
             true,
             path_sgd_seed,
             false,
-            null_snapshots);
+            null_snapshots,
+            false,
+            false,
+            false);
 
     graph.apply_ordering(order, true);
 
