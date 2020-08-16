@@ -7,7 +7,8 @@ smoothable_blocks(
     const xg::XG& graph,
     const uint64_t& max_block_weight,
     const uint64_t& max_path_jump,
-    const uint64_t& min_subpath) {
+    const uint64_t& min_subpath,
+    const uint64_t& max_edge_jump) {
     // iterate over the handles in their vectorized order
     std::vector<block_t> blocks;
     std::vector<std::vector<bool>> seen_steps;
@@ -153,6 +154,7 @@ smoothable_blocks(
             */                    
         };
     //uint64_t id = 0;
+    const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
     graph.for_each_handle(
         [&](const handle_t& handle) {
             if (graph.get_id(handle) % 100 == 0) {
@@ -166,7 +168,7 @@ smoothable_blocks(
                 block.handles.push_back(handle);
             } else {
                 // how much sequence would we be adding to the block?
-                uint64_t handle_length = graph.get_length(handle);
+                int64_t handle_length = graph.get_length(handle);
                 uint64_t sequence_to_add = 0;
                 graph.for_each_step_on_handle(
                     handle,
@@ -175,9 +177,30 @@ smoothable_blocks(
                             sequence_to_add += handle_length;
                         }
                     });
+                // for each edge, find the jump length
+                int64_t longest_edge_jump = 0;
+                int64_t handle_vec_offset = vec_graph.node_vector_offset(graph.get_id(handle));
+                //int64_t handle_length = graph.get_length(handle);
+                graph.follow_edges(
+                    handle, false,
+                    [&](const handle_t& o) {
+                        int64_t other_vec_offset = vec_graph.node_vector_offset(graph.get_id(o))
+                            + (graph.get_is_reverse(o) ? graph.get_length(o) : 0);
+                        int64_t jump = std::abs(other_vec_offset - (handle_vec_offset + handle_length));
+                        longest_edge_jump = std::max(longest_edge_jump, jump);
+                    });
+                graph.follow_edges(
+                    handle, true,
+                    [&](const handle_t& o) {
+                        int64_t other_vec_offset = vec_graph.node_vector_offset(graph.get_id(o))
+                            + (graph.get_is_reverse(o) ? 0 : graph.get_length(o));
+                        int64_t jump = std::abs(other_vec_offset - handle_vec_offset);
+                        longest_edge_jump = std::max(longest_edge_jump, jump);
+                    });
                 auto& block = blocks.back();
                 // if we add to the current block, do we go over our total path length?
-                if (block.total_path_length + sequence_to_add > max_block_weight) {
+                if (block.total_path_length + sequence_to_add > max_block_weight
+                    || max_edge_jump && longest_edge_jump > max_edge_jump) {
                     /*
                     std::cerr << "block over weight "
                               << block.total_path_length << " " << sequence_to_add << " " << max_block_weight << std::endl;

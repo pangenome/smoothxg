@@ -42,6 +42,7 @@ smoothable_blocks(
     const xg::XG& graph,
     const uint64_t& max_block_weight,
     const uint64_t& max_path_jump,
-    const uint64_t& min_subpath);
+    const uint64_t& min_subpath,
+    const uint64_t& max_edge_jump);
 
 }
