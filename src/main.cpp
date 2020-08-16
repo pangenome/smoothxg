@@ -34,12 +34,12 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0]", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 100]", {'e', "max-edge-jump"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
-    args::ValueFlag<int> _poa_m(parser, "N", "spoa score for matching bases [default: 5]", {'M', "poa-match"});
+    args::ValueFlag<int> _poa_m(parser, "N", "spoa score for matching bases [default: 1]", {'M', "poa-match"});
     args::ValueFlag<int> _poa_n(parser, "N", "spoa score for mismatching bases [default: -4]", {'N', "poa-mismatch"});
-    args::ValueFlag<int> _poa_g(parser, "N", "spoa gap opening penalty (must be negative) [default: -8]", {'G', "poa-gap-open"});
-    args::ValueFlag<int> _poa_e(parser, "N", "spoa gap extension penalty (must be negative) [default: -6]", {'E', "poa-gap-extend"});
-    args::ValueFlag<int> _poa_q(parser, "N", "spoa gap opening penalty of the second affine function (must be negative) [default: -10]", {'Q', "poa-2nd-gap-open"});
-    args::ValueFlag<int> _poa_c(parser, "N", "spoa gap extension penalty of the second affine function (must be negative) [default: -4]", {'C', "poa-2nd-gap-extend"});
+    args::ValueFlag<int> _poa_g(parser, "N", "spoa gap opening penalty (must be negative) [default: -6]", {'G', "poa-gap-open"});
+    args::ValueFlag<int> _poa_e(parser, "N", "spoa gap extension penalty (must be negative) [default: -2]", {'E', "poa-gap-extend"});
+    args::ValueFlag<int> _poa_q(parser, "N", "spoa gap opening penalty of the second affine function (must be negative) [default: -8]", {'Q', "poa-2nd-gap-open"});
+    args::ValueFlag<int> _poa_c(parser, "N", "spoa gap extension penalty of the second affine function (must be negative) [default: -1]", {'C', "poa-2nd-gap-extend"});
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 32]", {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N*graph_size updates per iteration) for graph prep [default: 10]", {'U', "path-sgd-term-updates"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
@@ -94,12 +94,12 @@ int main(int argc, char** argv) {
     uint64_t min_subpath = _min_subpath ? args::get(_min_subpath) : 0;
     uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 100;
 
-    std::int8_t poa_m = 5;
+    std::int8_t poa_m = 1;
     std::int8_t poa_n = -4;
-    std::int8_t poa_g = -8;
-    std::int8_t poa_e = -6;
-    std::int8_t poa_q = -10;
-    std::int8_t poa_c = -4;
+    std::int8_t poa_g = -6;
+    std::int8_t poa_e = -2;
+    std::int8_t poa_q = -8;
+    std::int8_t poa_c = -1;
 
     if (_poa_m) poa_m = args::get(_poa_m);
     if (_poa_n) poa_n = args::get(_poa_n);
