@@ -27,7 +27,7 @@ namespace smoothxg {
 void prep(
     const std::string& gfa_in,
     const std::string& gfa_out,
-    const uint64_t& max_node_length = 32,
-    const float& p_sgd_min_term_updates = 10);
+    const uint64_t& max_node_length,
+    const float& p_sgd_min_term_updates);
 
 }

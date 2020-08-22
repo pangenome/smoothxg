@@ -17,6 +17,7 @@ void prep(
 
     // chop it
     odgi::algorithms::chop(graph, max_node_length);
+    //graph.optimize(); // clean up after chopping if we don't use toposort later
 
     // sort it using a short sorting pipeline
     // first toposort
@@ -59,9 +60,10 @@ void prep(
     path_index.from_handle_graph(graph);
 
     uint64_t sum_path_length = get_sum_path_lengths(path_sgd_use_paths, path_index);
-    uint64_t path_sgd_min_term_updates = p_sgd_min_term_updates * graph.get_node_count();
-    uint64_t path_sgd_zipf_space = get_max_path_length(path_sgd_use_paths, path_index);
-    double path_sgd_max_eta = graph.get_node_count();
+    uint64_t path_sgd_min_term_updates = p_sgd_min_term_updates * sum_path_length;
+    uint64_t max_path_length = get_max_path_length(path_sgd_use_paths, path_index);
+    uint64_t path_sgd_zipf_space = max_path_length;
+    double path_sgd_max_eta = max_path_length * max_path_length;
     std::string path_sgd_seed = "pangenomic!";
 
     /*

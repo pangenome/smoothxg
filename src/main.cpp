@@ -40,8 +40,8 @@ int main(int argc, char** argv) {
     args::ValueFlag<int> _poa_e(parser, "N", "spoa gap extension penalty (must be negative) [default: -2]", {'E', "poa-gap-extend"});
     args::ValueFlag<int> _poa_q(parser, "N", "spoa gap opening penalty of the second affine function (must be negative) [default: -8]", {'Q', "poa-2nd-gap-open"});
     args::ValueFlag<int> _poa_c(parser, "N", "spoa gap extension penalty of the second affine function (must be negative) [default: -1]", {'C', "poa-2nd-gap-extend"});
-    args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 32]", {'X', "chop-to"});
-    args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N*graph_size updates per iteration) for graph prep [default: 10]", {'U', "path-sgd-term-updates"});
+    args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 10]", {'X', "chop-to"});
+    args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]", {'U', "path-sgd-term-updates"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
@@ -76,8 +76,8 @@ int main(int argc, char** argv) {
         std::string gfa_in_name;
         if (!args::get(no_prep)) {
             gfa_in_name = args::get(gfa_in) + ".prep.gfa";
-            float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 10);
-            float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 32);
+            float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
+            float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 10);
             smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates);
         } else {
             gfa_in_name = args::get(gfa_in);
@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
     std::int8_t poa_m = 1;
     std::int8_t poa_n = -4;
     std::int8_t poa_g = -6;
-    std::int8_t poa_e = -2;
+    std::int8_t poa_e = -1;
     std::int8_t poa_q = -8;
     std::int8_t poa_c = -1;
 
