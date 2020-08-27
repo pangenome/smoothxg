@@ -42,6 +42,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<int> _poa_c(parser, "N", "spoa gap extension penalty of the second affine function (must be negative) [default: -1]", {'C', "poa-2nd-gap-extend"});
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 10]", {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]", {'U', "path-sgd-term-updates"});
+    args::Flag no_toposort(parser, "no-toposort", "don't apply topological sorting in the sort pipeline", {'T', "no-toposort"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
@@ -78,7 +79,7 @@ int main(int argc, char** argv) {
             gfa_in_name = args::get(gfa_in) + ".prep.gfa";
             float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
             float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 10);
-            smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates);
+            smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort));
         } else {
             gfa_in_name = args::get(gfa_in);
         }

@@ -9,7 +9,8 @@ void prep(
     const std::string& gfa_in,
     const std::string& gfa_out,
     const uint64_t& max_node_length,
-    const float& p_sgd_min_term_updates) {
+    const float& p_sgd_min_term_updates,
+    const bool& toposort) {
 
     // load it into an odgi
     odgi::graph_t graph;
@@ -17,13 +18,16 @@ void prep(
 
     // chop it
     odgi::algorithms::chop(graph, max_node_length);
-    //graph.optimize(); // clean up after chopping if we don't use toposort later
 
-    // sort it using a short sorting pipeline
-    // first toposort
-    graph.apply_ordering(odgi::algorithms::topological_order(
-                             &graph, true, false, true),
-                         true);
+    // then sort it using a short sorting pipeline
+    if (!toposort) {
+        graph.optimize(); // clean up after chopping if we don't use toposort later
+    } else {
+        // first toposort
+        graph.apply_ordering(odgi::algorithms::topological_order(
+                                 &graph, true, false, true),
+                             true);
+    }
     
     // then path-guided SGD
 
@@ -129,9 +133,11 @@ std::vector<handle_t> path_linear_sgd_order(const PathHandleGraph &graph,
     graph = groomed;
 
     // final toposort
-    graph.apply_ordering(odgi::algorithms::topological_order(
-                             &graph, true, false, true),
-                         true);
+    if (toposort) {
+        graph.apply_ordering(odgi::algorithms::topological_order(
+                                 &graph, true, false, true),
+                             true);
+    }
 
     std::ofstream f(gfa_out);
     graph.to_gfa(f);

@@ -28,6 +28,7 @@ void prep(
     const std::string& gfa_in,
     const std::string& gfa_out,
     const uint64_t& max_node_length,
-    const float& p_sgd_min_term_updates);
+    const float& p_sgd_min_term_updates,
+    const bool& toposort);
 
 }
