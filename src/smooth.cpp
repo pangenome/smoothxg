@@ -53,7 +53,7 @@ odgi::graph_t smooth(const xg::XG& graph,
     if (max_sequence_size == 0) {
         return output_graph;
     }
-    // todo this makes alignment faster, but requires 500M for 10kb sequences
+    // preallocation does not seem to help, and it consumes a lot of memory relative to progressive allocation
     //alignment_engine->prealloc(max_sequence_size, 4);
     std::vector<bool> aln_is_reverse;
     int i = 0;
@@ -125,11 +125,12 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
     bool add_consensus = !consensus_base_name.empty();
     std::mutex path_mapping_mutex, consensus_mapping_mutex, logging_mutex;
     uint64_t thread_count = odgi::get_thread_count();
-
+    std::uint8_t poa_algorithm = 0;
     // setup our alignment engines
+    /*
     std::vector<std::unique_ptr<spoa::AlignmentEngine>> alignment_engines;
     // todo make configurable?
-    std::uint8_t poa_algorithm = 0;
+
     for (uint64_t i = 0; i < thread_count; ++i) {
         try {
             alignment_engines.emplace_back();
@@ -143,6 +144,7 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             assert(false);
         }
     }
+    */
 
     paryfor::parallel_for<uint64_t>(
         0, blocks.size(),
@@ -159,10 +161,19 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
             std::string consensus_name = consensus_base_name + std::to_string(block_id);
             //std::cerr << "on block " << block_id+1 << " of " << blocks.size() << std::endl;
             auto& block_graph = block_graphs[block_id];
+            std::unique_ptr<spoa::AlignmentEngine> alignment_engine;
+            try {
+                alignment_engine = spoa::createAlignmentEngine(
+                    static_cast<spoa::AlignmentType>(poa_algorithm),
+                    poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
+            } catch(std::invalid_argument& exception) {
+                std::cerr << exception.what() << std::endl;
+                assert(false);
+            }
             block_graph = smooth(graph,
                                  block,
                                  block_id,
-                                 alignment_engines[tid],
+                                 alignment_engine,
                                  poa_m,
                                  poa_n,
                                  poa_g,
