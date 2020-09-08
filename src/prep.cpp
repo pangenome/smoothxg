@@ -16,20 +16,15 @@ void prep(
     odgi::graph_t graph;
     odgi::gfa_to_handle(gfa_in, &graph);
 
-    // chop it
-    odgi::algorithms::chop(graph, max_node_length);
+    // how many threads should we use
+    uint64_t num_threads = odgi::get_thread_count();
 
-    // then sort it using a short sorting pipeline
-    if (!toposort) {
-        graph.optimize(); // clean up after chopping if we don't use toposort later
-    } else {
-        // first toposort
-        graph.apply_ordering(odgi::algorithms::topological_order(
-                                 &graph, true, false, true),
-                             true);
-    }
-    
-    // then path-guided SGD
+    // chop it
+    odgi::algorithms::chop(graph, max_node_length, num_threads, true);
+
+    // then sort it using a short sorting pipeline equivalent to `odgi sort -p Ygs`
+
+    // first path-guided SGD
 
     // parameters that we might like to set
     uint64_t path_sgd_iter_max = 30; //args::get(p_sgd_iter_max) ? args::get(p_sgd_iter_max) : 30;
@@ -43,87 +38,60 @@ void prep(
         });
 
     // path length interrogation
-    auto get_sum_path_lengths
+    std::function<uint64_t(const std::vector<handlegraph::path_handle_t> &,
+                           const xp::XP &)> get_sum_path_step_count
         = [&](const std::vector<handlegraph::path_handle_t> &path_sgd_use_paths, const xp::XP &path_index) {
-              uint64_t sum_path_length = 0;
+              uint64_t sum_path_step_count = 0;
               for (auto& path : path_sgd_use_paths) {
-                  sum_path_length += path_index.get_path_length(path);
+                  sum_path_step_count += path_index.get_path_step_count(path);
               }
-              return sum_path_length;
+              return sum_path_step_count;
           };
-    auto get_max_path_length
+    std::function<uint64_t(const std::vector<handlegraph::path_handle_t> &,
+                           const xp::XP &)> get_max_path_step_count
         = [&](const std::vector<handlegraph::path_handle_t> &path_sgd_use_paths, const xp::XP &path_index) {
-              uint64_t max_path_length = 0;
+              uint64_t max_path_step_count = 0;
               for (auto& path : path_sgd_use_paths) {
-                  max_path_length = std::max(max_path_length, path_index.get_path_length(path));
+                  max_path_step_count = std::max(max_path_step_count, path_index.get_path_step_count(path));
               }
-              return max_path_length;
+              return max_path_step_count;
           };
 
     xp::XP path_index;
     path_index.from_handle_graph(graph);
 
-    uint64_t sum_path_length = get_sum_path_lengths(path_sgd_use_paths, path_index);
-    uint64_t path_sgd_min_term_updates = p_sgd_min_term_updates * sum_path_length;
-    uint64_t max_path_length = get_max_path_length(path_sgd_use_paths, path_index);
-    uint64_t path_sgd_zipf_space = max_path_length;
-    double path_sgd_max_eta = max_path_length * max_path_length;
+    uint64_t sum_path_step_count = get_sum_path_step_count(path_sgd_use_paths, path_index);
+    uint64_t path_sgd_min_term_updates = p_sgd_min_term_updates * sum_path_step_count;
+    uint64_t max_path_step_count = get_max_path_step_count(path_sgd_use_paths, path_index);
+    uint64_t path_sgd_zipf_space = std::min((uint64_t)1000000, max_path_step_count);
+    double path_sgd_max_eta = max_path_step_count * max_path_step_count;
+    uint64_t path_sgd_zipf_space_max = 1000; //args::get(p_sgd_zipf_space_max) ? std::min(path_sgd_zipf_space, args::get(p_sgd_zipf_space_max)) : 1000;
+    uint64_t path_sgd_zipf_space_quantization_step = 100; // args::get(p_sgd_zipf_space_quantization_step) ? std::max((uint64_t)2, args::get(p_sgd_zipf_space_quantization_step)) : 100;
     std::string path_sgd_seed = "pangenomic!";
 
-    /*
-    std::cerr
-        << path_sgd_iter_max << " "
-        << path_sgd_min_term_updates << " "
-        << path_sgd_delta << " "
-        << path_sgd_eps << " "
-        << path_sgd_zipf_theta << " "
-        << path_sgd_zipf_space << std::endl;
-    */
-/*
-std::vector<handle_t> path_linear_sgd_order(const PathHandleGraph &graph,
-                                            const xp::XP &path_index,
-                                            const std::vector<path_handle_t>& path_sgd_use_paths,
-                                            const uint64_t &iter_max,
-                                            const uint64_t &iter_with_max_learning_rate,
-                                            const uint64_t &min_term_updates,
-                                            const double &delta,
-                                            const double &eps,
-                                            const double &eta_max,
-                                            const double &theta,
-                                            const uint64_t &space,
-                                            const uint64_t &nthreads,
-                                            const bool &progress,
-                                            const std::string &seed,
-                                            const bool &snapshot,
-                                            std::vector<std::vector<handle_t>> &snapshots,
-                                            const bool &sample_from_paths,
-                                            const bool &path_sgd_deterministic,
-                                            const bool &sample_from_path_steps);
-*/
-
+    uint64_t path_sgd_iter_max_learning_rate = 0; // don't use this max iter stuff
     std::vector<std::vector<handlegraph::handle_t>> null_snapshots;
-    
+
     auto order
         = odgi::algorithms::path_linear_sgd_order(
             graph,
             path_index,
             path_sgd_use_paths,
             path_sgd_iter_max,
-            0,
+            path_sgd_iter_max_learning_rate,
             path_sgd_min_term_updates,
             path_sgd_delta,
             path_sgd_eps,
             path_sgd_max_eta,
             path_sgd_zipf_theta,
             path_sgd_zipf_space,
-            odgi::get_thread_count(),
+            path_sgd_zipf_space_max,
+            path_sgd_zipf_space_quantization_step,
+            num_threads,
             true,
             path_sgd_seed,
             false,
-            null_snapshots,
-            false,
-            false,
-            false);
+            null_snapshots);
 
     graph.apply_ordering(order, true);
 
