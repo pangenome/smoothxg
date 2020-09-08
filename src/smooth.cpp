@@ -285,12 +285,10 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
     std::cerr << "[smoothxg::smooth_and_lace] adding graph " << j++ << "/" << block_graphs.size() << " 100.000%" << std::endl;
     // then for each path, ensure that it's embedded in the graph by walking through its block segments in order
     // and linking them up in the output graph
-    j = 0;
     for (uint64_t i = 0; i < path_mapping.size(); ++i) {
-        { //if (j % 100 == 0) {
-            std::cerr << "[smoothxg::smooth_and_lace] embedding path fragment " << j << "/" << path_mapping.size() << "\r";
+        {
+            std::cerr << "[smoothxg::smooth_and_lace] embedding path fragment " << i << "/" << path_mapping.size() << "\r";
         }
-        ++j;
         path_position_range_t* pos_range = &path_mapping[i];
         path_position_range_t* last_pos_range = nullptr;
         step_handle_t last_step = {0, 0};
