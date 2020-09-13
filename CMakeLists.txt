@@ -4,8 +4,8 @@ cmake_minimum_required(VERSION 3.1)
 
 # Project's name
 project(smoothxg)
-# We build using c++14
-set(CMAKE_CXX_STANDARD 14)
+# We build using c++17
+set(CMAKE_CXX_STANDARD 17)
 
 # Use all standard-compliant optimizations
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -g")
@@ -184,6 +184,26 @@ ExternalProject_Get_property(libbf INSTALL_DIR)
 set(libbf_INCLUDE "${INSTALL_DIR}/include")
 set(libbf_LIB "${INSTALL_DIR}/lib")
 
+# dirtyzipf pow-approximate Zipf distribution
+ExternalProject_Add(dirtyzipf
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/odgi/deps/dirtyzipf"
+        UPDATE_COMMAND ""
+        INSTALL_COMMAND ""
+        BUILD_COMMAND ""
+        CONFIGURE_COMMAND "")
+ExternalProject_Get_property(dirtyzipf SOURCE_DIR)
+set(dirtyzipf_INCLUDE "${SOURCE_DIR}")
+
+# header-only pseudorandom number generator library
+ExternalProject_Add(xoshiro
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/odgi/deps/Xoshiro-cpp"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(xoshiro SOURCE_DIR)
+set(xoshiro_INCLUDE "${SOURCE_DIR}")
+
 add_subdirectory(deps/spoa EXCLUDE_FROM_ALL)
 set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 
@@ -209,6 +229,8 @@ add_dependencies(smoothxg_objs ips4o)
 add_dependencies(smoothxg_objs cgranges)
 add_dependencies(smoothxg_objs paryfor)
 add_dependencies(smoothxg_objs libbf)
+add_dependencies(smoothxg_objs dirtyzipf)
+add_dependencies(smoothxg_objs xoshiro)
 
 set_target_properties(smoothxg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
@@ -253,7 +275,9 @@ set(smoothxg_INCLUDES
   "${flathashmap_INCLUDE}"
   "${paryfor_INCLUDE}"
   "${libbf_INCLUDE}"
-  "${random_dist_INCLUDE}")
+  "${random_dist_INCLUDE}"
+  "${dirtyzipf_INCLUDE}"
+  "${xoshiro_INCLUDE}")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"

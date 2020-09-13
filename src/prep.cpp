@@ -63,14 +63,14 @@ void prep(
     uint64_t sum_path_step_count = get_sum_path_step_count(path_sgd_use_paths, path_index);
     uint64_t path_sgd_min_term_updates = p_sgd_min_term_updates * sum_path_step_count;
     uint64_t max_path_step_count = get_max_path_step_count(path_sgd_use_paths, path_index);
-    uint64_t path_sgd_zipf_space = std::min((uint64_t)1000000, max_path_step_count);
+    uint64_t path_sgd_zipf_space = std::min((uint64_t)10000, max_path_step_count);
     double path_sgd_max_eta = max_path_step_count * max_path_step_count;
-    uint64_t path_sgd_zipf_space_max = 1000; //args::get(p_sgd_zipf_space_max) ? std::min(path_sgd_zipf_space, args::get(p_sgd_zipf_space_max)) : 1000;
-    uint64_t path_sgd_zipf_space_quantization_step = 100; // args::get(p_sgd_zipf_space_quantization_step) ? std::max((uint64_t)2, args::get(p_sgd_zipf_space_quantization_step)) : 100;
+    uint64_t path_sgd_zipf_space_max = 1000;
+    uint64_t path_sgd_zipf_space_quantization_step = 100;
     std::string path_sgd_seed = "pangenomic!";
 
     uint64_t path_sgd_iter_max_learning_rate = 0; // don't use this max iter stuff
-    std::vector<std::vector<handlegraph::handle_t>> null_snapshots;
+    std::string snapshot_prefix = "";
 
     auto order
         = odgi::algorithms::path_linear_sgd_order(
@@ -91,7 +91,7 @@ void prep(
             true,
             path_sgd_seed,
             false,
-            null_snapshots);
+            snapshot_prefix);
 
     graph.apply_ordering(order, true);
 
