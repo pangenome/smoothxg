@@ -15,6 +15,7 @@
 #include "smooth.hpp"
 #include "xg.hpp"
 #include "prep.hpp"
+#include "breaks.hpp"
 #include "odgi/odgi.hpp"
 
 using namespace std;
@@ -33,6 +34,8 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "max-path-jump"});
     args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0]", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 100]", {'e', "max-edge-jump"});
+    args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to attempt to allow to collapse [default: 1000]", {'c', "min-copy-length"});
+    args::ValueFlag<uint64_t> _max_spoa_length(parser, "N", "maximum sequence length to put into spoa [default: 10000]", {'l', "max-spoa-length"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<int> _poa_m(parser, "N", "spoa score for matching bases [default: 1]", {'M', "poa-match"});
     args::ValueFlag<int> _poa_n(parser, "N", "spoa score for mismatching bases [default: -4]", {'N', "poa-mismatch"});
@@ -94,6 +97,8 @@ int main(int argc, char** argv) {
     uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 5000;
     uint64_t min_subpath = _min_subpath ? args::get(_min_subpath) : 0;
     uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 100;
+    uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
+    uint64_t max_spoa_length = _max_spoa_length ? args::get(_max_spoa_length) : 10000;
 
     std::int8_t poa_m = 1;
     std::int8_t poa_n = -4;
@@ -114,6 +119,10 @@ int main(int argc, char** argv) {
                                               max_block_jump,
                                               min_subpath,
                                               max_edge_jump);
+
+    smoothxg::break_blocks(blocks,
+                           min_copy_length,
+                           max_spoa_length);
 
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,

@@ -215,6 +215,7 @@ add_library(smoothxg_objs OBJECT
   src/chain.cpp
   src/prep.cpp
   src/blocks.cpp
+  src/breaks.cpp
   src/smooth.cpp)
 
 add_dependencies(smoothxg_objs handlegraph)
