@@ -207,6 +207,14 @@ set(xoshiro_INCLUDE "${SOURCE_DIR}")
 add_subdirectory(deps/spoa EXCLUDE_FROM_ALL)
 set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 
+# abPOA (full build using its cmake config)
+ExternalProject_Add(abPOA
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/abPOA"
+  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>")
+ExternalProject_Get_property(abPOA INSTALL_DIR)
+set(abPOA_INCLUDE "${INSTALL_DIR}/include")
+set(abPOA_LIB "${INSTALL_DIR}/lib")
+
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
 
@@ -231,6 +239,7 @@ add_dependencies(smoothxg_objs paryfor)
 add_dependencies(smoothxg_objs libbf)
 add_dependencies(smoothxg_objs dirtyzipf)
 add_dependencies(smoothxg_objs xoshiro)
+add_dependencies(smoothxg_objs abPOA)
 
 set_target_properties(smoothxg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
@@ -277,7 +286,8 @@ set(smoothxg_INCLUDES
   "${libbf_INCLUDE}"
   "${random_dist_INCLUDE}"
   "${dirtyzipf_INCLUDE}"
-  "${xoshiro_INCLUDE}")
+  "${xoshiro_INCLUDE}"
+  "${abPOA_INCLUDE}")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
@@ -285,6 +295,7 @@ set(smoothxg_LIBS
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
   "${handlegraph_LIB}/libhandlegraph.a"
   "${odgi_LIB}/libodgi.a"
+  "${abPOA_LIB}/libabpoa.a"
   "-latomic")
 
 target_include_directories(smoothxg_objs PUBLIC ${smoothxg_INCLUDES})

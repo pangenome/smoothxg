@@ -40,3 +40,6 @@
 [submodule "deps/libbf"]
 	path = deps/libbf
 	url = https://github.com/mavam/libbf.git
+[submodule "deps/abPOA"]
+	path = deps/abPOA
+	url = https://github.com/yangao07/abPOA
