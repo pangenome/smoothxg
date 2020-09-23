@@ -210,9 +210,11 @@ set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 # abPOA (full build using its cmake config)
 ExternalProject_Add(abPOA
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/abPOA"
-  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>")
+  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND "")
 ExternalProject_Get_property(abPOA INSTALL_DIR)
-set(abPOA_INCLUDE "${INSTALL_DIR}/include")
+set(abPOA_INCLUDE "${INSTALL_DIR}/include/src")
 set(abPOA_LIB "${INSTALL_DIR}/lib")
 
 set(CMAKE_BUILD_TYPE Debug)
