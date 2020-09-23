@@ -210,12 +210,12 @@ set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 # abPOA (full build using its cmake config)
 ExternalProject_Add(abPOA
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/abPOA"
-  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
   UPDATE_COMMAND ""
-  INSTALL_COMMAND "")
+  INSTALL_COMMAND ""
+  CONFIGURE_COMMAND "")
 ExternalProject_Get_property(abPOA INSTALL_DIR)
-set(abPOA_INCLUDE "${INSTALL_DIR}/include/src")
-set(abPOA_LIB "${INSTALL_DIR}/lib")
+set(abPOA_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/include")
+set(abPOA_LIB "${INSTALL_DIR}/src/abPOA-build/lib")
 
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
@@ -307,6 +307,12 @@ add_executable(smoothxg
   ${CMAKE_SOURCE_DIR}/src/main.cpp)
 target_link_libraries(smoothxg spoa)
 target_link_libraries(smoothxg ${smoothxg_LIBS})
+
+# -lz is needed for abPOA, as indicated in the example.c
+# https://github.com/yangao07/abPOA/blob/17d7b287b905bcd0e684ca5015a78e5a73a40798/example.c#L3
+find_package(ZLIB)
+target_link_libraries(smoothxg ZLIB::ZLIB)
+
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
 

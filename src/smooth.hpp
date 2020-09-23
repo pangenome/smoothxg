@@ -16,6 +16,7 @@
 #include "odgi/topological_sort.hpp"
 #include "odgi/dna.hpp"
 #include "paryfor.hpp"
+#include <deps/abPOA/src/abpoa.h>
 
 namespace smoothxg {
 
@@ -28,6 +29,11 @@ struct path_position_range_t {
     path_handle_t target_path; // target path in smoothed block graph
     uint64_t target_graph_id; // the block graph id
 };
+
+    odgi::graph_t smooth_abPOA(const xg::XG& graph,
+                               const block_t& block,
+                               const uint64_t block_id,
+                               const std::string& consensus_name = "");
 
 odgi::graph_t smooth(const xg::XG& graph,
                      const block_t& block,

@@ -1,7 +1,14 @@
 #include "smooth.hpp"
 
-
 namespace smoothxg {
+
+    odgi::graph_t smooth_abPOA(const xg::XG& graph,
+                               const block_t& block,
+                               const uint64_t block_id,
+                               const std::string& consensus_name) {
+            odgi::graph_t output_graph;
+            return output_graph;
+    }
 
 odgi::graph_t smooth(const xg::XG& graph,
                      const block_t& block,
@@ -170,7 +177,7 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
                 std::cerr << exception.what() << std::endl;
                 assert(false);
             }
-            block_graph = smooth(graph,
+            /*block_graph = smooth(graph,
                                  block,
                                  block_id,
                                  alignment_engine,
@@ -181,6 +188,19 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
                                  poa_q,
                                  poa_c,
                                  consensus_name);
+                                 */
+            // initialize abPOA parameters
+            abpoa_para_t *abpt = abpoa_init_para();
+
+            block_graph = smooth_abPOA(graph,
+                                       block,
+                                       block_id,
+                                       /* TODO add abPOA parameters
+                                        */
+                                       consensus_name);
+            std::cerr << std::endl;
+            std::cerr << "After smooth. Exiting for now....." << std::endl;
+            exit(0);
             if (block_graph.get_node_count() > 0) {
                 //auto& block_graph = block_graphs.back();
                 // record the start and end paths
