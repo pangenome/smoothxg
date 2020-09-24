@@ -1,19 +1,25 @@
+#include <cstring>
 #include "smooth.hpp"
 
 namespace smoothxg {
 
+    char *convert(const std::string & s)
+{
+   char *pc = new char[s.size()+1];
+   std::strcpy(pc, s.c_str());
+   return pc;
+}
+
     odgi::graph_t smooth_abPOA(const xg::XG& graph,
                                const block_t& block,
                                const uint64_t block_id,
-                               abpoa_para_t* abpt,
-                               abpoa_t* ab,
                                const std::string& consensus_name) {
         // collect sequences
-        std::vector<std::string> seqs;
+        std::vector<std::string> seqs_;
         std::vector<std::string> names;
         for (auto &path_range : block.path_ranges) {
-            seqs.emplace_back();
-            auto &seq = seqs.back();
+            seqs_.emplace_back();
+            auto &seq = seqs_.back();
             for (step_handle_t step = path_range.begin;
                  step != path_range.end;
                  step = graph.get_next_step(step)) {
@@ -24,6 +30,21 @@ namespace smoothxg {
                    << "_" << graph.get_position_of_step(path_range.begin);
             names.push_back(namess.str());
         }
+
+        std::cerr << "n_seqs: " << seqs_.size() << std::endl;
+
+        // initialize abPOA
+        abpoa_t *ab = abpoa_init();
+        // initialize abPOA parameters
+        abpoa_para_t *abpt = abpoa_init_para();
+        // we want to do local alignments
+        abpt->align_mode = ABPOA_LOCAL_MODE;
+        // possible other parameters to set?!
+        // FIXME just for testing
+        abpt->out_msa = 1;
+
+        // finalize parameters
+        abpoa_post_set_para(abpt);
 
         // AaCcGgTtNn ==> 0,1,2,3,4
         unsigned char nst_nt4_table[256] = {
@@ -45,25 +66,67 @@ namespace smoothxg {
                 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4
         };
 
+        // char seqs = std::transform(seqs_.begin(), seqs_.end(), std::back_inserter(seqs_), convert);
         // collect sequence length, transform ACGT to 0123
-        int n_seqs = seqs.size();
+        int n_seqs = seqs_.size();
         int *seq_lens = (int*)malloc(sizeof(int) * n_seqs);
         uint8_t **bseqs = (uint8_t**)malloc(sizeof(uint8_t*) * n_seqs);
         for (int i = 0; i < n_seqs; ++i) {
-            seq_lens[i] = seqs[i].size();
+            seq_lens[i] = seqs_[i].size();
             bseqs[i] = (uint8_t*)malloc(sizeof(uint8_t) * seq_lens[i]);
             for (int j = 0; j < seq_lens[i]; ++j) {
-                bseqs[i][j] = nst_nt4_table[(int)seqs[i][j]];
+                bseqs[i][j] = nst_nt4_table[(int)seqs_[i].c_str()[j]]; // TODO we make a c_str for every char in the string
             }
         }
-        // abpoa_reset_graph(ab, abpt, seq_lens[0]); // reset graph before re-use
-        std::cerr << "n_seqs: " << n_seqs << std::endl;
 
+        uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n=0;
+        uint8_t **msa_seq; int msa_l=0;
         // perform abpoa-msa
-        abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, stdout, NULL, NULL, NULL, NULL, NULL, NULL);
+        // abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, stdout, NULL, NULL, NULL, NULL, NULL, NULL); THIS WORKS!
+        int i, tot_n = n_seqs;
+        uint8_t *is_rc = (uint8_t*)_err_malloc(n_seqs * sizeof(uint8_t));
+        abpoa_reset_graph(ab, abpt, seq_lens[0]);
+        for (i = 0; i < n_seqs; ++i) {
+            abpoa_res_t res;
+            res.graph_cigar = 0, res.n_cigar = 0, res.is_rc = 0;
+            abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
+            abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i, n_seqs);
+            is_rc[i] = res.is_rc;
+            if (res.n_cigar) free(res.graph_cigar);
+        }
+
+        fprintf(stdout, "=== output to variables ===\n");
+        for (int i = 0; i < cons_n; ++i) {
+            fprintf(stdout, ">Consensus_sequence\n");
+            for (int j = 0; j < cons_l[i]; ++j)
+                fprintf(stdout, "%c", "ACGTN"[cons_seq[i][j]]);
+            fprintf(stdout, "\n");
+        }
+        fprintf(stdout, ">Multiple_sequence_alignment\n");
+        for (i = 0; i < n_seqs; ++i) {
+            for (int j = 0; j < msa_l; ++j) {
+                fprintf(stdout, "%c", "ACGTN-"[msa_seq[i][j]]);
+            }
+            fprintf(stdout, "\n");
+        }
+
+        if (cons_n) {
+            for (i = 0; i < cons_n; ++i) {
+                free(cons_seq[i]);
+                free(cons_cov[i]);
+            }
+            free(cons_seq);
+            free(cons_cov);
+            free(cons_l);
+        }
+        if (msa_l) {
+            for (i = 0; i < n_seqs; ++i) free(msa_seq[i]);
+            free(msa_seq);
+        }
+
 
         std::size_t max_sequence_size = 0;
-        for (auto &seq : seqs) {
+        for (auto &seq : seqs_) {
             max_sequence_size = std::max(max_sequence_size, seq.size());
         }
         odgi::graph_t output_graph;
@@ -254,31 +317,13 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
                                  poa_c,
                                  consensus_name);
                                  */
-            // initialize abPOA parameters
-            abpoa_para_t *abpt = abpoa_init_para();
-            // we want to do local alignments
-            abpt->align_mode = ABPOA_LOCAL_MODE;
-            // possible other parameters to set?!
-            // FIXME just for testing
-            abpt->out_msa = 1;
-
-            // finalize parameters
-            abpoa_post_set_para(abpt);
-            // initialize abPOA
-            abpoa_t *ab = abpoa_init();
 
             block_graph = smooth_abPOA(graph,
                                        block,
                                        block_id,
-                                       abpt,
-                                       ab,
                                        /* TODO add abPOA parameters
                                         */
                                        consensus_name);
-            // free everything again
-            abpoa_free(ab, abpt);
-            // FIXME not necessary anymore?
-            abpoa_free_para(abpt);
 
             std::cerr << std::endl;
             std::cerr << "After smooth. Exiting for now....." << std::endl;
