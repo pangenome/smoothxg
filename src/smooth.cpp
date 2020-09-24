@@ -5,9 +5,74 @@ namespace smoothxg {
     odgi::graph_t smooth_abPOA(const xg::XG& graph,
                                const block_t& block,
                                const uint64_t block_id,
+                               abpoa_para_t* abpt,
+                               abpoa_t* ab,
                                const std::string& consensus_name) {
-            odgi::graph_t output_graph;
+        // collect sequences
+        std::vector<std::string> seqs;
+        std::vector<std::string> names;
+        for (auto &path_range : block.path_ranges) {
+            seqs.emplace_back();
+            auto &seq = seqs.back();
+            for (step_handle_t step = path_range.begin;
+                 step != path_range.end;
+                 step = graph.get_next_step(step)) {
+                seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+            }
+            std::stringstream namess;
+            namess << graph.get_path_name(graph.get_path_handle_of_step(path_range.begin))
+                   << "_" << graph.get_position_of_step(path_range.begin);
+            names.push_back(namess.str());
+        }
+
+        // AaCcGgTtNn ==> 0,1,2,3,4
+        unsigned char nst_nt4_table[256] = {
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5 /*'-'*/, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 0, 4, 1, 4, 4, 4, 2, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 0, 4, 1, 4, 4, 4, 2, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+                4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4
+        };
+
+        // collect sequence length, transform ACGT to 0123
+        int n_seqs = seqs.size();
+        int *seq_lens = (int*)malloc(sizeof(int) * n_seqs);
+        uint8_t **bseqs = (uint8_t**)malloc(sizeof(uint8_t*) * n_seqs);
+        for (int i = 0; i < n_seqs; ++i) {
+            seq_lens[i] = seqs[i].size();
+            bseqs[i] = (uint8_t*)malloc(sizeof(uint8_t) * seq_lens[i]);
+            for (int j = 0; j < seq_lens[i]; ++j) {
+                bseqs[i][j] = nst_nt4_table[(int)seqs[i][j]];
+            }
+        }
+        // abpoa_reset_graph(ab, abpt, seq_lens[0]); // reset graph before re-use
+        std::cerr << "n_seqs: " << n_seqs << std::endl;
+
+        // perform abpoa-msa
+        abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, stdout, NULL, NULL, NULL, NULL, NULL, NULL);
+
+        std::size_t max_sequence_size = 0;
+        for (auto &seq : seqs) {
+            max_sequence_size = std::max(max_sequence_size, seq.size());
+        }
+        odgi::graph_t output_graph;
+        // if the graph would be empty, bail out
+        if (max_sequence_size == 0) {
             return output_graph;
+        }
+
+        return output_graph;
     }
 
 odgi::graph_t smooth(const xg::XG& graph,
@@ -191,13 +256,30 @@ odgi::graph_t smooth_and_lace(const xg::XG& graph,
                                  */
             // initialize abPOA parameters
             abpoa_para_t *abpt = abpoa_init_para();
+            // we want to do local alignments
+            abpt->align_mode = ABPOA_LOCAL_MODE;
+            // possible other parameters to set?!
+            // FIXME just for testing
+            abpt->out_msa = 1;
+
+            // finalize parameters
+            abpoa_post_set_para(abpt);
+            // initialize abPOA
+            abpoa_t *ab = abpoa_init();
 
             block_graph = smooth_abPOA(graph,
                                        block,
                                        block_id,
+                                       abpt,
+                                       ab,
                                        /* TODO add abPOA parameters
                                         */
                                        consensus_name);
+            // free everything again
+            abpoa_free(ab, abpt);
+            // FIXME not necessary anymore?
+            abpoa_free_para(abpt);
+
             std::cerr << std::endl;
             std::cerr << "After smooth. Exiting for now....." << std::endl;
             exit(0);

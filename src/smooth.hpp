@@ -33,6 +33,8 @@ struct path_position_range_t {
     odgi::graph_t smooth_abPOA(const xg::XG& graph,
                                const block_t& block,
                                const uint64_t block_id,
+                               abpoa_para_t* abpt,
+                               abpoa_t* ab,
                                const std::string& consensus_name = "");
 
 odgi::graph_t smooth(const xg::XG& graph,
