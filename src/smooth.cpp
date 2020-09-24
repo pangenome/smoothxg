@@ -115,6 +115,7 @@ int my_abpoa_msa(abpoa_t *ab, abpoa_para_t *abpt, int n_seqs, char **seq_names, 
         // perform abpoa-msa
         abpoa_reset_graph(ab, abpt, seq_lens[0]);
         abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, stdout, NULL, NULL, NULL, NULL, NULL, NULL); // WORKS
+        abpoa_reset_graph(ab, abpt, seq_lens[0]);
         my_abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, stdout, NULL, NULL, NULL, NULL, NULL, NULL); // WORKS NOT
         /* int i, tot_n = n_seqs;
         uint8_t *is_rc = (uint8_t*)_err_malloc(n_seqs * sizeof(uint8_t));
