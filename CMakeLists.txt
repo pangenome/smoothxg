@@ -210,10 +210,7 @@ set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 # abPOA (full build using its cmake config)
 ExternalProject_Add(abPOA
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/abPOA"
-  BUILD_COMMAND ""
-  UPDATE_COMMAND ""
-  INSTALL_COMMAND ""
-  CONFIGURE_COMMAND "")
+        INSTALL_COMMAND "")
 ExternalProject_Get_property(abPOA INSTALL_DIR)
 set(abPOA_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/include")
 set(abPOA_utils_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/src")
