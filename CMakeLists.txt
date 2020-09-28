@@ -213,7 +213,7 @@ ExternalProject_Add(abPOA
         INSTALL_COMMAND "")
 ExternalProject_Get_property(abPOA INSTALL_DIR)
 set(abPOA_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/include")
-set(abPOA_utils_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/src")
+# set(abPOA_src_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/src")
 set(abPOA_LIB "${INSTALL_DIR}/src/abPOA-build/lib")
 
 set(CMAKE_BUILD_TYPE Debug)
@@ -289,7 +289,7 @@ set(smoothxg_INCLUDES
   "${dirtyzipf_INCLUDE}"
   "${xoshiro_INCLUDE}"
   "${abPOA_INCLUDE}"
-  "${abPOA_utils_INCLUDE}")
+  "${abPOA_src_INCLUDE}")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
