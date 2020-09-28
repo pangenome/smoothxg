@@ -33,13 +33,38 @@ odgi::graph_t smooth(const xg::XG& graph,
         names.push_back(namess.str());
     }
     /*
-    std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
-    std::ofstream fasta(s.c_str());
-    for (uint64_t i = 0; i < seqs.size(); ++i) {
-        fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
-              << seqs[i] << std::endl;
+    {
+        std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
+        std::ofstream fasta(s.c_str());
+        for (uint64_t i = 0; i < seqs.size(); ++i) {
+            fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
+                  << seqs[i] << std::endl;
+        }
+        fasta.close();
+        const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
+        std::string v = "smoothxg_block_" + std::to_string(block_id) + ".tsv";
+        std::ofstream vs(v.c_str());
+        vs << "path.name\tstep.rank\tpos\tnode.id\tnode.pos\tvisit" << std::endl;
+        for (auto& path_range : block.path_ranges) {
+            std::string path_name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
+            uint64_t rank = 0;
+            uint64_t pos = 0;
+            std::map<uint64_t, uint64_t> visits;
+            for (step_handle_t step = path_range.begin;
+                 step != path_range.end;
+                 step = graph.get_next_step(step)) {
+                handle_t h = graph.get_handle_of_step(step);
+                uint64_t id = graph.get_id(h);
+                int64_t node_pos = vec_graph.node_vector_offset(id);
+                auto& visit = visits[id];
+                vs << path_name << "\t" << rank++ << "\t" << pos << "\t"
+                   << id << "\t" << node_pos << "\t" << visit << std::endl;
+                ++visit;
+                pos += graph.get_length(graph.get_handle_of_step(step));
+            }
+        }
+        vs.close();
     }
-    fasta.close();
     */
     // set up POA
     // done...

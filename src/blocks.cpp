@@ -9,9 +9,11 @@ smoothable_blocks(
     const uint64_t& max_path_jump,
     const uint64_t& min_subpath,
     const uint64_t& max_edge_jump) {
-    // iterate over the handles in their vectorized order
+    // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
     std::vector<block_t> blocks;
     std::vector<std::vector<bool>> seen_steps;
+    // cast to vectorizable graph for determining the sort position of nodes
+    const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
     std::cerr << "[smoothxg::smoothable_blocks] computing blocks" << std::endl;
     graph.for_each_path_handle(
         [&](const path_handle_t& path) {
@@ -50,11 +52,12 @@ smoothable_blocks(
             // determine the path ranges in the block
             // break them when we pass some threshold for how much block-external sequence to include
             // (this parameter is meant to allow us to reduce dispersed collapses in the graph)
-            // TODO optionally break when we have a significant change in coverage relative to the average in the region
+            // break them when they jump more than max_edge_jump in our graph sort order
+            // TODO explore breaking when we have a significant change in coverage relative to the average in the region
             std::vector<path_range_t> path_ranges;
             for (auto& step : traversals) {
                 if (path_ranges.empty()) {
-                    path_ranges.push_back({step, step});
+                    path_ranges.push_back({step, step, 0});
                 } else {
                     auto& path_range = path_ranges.back();
                     auto& last = path_range.end;
@@ -63,14 +66,14 @@ smoothable_blocks(
                             - (graph.get_position_of_step(last) + graph.get_length(graph.get_handle_of_step(last)))
                             > max_path_jump)) {
                         // make a new range
-                        path_ranges.push_back({step, step});
+                        path_ranges.push_back({step, step, 0});
                     } else {
                         // extend the range
                         last = step;
                     }
                 }
             }
-            // break the blocks on ranges of seen steps
+            // break the path ranges on seen steps
             for (auto& path_range : path_ranges) {
                 uint64_t included_path_length = 0;
                 // update the path range end to point to the one-past element
@@ -122,6 +125,7 @@ smoothable_blocks(
                           << "-"
                           << graph.get_id(graph.get_handle_of_step(graph.get_previous_step(path_range.end))) << std::endl;
                 */
+                // here we need to break when we see significant nonlinearities
                 for (step_handle_t curr_step = path_range.begin;
                      curr_step != path_range.end;
                      curr_step = graph.get_next_step(curr_step)) {
@@ -154,7 +158,6 @@ smoothable_blocks(
             */                    
         };
     //uint64_t id = 0;
-    const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
     graph.for_each_handle(
         [&](const handle_t& handle) {
             if (graph.get_id(handle) % 100 == 0) {
