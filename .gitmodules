@@ -40,3 +40,6 @@
 [submodule "deps/libbf"]
 	path = deps/libbf
 	url = https://github.com/mavam/libbf.git
+[submodule "deps/sautocorr"]
+	path = deps/sautocorr
+	url = https://github.com/ekg/sautocorr.git

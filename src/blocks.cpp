@@ -57,7 +57,7 @@ smoothable_blocks(
             std::vector<path_range_t> path_ranges;
             for (auto& step : traversals) {
                 if (path_ranges.empty()) {
-                    path_ranges.push_back({step, step});
+                    path_ranges.push_back({step, step, 0});
                 } else {
                     auto& path_range = path_ranges.back();
                     auto& last = path_range.end;
@@ -66,7 +66,7 @@ smoothable_blocks(
                             - (graph.get_position_of_step(last) + graph.get_length(graph.get_handle_of_step(last)))
                             > max_path_jump)) {
                         // make a new range
-                        path_ranges.push_back({step, step});
+                        path_ranges.push_back({step, step, 0});
                     } else {
                         // extend the range
                         last = step;
@@ -137,7 +137,7 @@ smoothable_blocks(
                 block.max_path_length = std::max(included_path_length,
                                                  block.max_path_length);
             }
-            std::cerr << "max_path_length " << block.max_path_length << std::endl;
+            //std::cerr << "max_path_length " << block.max_path_length << std::endl;
 
             // order the path ranges from longest to shortest
             ips4o::parallel::sort(

@@ -36,14 +36,14 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 100]", {'e', "max-edge-jump"});
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "min-copy-length"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'m', "max-copy-length"});
-    args::ValueFlag<uint64_t> _max_spoa_length(parser, "N", "maximum sequence length to put into spoa [default: 10000]", {'l', "max-spoa-length"});
+    args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "max-poa-length"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
-    args::ValueFlag<int> _poa_m(parser, "N", "spoa score for matching bases [default: 1]", {'M', "poa-match"});
-    args::ValueFlag<int> _poa_n(parser, "N", "spoa score for mismatching bases [default: -4]", {'N', "poa-mismatch"});
-    args::ValueFlag<int> _poa_g(parser, "N", "spoa gap opening penalty (must be negative) [default: -6]", {'G', "poa-gap-open"});
-    args::ValueFlag<int> _poa_e(parser, "N", "spoa gap extension penalty (must be negative) [default: -2]", {'E', "poa-gap-extend"});
-    args::ValueFlag<int> _poa_q(parser, "N", "spoa gap opening penalty of the second affine function (must be negative) [default: -8]", {'Q', "poa-2nd-gap-open"});
-    args::ValueFlag<int> _poa_c(parser, "N", "spoa gap extension penalty of the second affine function (must be negative) [default: -1]", {'C', "poa-2nd-gap-extend"});
+    args::ValueFlag<int> _poa_m(parser, "N", "poa score for matching bases [default: 1]", {'M', "poa-match"});
+    args::ValueFlag<int> _poa_n(parser, "N", "poa score for mismatching bases [default: -4]", {'N', "poa-mismatch"});
+    args::ValueFlag<int> _poa_g(parser, "N", "poa gap opening penalty (must be negative) [default: -6]", {'G', "poa-gap-open"});
+    args::ValueFlag<int> _poa_e(parser, "N", "poa gap extension penalty (must be negative) [default: -2]", {'E', "poa-gap-extend"});
+    args::ValueFlag<int> _poa_q(parser, "N", "poa gap opening penalty of the second affine function (must be negative) [default: -8]", {'Q', "poa-2nd-gap-open"});
+    args::ValueFlag<int> _poa_c(parser, "N", "poa gap extension penalty of the second affine function (must be negative) [default: -1]", {'C', "poa-2nd-gap-extend"});
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 10]", {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]", {'U', "path-sgd-term-updates"});
     args::Flag no_toposort(parser, "no-toposort", "don't apply topological sorting in the sort pipeline", {'T', "no-toposort"});
@@ -100,7 +100,7 @@ int main(int argc, char** argv) {
     uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 100;
     uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
-    uint64_t max_spoa_length = _max_spoa_length ? args::get(_max_spoa_length) : 10000;
+    uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
 
     std::int8_t poa_m = 1;
     std::int8_t poa_n = -4;
@@ -122,11 +122,15 @@ int main(int argc, char** argv) {
                                               min_subpath,
                                               max_edge_jump);
 
+    uint64_t min_autocorr_z = 5;
+    uint64_t autocorr_stride = 50;
     smoothxg::break_blocks(graph,
                            blocks,
+                           max_poa_length,
                            min_copy_length,
                            max_copy_length,
-                           max_spoa_length);
+                           min_autocorr_z,
+                           autocorr_stride);
 
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,

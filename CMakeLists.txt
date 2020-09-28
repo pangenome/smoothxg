@@ -204,6 +204,15 @@ ExternalProject_Add(xoshiro
 ExternalProject_Get_property(xoshiro SOURCE_DIR)
 set(xoshiro_INCLUDE "${SOURCE_DIR}")
 
+ExternalProject_Add(sautocorr
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/sautocorr"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(sautocorr SOURCE_DIR)
+set(sautocorr_INCLUDE "${SOURCE_DIR}")
+
 add_subdirectory(deps/spoa EXCLUDE_FROM_ALL)
 set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 
@@ -216,7 +225,8 @@ add_library(smoothxg_objs OBJECT
   src/prep.cpp
   src/blocks.cpp
   src/breaks.cpp
-  src/smooth.cpp)
+  src/smooth.cpp
+  ${sautocorr_INCLUDE}/sautocorr.cpp)
 
 add_dependencies(smoothxg_objs handlegraph)
 add_dependencies(smoothxg_objs sdsl-lite)
@@ -232,6 +242,7 @@ add_dependencies(smoothxg_objs paryfor)
 add_dependencies(smoothxg_objs libbf)
 add_dependencies(smoothxg_objs dirtyzipf)
 add_dependencies(smoothxg_objs xoshiro)
+add_dependencies(smoothxg_objs sautocorr)
 
 set_target_properties(smoothxg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
@@ -278,7 +289,8 @@ set(smoothxg_INCLUDES
   "${libbf_INCLUDE}"
   "${random_dist_INCLUDE}"
   "${dirtyzipf_INCLUDE}"
-  "${xoshiro_INCLUDE}")
+  "${xoshiro_INCLUDE}"
+  "${sautocorr_INCLUDE}")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
