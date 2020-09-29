@@ -18,6 +18,7 @@
 #include "paryfor.hpp"
 #include "deps/abPOA/include/abpoa.h"
 #include "deps/abPOA/src/utils.h"
+#include "deps/abPOA/src/kdq.h"
 
 namespace smoothxg {
 

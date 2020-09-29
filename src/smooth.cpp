@@ -3,6 +3,17 @@
 
 namespace smoothxg {
 
+    /// copied from abpoa_graph.c
+    KDQ_INIT(int)
+
+#define kdq_int_t kdq_t(int)
+
+    static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
+        uint64_t t, tt;
+        if ((tt = v >> 32)) return (t = tt >> 16) ? 48 + abpt->LogTable65536[t] : 32 + abpt->LogTable65536[tt];
+        return (t = v >> 16) ? 16 + abpt->LogTable65536[t] : abpt->LogTable65536[v];
+    }
+
     // https://stackoverflow.com/questions/7048888/stdvectorstdstring-to-char-array
     char *convert(const std::string &s) {
         char *pc = new char[s.size() + 1];
@@ -101,7 +112,7 @@ namespace smoothxg {
                 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N'
         };
 
-        std::vector<char*> seqs_;
+        std::vector<char *> seqs_;
         // transform so that we have an interface between C++ and C
         std::transform(seqs.begin(), seqs.end(), std::back_inserter(seqs_), convert);
 
@@ -190,7 +201,7 @@ namespace smoothxg {
 
         for (i = 0; i < n_seqs; ++i) {
             free(bseqs[i]);
-            delete [] seqs_[i];
+            delete[] seqs_[i];
         }
         free(bseqs);
         free(seq_lens);
@@ -716,13 +727,103 @@ namespace smoothxg {
     }
 
     void build_odgi_abPOA(abpoa_t *ab,
-                    abpoa_para_t *abpt,
-                    odgi::graph_t &output,
-                    const std::vector<std::string> &sequence_names,
-                    const std::vector<bool> &aln_is_reverse,
-                    const std::string &consensus_name,
-                    bool include_consensus) {
-        // TODO
+                          abpoa_para_t *abpt,
+                          odgi::graph_t &output,
+                          const std::vector<std::string> &sequence_names,
+                          const std::vector<bool> &aln_is_reverse,
+                          const std::string &consensus_name,
+                          bool include_consensus) {
+        std::cerr << "ENTERED build_odgi_abPOA" << std::endl;
+        abpoa_graph_t *abg = ab->abg;
+        if (abg->node_n <= 2) return;
+        int seq_n = sequence_names.size();
+
+        // traverse graph
+        int *in_degree = (int *) _err_malloc(abg->node_n * sizeof(int));
+        int **read_paths = (int **) _err_malloc(seq_n * sizeof(int *)), *read_path_i = (int *) _err_calloc(seq_n,
+                                                                                                           sizeof(int));
+        int i, j, cur_id, pre_id, out_id, *id;
+        for (i = 0; i < abg->node_n; ++i) in_degree[i] = abg->node[i].in_edge_n;
+        for (i = 0; i < seq_n; ++i) read_paths[i] = (int *) _err_malloc(abg->node_n * sizeof(int));
+        kdq_int_t *q = kdq_init_int();
+
+        // Breadth-First-Search
+        kdq_push_int(q, ABPOA_SRC_NODE_ID);
+        while ((id = kdq_shift_int(q)) != 0) {
+            cur_id = *id;
+            if (cur_id == ABPOA_SINK_NODE_ID) {
+                kdq_destroy_int(q);
+                break;
+            } else {
+                if (cur_id != ABPOA_SRC_NODE_ID) {
+                    // output node
+                    fprintf(stdout, "S\t%d\t%c\n", cur_id - 1, "ACGTN"[abg->node[cur_id].base]);
+                    // output all links based pre_ids
+                    for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
+                        pre_id = abg->node[cur_id].in_id[i];
+                        if (pre_id != ABPOA_SRC_NODE_ID)
+                            fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id - 1, cur_id - 1);
+                    }
+                    // add node id to read path
+                    int b, read_id;
+                    uint64_t num, tmp;
+                    b = 0;
+                    for (i = 0; i < abg->node[cur_id].read_ids_n; ++i) {
+                        num = abg->node[cur_id].read_ids[i];
+                        while (num) {
+                            tmp = num & -num;
+                            read_id = ilog2_64(abpt, tmp);
+                            read_paths[read_id][read_path_i[read_id]++] = cur_id - 1;
+                            num ^= tmp;
+                        }
+                        b += 64;
+                    }
+                }
+                for (i = 0; i < abg->node[cur_id].out_edge_n; ++i) {
+                    out_id = abg->node[cur_id].out_id[i];
+                    if (--in_degree[out_id] == 0) {
+                        kdq_push_int(q, out_id);
+                    }
+                }
+            }
+        }
+        // output read paths
+    for (i = 0; i < seq_n; ++i) {
+        if (sequence_names.size() != 0) fprintf(stdout, "P\t%s\t", sequence_names[i]);
+        else fprintf(stdout, "P\t%d\t", i+1);
+        if (aln_is_reverse[i]) {
+            for (j = read_path_i[i]-1; j >= 0; --j) {
+                fprintf(stdout, "%d-", read_paths[i][j]);
+                if (j != 0) fprintf(stdout, ",");
+                else fprintf(stdout, "\t*\n");
+            }
+        } else {
+            for (j = 0; j < read_path_i[i]; ++j) {
+                fprintf(stdout, "%d+", read_paths[i][j]);
+                if (j != read_path_i[i]-1) fprintf(stdout, ",");
+                else fprintf(stdout, "\t*\n");
+            }
+        }
+    }
+    if (abpt->out_cons) {
+        // we already did that!
+        // abpoa_generate_consensus(ab, abpt, seq_n, NULL, NULL, NULL, NULL, NULL);
+        int id = abg->node[ABPOA_SRC_NODE_ID].max_out_id;
+        fprintf(stdout, "P\tConsensus_sequence\t");
+        while (1) {
+            fprintf(stdout, "%d+", id-1);
+            id = abg->node[id].max_out_id;
+            if (id != ABPOA_SINK_NODE_ID) fprintf(stdout, ",");
+            else {
+                fprintf(stdout, "\t*\n");
+                break;
+            }
+        }
+    }
+    free(in_degree);
+    for (i = 0; i < seq_n; ++i) free(read_paths[i]);
+    free(read_paths); free(read_path_i);
+        std::cerr << "LEFT build_odgi_abPOA" << std::endl;
     }
 
 
