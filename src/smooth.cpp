@@ -41,6 +41,7 @@ smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
         names.push_back(namess.str());
     }
 
+    /*
     {
         std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
         std::ofstream fasta(s.c_str());
@@ -75,6 +76,7 @@ smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
         }
         vs.close();
     }
+    */
 
     // set up POA
     // done...
@@ -89,15 +91,6 @@ smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
     if (max_sequence_size == 0) {
         return output_graph;
     }
-
-    std::cerr << "n_seqs: " << seqs.size() << std::endl;
-    /*std::ofstream f("DRB1-3123.fa.gz.gfa.og.Ygs.gfa.fa");
-    for (int i = 0; i < seqs.size(); i++) {
-        f << ">" << names[i] << std::endl;
-        f << seqs[i] << std::endl;
-    }
-    f.close();
-     */
 
     // initialize abPOA
     abpoa_t *ab = abpoa_init();
@@ -257,7 +250,6 @@ first defined here
 
     for (i = 0; i < n_seqs; ++i) {
         free(bseqs[i]);
-        delete[] seqs_[i];
     }
     free(bseqs);
     free(seq_lens);
