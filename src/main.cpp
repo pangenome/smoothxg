@@ -121,7 +121,7 @@ int main(int argc, char** argv) {
                                               max_block_weight,
                                               max_block_jump,
                                               min_subpath,
-                                              max_edge_jump);
+                                              max_edge_jump, !args::get(use_abpoa));
 
     uint64_t min_autocorr_z = 5;
     uint64_t autocorr_stride = 50;
@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
                            min_copy_length,
                            max_copy_length,
                            min_autocorr_z,
-                           autocorr_stride);
+                           autocorr_stride, !args::get(use_abpoa));
 
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,
