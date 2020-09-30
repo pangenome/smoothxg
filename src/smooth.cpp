@@ -1,6 +1,8 @@
 #include "smooth.hpp"
 #include <cstring>
 
+#include "deps/abPOA/src/seq.h"
+
 namespace smoothxg {
 
 // klib stuff copied from abpoa_graph.c
