@@ -16,14 +16,11 @@ static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
     return (t = v >> 16) ? 16 + abpt->LogTable65536[t] : abpt->LogTable65536[v];
 }
 
-odgi::graph_t
-smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
-       // std::unique_ptr<spoa::AlignmentEngine>& alignment_engine,
-       int poa_m, int poa_n, int poa_g,
-       int poa_e, int poa_q, int poa_c,
-       const std::string &consensus_name) {
+odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
+                           int poa_m, int poa_n, int poa_g,
+                           int poa_e, int poa_q, int poa_c,
+                           const std::string &consensus_name) {
 
-    // auto poa_graph = spoa::createGraph();
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
@@ -41,7 +38,6 @@ smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
         names.push_back(namess.str());
     }
 
-    /*
     {
         std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
         std::ofstream fasta(s.c_str());
@@ -76,7 +72,6 @@ smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
         }
         vs.close();
     }
-    */
 
     // set up POA
     // done...
@@ -101,7 +96,9 @@ smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
     // possible other parameters to set?!
     // FIXME just for testing
     //abpt->out_msa = 1; // must be set when we extract the MSA
+    abpt->rev_cigar = 0;
     abpt->out_gfa = 1; // must be set to get the graph
+    //abpt->out_cons = 0; //hmmm
     abpt->amb_strand = 1;
     abpt->match = poa_m;
     abpt->mismatch = poa_n;
@@ -109,6 +106,7 @@ smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
     abpt->gap_open2 = poa_q;
     abpt->gap_ext1 = poa_e;
     abpt->gap_ext2 = poa_c;
+
 
     // finalize parameters
     abpoa_post_set_para(abpt);
@@ -195,6 +193,7 @@ first defined here
     for (i = 0; i < n_seqs; ++i) {
         abpoa_res_t res;
         res.graph_cigar = 0, res.n_cigar = 0, res.is_rc = 0;
+        abpt->rev_cigar = 0;
         abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
         abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i,
                                   n_seqs);
@@ -278,12 +277,12 @@ first defined here
     return output_graph;
 }
 
-odgi::graph_t smooth(const xg::XG &graph, const block_t &block,
-                     const uint64_t &block_id,
-                     std::unique_ptr<spoa::AlignmentEngine> &alignment_engine,
-                     std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
-                     std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
-                     const std::string &consensus_name) {
+odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
+                          const uint64_t &block_id,
+                          std::unique_ptr<spoa::AlignmentEngine> &alignment_engine,
+                          std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
+                          std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
+                          const std::string &consensus_name) {
 
     auto poa_graph = spoa::createGraph();
     // collect sequences
@@ -418,7 +417,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             { // if (block_id % 100 == 0) {
                 std::lock_guard<std::mutex> guard(logging_mutex);
                 std::cerr
-                    << "[smoothxg::smooth_and_lace] applying spoa to block "
+                    << "[smoothxg::smooth_and_lace] applying abPOA to block "
                     << block_id << "/" << blocks.size() << " " << std::fixed
                     << std::showpoint << std::setprecision(3)
                     << (float)block_id / (float)blocks.size() * 100 << "%\r";
@@ -430,17 +429,16 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             // << std::endl;
             auto &block_graph = block_graphs[block_id];
 
-            block_graph = smooth(graph,
-                                 block,
-                                 block_id,
-                                 //alignment_engine,
-                                 poa_m,
-                                 poa_n,
-                                 poa_g,
-                                 poa_e,
-                                 poa_q,
-                                 poa_c,
-                                 consensus_name);
+            block_graph = smooth_abpoa(graph,
+                                       block,
+                                       block_id,
+                                       poa_m,
+                                       poa_n,
+                                       poa_g,
+                                       poa_e,
+                                       poa_q,
+                                       poa_c,
+                                       consensus_name);
 
             // std::cerr << std::endl;
             // std::cerr << "After block graph. Exiting for now....." <<
