@@ -54,12 +54,13 @@ namespace smoothxg {
 
 
         std::cerr << "n_seqs: " << seqs.size() << std::endl;
-        std::ofstream f("DRB1-3123.fa.gz.gfa.og.Ygs.gfa.fa");
+        /*std::ofstream f("DRB1-3123.fa.gz.gfa.og.Ygs.gfa.fa");
         for (int i = 0; i < seqs.size(); i++) {
             f << ">" << names[i] << std::endl;
             f << seqs[i] << std::endl;
         }
         f.close();
+         */
 
         // initialize abPOA
         abpoa_t *ab = abpoa_init();
