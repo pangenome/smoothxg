@@ -52,7 +52,14 @@ namespace smoothxg {
             return output_graph;
         }
 
+
         std::cerr << "n_seqs: " << seqs.size() << std::endl;
+        std::ofstream f("DRB1-3123.fa.gz.gfa.og.Ygs.gfa.fa");
+        for (int i = 0; i < seqs.size(); i++) {
+            f << ">" << names[i] << std::endl;
+            f << seqs[i] << std::endl;
+        }
+        f.close();
 
         // initialize abPOA
         abpoa_t *ab = abpoa_init();
@@ -149,7 +156,7 @@ namespace smoothxg {
                 std::cerr << "is_rc" << std::endl;
             } else {
                 aln_is_reverse.push_back(false);
-                std::cerr << "is_rc_not" << std::endl;
+                // std::cerr << "is_rc_not" << std::endl;
             }
             if (res.n_cigar) {
                 free(res.graph_cigar);
