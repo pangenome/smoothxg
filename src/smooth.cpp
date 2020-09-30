@@ -335,6 +335,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_m, int poa_n,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
+                              bool use_abpoa,
                               const std::string &consensus_base_name) {
 
     //
@@ -347,26 +348,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     bool add_consensus = !consensus_base_name.empty();
     std::mutex path_mapping_mutex, consensus_mapping_mutex, logging_mutex;
     uint64_t thread_count = odgi::get_thread_count();
-    std::uint8_t poa_algorithm = 0;
-    // setup our alignment engines
-    /*
-    std::vector<std::unique_ptr<spoa::AlignmentEngine>> alignment_engines;
-    // todo make configurable?
-
-    for (uint64_t i = 0; i < thread_count; ++i) {
-        try {
-            alignment_engines.emplace_back();
-            auto& alignment_engine = alignment_engines.back();
-            alignment_engine = spoa::createAlignmentEngine(
-                static_cast<spoa::AlignmentType>(poa_algorithm),
-                poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
-            //alignment_engines.push_back(alignment_engine);
-        } catch(std::invalid_argument& exception) {
-            std::cerr << exception.what() << std::endl;
-            assert(false);
-        }
-    }
-    */
+    std::uint8_t spoa_algorithm = 0; // global
 
     paryfor::parallel_for<uint64_t>(
         0, blocks.size(), thread_count, [&](uint64_t block_id, int tid) {
@@ -385,16 +367,34 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             // << std::endl;
             auto &block_graph = block_graphs[block_id];
 
-            block_graph = smooth_abpoa(graph,
-                                       block,
-                                       block_id,
-                                       poa_m,
-                                       poa_n,
-                                       poa_g,
-                                       poa_e,
-                                       poa_q,
-                                       poa_c,
-                                       consensus_name);
+            if (use_abpoa && block.path_ranges.size() <= 128) {
+                block_graph = smooth_abpoa(graph,
+                                           block,
+                                           block_id,
+                                           poa_m,
+                                           poa_n,
+                                           poa_g,
+                                           poa_e,
+                                           poa_q,
+                                           poa_c,
+                                           consensus_name);
+            } else {
+                std::unique_ptr<spoa::AlignmentEngine> alignment_engine
+                    = spoa::createAlignmentEngine(
+                        static_cast<spoa::AlignmentType>(spoa_algorithm),
+                        poa_m, -poa_n, -poa_g, -poa_e, -poa_q, -poa_c);
+                block_graph = smooth_spoa(graph,
+                                          block,
+                                          block_id,
+                                          alignment_engine,
+                                          poa_m,
+                                          -poa_n,
+                                          -poa_g,
+                                          -poa_e,
+                                          -poa_q,
+                                          -poa_c,
+                                          consensus_name);
+            }
 
             // std::cerr << std::endl;
             // std::cerr << "After block graph. Exiting for now....." <<

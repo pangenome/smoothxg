@@ -46,6 +46,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<int> _poa_c(parser, "N", "poa gap extension penalty of the second affine function [default: 1]", {'C', "poa-2nd-gap-extend"});
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]", {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]", {'U', "path-sgd-term-updates"});
+    args::Flag use_abpoa(parser, "use-abpoa", "run abPOA instead of spoa for smoothing", {'A', "abpoa"});
     args::Flag no_toposort(parser, "no-toposort", "don't apply topological sorting in the sort pipeline", {'T', "no-toposort"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
@@ -140,6 +141,7 @@ int main(int argc, char** argv) {
                                               poa_e,
                                               poa_q,
                                               poa_c,
+                                              args::get(use_abpoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
 
     smoothed.to_gfa(std::cout);
