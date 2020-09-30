@@ -216,6 +216,15 @@ set(sautocorr_INCLUDE "${SOURCE_DIR}")
 add_subdirectory(deps/spoa EXCLUDE_FROM_ALL)
 set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 
+# abPOA (full build using its cmake config)
+ExternalProject_Add(abPOA
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/abPOA"
+        INSTALL_COMMAND "")
+ExternalProject_Get_property(abPOA INSTALL_DIR)
+set(abPOA_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/include")
+# set(abPOA_src_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/src")
+set(abPOA_LIB "${INSTALL_DIR}/src/abPOA-build/lib")
+
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
 
@@ -243,6 +252,8 @@ add_dependencies(smoothxg_objs libbf)
 add_dependencies(smoothxg_objs dirtyzipf)
 add_dependencies(smoothxg_objs xoshiro)
 add_dependencies(smoothxg_objs sautocorr)
+add_dependencies(smoothxg_objs abPOA)
+
 
 set_target_properties(smoothxg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
@@ -290,7 +301,9 @@ set(smoothxg_INCLUDES
   "${random_dist_INCLUDE}"
   "${dirtyzipf_INCLUDE}"
   "${xoshiro_INCLUDE}"
-  "${sautocorr_INCLUDE}")
+  "${sautocorr_INCLUDE}"
+  "${abPOA_INCLUDE}"
+  "${abPOA_src_INCLUDE}")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
@@ -298,6 +311,7 @@ set(smoothxg_LIBS
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
   "${handlegraph_LIB}/libhandlegraph.a"
   "${odgi_LIB}/libodgi.a"
+  "${abPOA_LIB}/libabpoa.a"
   "-latomic")
 
 target_include_directories(smoothxg_objs PUBLIC ${smoothxg_INCLUDES})
@@ -307,6 +321,12 @@ add_executable(smoothxg
   ${CMAKE_SOURCE_DIR}/src/main.cpp)
 target_link_libraries(smoothxg spoa)
 target_link_libraries(smoothxg ${smoothxg_LIBS})
+
+# -lz is needed for abPOA, as indicated in the example.c
+# https://github.com/yangao07/abPOA/blob/17d7b287b905bcd0e684ca5015a78e5a73a40798/example.c#L3
+find_package(ZLIB)
+target_link_libraries(smoothxg ZLIB::ZLIB)
+
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
 

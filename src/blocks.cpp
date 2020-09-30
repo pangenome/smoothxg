@@ -144,7 +144,7 @@ smoothable_blocks(
                 block.path_ranges.begin(), block.path_ranges.end(),
                 [](const path_range_t& a,
                    const path_range_t& b) {
-                    return a.length > b.length;
+                    return a.length < b.length;
                 });
             /*
             std::cerr << "block----" << std::endl;

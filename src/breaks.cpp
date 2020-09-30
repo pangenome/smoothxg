@@ -119,6 +119,12 @@ void break_blocks(const xg::XG& graph,
             }
         }
         block.path_ranges = chopped_ranges;
+        ips4o::parallel::sort(
+            block.path_ranges.begin(), block.path_ranges.end(),
+            [](const path_range_t& a,
+               const path_range_t& b) {
+                return a.length < b.length;
+            });
     }
     std::cerr << "[smoothxg::break_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
 }
