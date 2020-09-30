@@ -30,13 +30,13 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
-    args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "max-block-weight"});
+    args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 50000]", {'w', "max-block-weight"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "max-path-jump"});
     args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 16]", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 1000]", {'e', "max-edge-jump"});
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "min-copy-length"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'m', "max-copy-length"});
-    args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "max-poa-length"});
+    args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 50000]", {'l', "max-poa-length"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<int> _poa_m(parser, "N", "poa score for matching bases [default: 2]", {'M', "poa-match"});
     args::ValueFlag<int> _poa_n(parser, "N", "poa penalty for mismatching bases [default: 4]", {'N', "poa-mismatch"});
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<int> _poa_e(parser, "N", "poa gap extension penalty [default: 2]", {'E', "poa-gap-extend"});
     args::ValueFlag<int> _poa_q(parser, "N", "poa gap opening penalty of the second affine function [default: 24]", {'Q', "poa-2nd-gap-open"});
     args::ValueFlag<int> _poa_c(parser, "N", "poa gap extension penalty of the second affine function [default: 1]", {'C', "poa-2nd-gap-extend"});
-    args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 10]", {'X', "chop-to"});
+    args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]", {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]", {'U', "path-sgd-term-updates"});
     args::Flag no_toposort(parser, "no-toposort", "don't apply topological sorting in the sort pipeline", {'T', "no-toposort"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
         if (!args::get(no_prep)) {
             gfa_in_name = args::get(gfa_in) + ".prep.gfa";
             float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
-            float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 10);
+            float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
             smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort));
         } else {
             gfa_in_name = args::get(gfa_in);
@@ -94,13 +94,13 @@ int main(int argc, char** argv) {
         }
     }
 
-    uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
+    uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 50000;
     uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 5000;
     uint64_t min_subpath = _min_subpath ? args::get(_min_subpath) : 16;
     uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 1000;
     uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
-    uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
+    uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 50000;
 
     int poa_m = 2;
     int poa_n = 4;

@@ -137,8 +137,8 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     abpoa_para_t *abpt = abpoa_init_para();
     // if we want to do local alignments
     //abpt->align_mode = ABPOA_LOCAL_MODE;
-    abpt->zdrop = 100;
-    abpt->end_bonus = 100;
+    //abpt->zdrop = 100; // could be useful in local mode
+    //abpt->end_bonus = 100; // also useful in local mode
     abpt->rev_cigar = 0;
     abpt->out_gfa = 1; // must be set to get the graph
     //abpt->out_msa = 1; // must be set when we extract the MSA
@@ -773,7 +773,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t &output,
                       bool include_consensus) {
     // std::cerr << "ENTERED build_odgi_abPOA" << std::endl;
     abpoa_graph_t *abg = ab->abg;
-    if (abg->node_n <= 2)
+    if (abg->node_n <= 2) // how would this happen, and can we manage the error externally?
         return;
     int seq_n = sequence_names.size();
 
@@ -886,7 +886,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t &output,
             }
         }
     }
-    if (abpt->out_cons) {
+    if (include_consensus) {
         // we already did that!
         // abpoa_generate_consensus(ab, abpt, seq_n, NULL, NULL, NULL, NULL,
         // NULL);
