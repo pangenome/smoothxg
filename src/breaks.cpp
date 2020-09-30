@@ -12,7 +12,8 @@ void break_blocks(const xg::XG& graph,
                   const uint64_t& min_copy_length,
                   const uint64_t& max_copy_length,
                   const uint64_t& min_autocorr_z,
-                  const uint64_t& autocorr_stride) {
+                  const uint64_t& autocorr_stride,
+                  const bool& order_paths_from_longest) {
 
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
@@ -119,12 +120,21 @@ void break_blocks(const xg::XG& graph,
             }
         }
         block.path_ranges = chopped_ranges;
+        // order the path ranges from longest/shortest to shortest/longest
         ips4o::parallel::sort(
             block.path_ranges.begin(), block.path_ranges.end(),
+            order_paths_from_longest || block.path_ranges.size() > 128
+            ?
+            [](const path_range_t& a,
+               const path_range_t& b) {
+                return a.length > b.length;
+            }
+            :
             [](const path_range_t& a,
                const path_range_t& b) {
                 return a.length < b.length;
-            });
+            }
+        );
     }
     std::cerr << "[smoothxg::break_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
 }

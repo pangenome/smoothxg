@@ -352,15 +352,17 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
     paryfor::parallel_for<uint64_t>(
         0, blocks.size(), thread_count, [&](uint64_t block_id, int tid) {
+            auto &block = blocks[block_id];
+
             { // if (block_id % 100 == 0) {
                 std::lock_guard<std::mutex> guard(logging_mutex);
                 std::cerr
-                    << "[smoothxg::smooth_and_lace] applying abPOA to block "
-                    << block_id << "/" << blocks.size() << " " << std::fixed
+                    << "[smoothxg::smooth_and_lace] applying " << (use_abpoa && block.path_ranges.size() <= 128 ? "abPOA" : "SPOA")
+                    << " to block " << block_id << "/" << blocks.size() << " " << std::fixed
                     << std::showpoint << std::setprecision(3)
                     << (float)block_id / (float)blocks.size() * 100 << "%\r";
             }
-            auto &block = blocks[block_id];
+
             std::string consensus_name =
                 consensus_base_name + std::to_string(block_id);
             // std::cerr << "on block " << block_id+1 << " of " << blocks.size()
@@ -452,8 +454,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             }
         });
 
-    std::cerr << "[smoothxg::smooth_and_lace] applying spoa to block "
-              << blocks.size() << "/" << blocks.size() << " " << std::fixed
+    std::cerr << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
+              << " to block " << blocks.size() << "/" << blocks.size() << " " << std::fixed
               << std::showpoint << std::setprecision(3) << 100.0 << "%"
               << std::endl;
 
