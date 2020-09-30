@@ -45,4 +45,4 @@
 	url = https://github.com/ekg/sautocorr.git
 [submodule "deps/abPOA"]
 	path = deps/abPOA
-	url = https://github.com/yangao07/abPOA
+	url = https://github.com/ekg/abPOA

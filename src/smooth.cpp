@@ -84,43 +84,6 @@ smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
 
-    /*
-// https://stackoverflow.com/questions/7048888/stdvectorstdstring-to-char-array
-char *convert(const std::string &s) {
-char *pc = new char[s.size() + 1];
-std::strcpy(pc, s.c_str());
-return pc;
-}
-*/
-
-    /*
-    odgi::graph_t smooth_abPOA(const xg::XG &graph,
-                               const block_t &block,
-                               const uint64_t block_id,
-                               const std::string &consensus_name) {
-    */
-
-    // collect sequences
-    std::vector<std::string> seqs;
-    std::vector<std::string> names;
-    for (auto &path_range : block.path_ranges) {
-        seqs.emplace_back();
-        auto &seq = seqs.back();
-        for (step_handle_t step = path_range.begin; step != path_range.end;
-             step = graph.get_next_step(step)) {
-            seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
-        }
-        std::stringstream namess;
-        namess << graph.get_path_name(
-                      graph.get_path_handle_of_step(path_range.begin))
-               << "_" << graph.get_position_of_step(path_range.begin);
-        names.push_back(namess.str());
-    }
-
-    std::size_t max_sequence_size = 0;
-    for (auto &seq : seqs) {
-        max_sequence_size = std::max(max_sequence_size, seq.size());
-    }
     odgi::graph_t output_graph;
     // if the graph would be empty, bail out
     if (max_sequence_size == 0) {
@@ -200,7 +163,7 @@ first defined here
     std::vector<char *> seqs_;
     // transform so that we have an interface between C++ and C
     std::transform(seqs.begin(), seqs.end(), std::back_inserter(seqs_),
-                   convert);
+                   [](const std::string& s) { return (char*)s.c_str();});
 
     // collect sequence length, transform ACGT to 0123
     int n_seqs = seqs.size();
