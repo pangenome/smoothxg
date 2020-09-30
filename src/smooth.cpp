@@ -7,6 +7,46 @@ namespace smoothxg {
 KDQ_INIT(int)
 #define kdq_int_t kdq_t(int)
 
+// to write each block to a FASTA and TSV
+//#define SMOOTH_WRITE_BLOCKS_FASTA true
+
+const unsigned char nst_nt4_table[256] = {
+    4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 5 /*'-'*/, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 0,         4, 1, 4, 4, 4, 2, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 3, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 4, 1,
+    4, 4, 4, 2, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 4, 4, 4,
+    4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
+
+const char nst_nt256_table[256] = {
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'A', 'N', 'C', 'N', 'N',
+    'N', 'G', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'T', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'A',
+    'N', 'C', 'N', 'N', 'N', 'G', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'T', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
+    'N', 'N', 'N', 'N'};
+
+
 static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
     uint64_t t, tt;
     if ((tt = v >> 32)) {
@@ -38,6 +78,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         names.push_back(namess.str());
     }
 
+#ifdef SMOOTH_WRITE_BLOCKS_FASTA
     {
         std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
         std::ofstream fasta(s.c_str());
@@ -72,6 +113,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         }
         vs.close();
     }
+#endif
 
     // set up POA
     // done...
@@ -87,18 +129,20 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         return output_graph;
     }
 
+    bool generate_consensus = !consensus_name.empty();
+
     // initialize abPOA
     abpoa_t *ab = abpoa_init();
     // initialize abPOA parameters
     abpoa_para_t *abpt = abpoa_init_para();
-    // we want to do local alignments
+    // if we want to do local alignments
     //abpt->align_mode = ABPOA_LOCAL_MODE;
-    // possible other parameters to set?!
-    // FIXME just for testing
-    //abpt->out_msa = 1; // must be set when we extract the MSA
+    abpt->zdrop = 100;
+    abpt->end_bonus = 100;
     abpt->rev_cigar = 0;
     abpt->out_gfa = 1; // must be set to get the graph
-    //abpt->out_cons = 0; //hmmm
+    //abpt->out_msa = 1; // must be set when we extract the MSA
+    abpt->out_cons = generate_consensus;
     abpt->amb_strand = 1;
     abpt->match = poa_m;
     abpt->mismatch = poa_n;
@@ -107,57 +151,8 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     abpt->gap_ext1 = poa_e;
     abpt->gap_ext2 = poa_c;
 
-
     // finalize parameters
     abpoa_post_set_para(abpt);
-
-    // FIXME
-    /*
-     * We should be able to use the already defined table in
-<deps/abPOA/src/seq.h>
-     * CMakeFiles/smoothxg_objs.dir/src/smooth.cpp.o:/home/heumos/git/smoothxg/deps/abPOA/src/seq.h:10: multiple definition of `nst_nt4_table'; CMakeFiles/smoothxg.dir/src/main.cpp.o:/home/heumos/git/smoothxg/deps/abPOA/src/seq.h:10: first defined here
-/usr/bin/ld:
-CMakeFiles/smoothxg_objs.dir/src/smooth.cpp.o:/home/heumos/git/smoothxg/deps/abPOA/src/seq.h:30:
-multiple definition of `com_nst_nt4_table';
-CMakeFiles/smoothxg.dir/src/main.cpp.o:/home/heumos/git/smoothxg/deps/abPOA/src/seq.h:30:
-first defined here
-     */
-    // AaCcGgTtNn ==> 0,1,2,3,4
-    unsigned char nst_nt4_table[256] = {
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 5 /*'-'*/, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 0,         4, 1, 4, 4, 4, 2, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 3, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 4, 1,
-        4, 4, 4, 2, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
-
-    const char nst_nt256_table[256] = {
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'A', 'N', 'C', 'N', 'N',
-        'N', 'G', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'T', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'A',
-        'N', 'C', 'N', 'N', 'N', 'G', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'T', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N'};
 
     std::vector<char *> seqs_;
     // transform so that we have an interface between C++ and C
@@ -182,9 +177,6 @@ first defined here
     uint8_t **msa_seq;
     int msa_l = 0;
     // perform abpoa-msa
-    //abpoa_reset_graph(ab, abpt, seq_lens[0]);
-    // abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, stdout, NULL, NULL,
-    // NULL, NULL, NULL, NULL); // WORKS
     int i, tot_n = n_seqs;
     uint8_t *is_rc = (uint8_t *)_err_malloc(n_seqs * sizeof(uint8_t));
     abpoa_reset_graph(ab, abpt, seq_lens[0]);
@@ -209,18 +201,16 @@ first defined here
             free(res.graph_cigar);
         }
     }
-    // TODO we might not want to do this here? Might be important for @Andrea!
-    // abpoa_generate_consensus(ab, abpt, tot_n, NULL, &cons_seq, &cons_cov,
-    // &cons_l, &cons_n);
-    abpoa_generate_consensus(ab, abpt, tot_n, NULL, NULL, NULL, NULL, NULL);
-    if (ab->abg->is_called_cons == 0) {
-        // TODO Abort mission here?
-        err_printf("ERROR: no consensus sequence generated.\n");
-        exit(1);
+
+    if (generate_consensus) {
+        abpoa_generate_consensus(ab, abpt, tot_n, NULL, NULL, NULL, NULL, NULL);
+        if (ab->abg->is_called_cons == 0) {
+            // TODO Abort mission here?
+            err_printf("ERROR: no consensus sequence generated.\n");
+            exit(1);
+        }
+        aln_is_reverse.push_back(false);
     }
-    aln_is_reverse.push_back(false);
-    // abpoa_generate_rc_msa(ab, abpt, NULL, is_rc, tot_n, NULL, &msa_seq,
-    // &msa_l);
     free(is_rc);
 
     /*
@@ -251,8 +241,9 @@ first defined here
         free(cons_l);
     }
     if (msa_l) {
-        for (i = 0; i < n_seqs; ++i)
+        for (i = 0; i < n_seqs; ++i) {
             free(msa_seq[i]);
+        }
         free(msa_seq);
     }
 
@@ -263,7 +254,7 @@ first defined here
     free(seq_lens);
 
     build_odgi_abPOA(ab, abpt, output_graph, names, aln_is_reverse,
-                     consensus_name, !consensus_name.empty());
+                     consensus_name, generate_consensus);
 
     abpoa_free(ab, abpt);
     abpoa_free_para(abpt);
