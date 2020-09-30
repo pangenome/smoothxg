@@ -216,7 +216,12 @@ namespace smoothxg {
 
         abpoa_free(ab, abpt);
         abpoa_free_para(abpt);
+        // normalize the representation, allowing for nodes > 1bp
+        odgi::algorithms::unchop(output_graph);
+        // order the graph
+        output_graph.apply_ordering(odgi::algorithms::topological_order(&output_graph), true);
 
+        // output_graph.to_gfa(std::cout);
         return output_graph;
     }
 
@@ -407,9 +412,9 @@ namespace smoothxg {
                              */
                                                consensus_name);
 
-                    std::cerr << std::endl;
-                    std::cerr << "After block graph. Exiting for now....." << std::endl;
-                    exit(0);
+                    //std::cerr << std::endl;
+                    //std::cerr << "After block graph. Exiting for now....." << std::endl;
+                    //exit(0);
                     if (block_graph.get_node_count() > 0) {
                         //auto& block_graph = block_graphs.back();
                         // record the start and end paths
@@ -733,7 +738,7 @@ namespace smoothxg {
                           const std::vector<bool> &aln_is_reverse,
                           const std::string &consensus_name,
                           bool include_consensus) {
-        std::cerr << "ENTERED build_odgi_abPOA" << std::endl;
+        // std::cerr << "ENTERED build_odgi_abPOA" << std::endl;
         abpoa_graph_t *abg = ab->abg;
         if (abg->node_n <= 2) return;
         int seq_n = sequence_names.size();
@@ -757,12 +762,22 @@ namespace smoothxg {
             } else {
                 if (cur_id != ABPOA_SRC_NODE_ID) {
                     // output node
-                    fprintf(stdout, "S\t%d\t%c\n", cur_id - 1, "ACGTN"[abg->node[cur_id].base]);
+                    // fprintf(stdout, "S\t%d\t%c\n", cur_id - 1, "ACGTN"[abg->node[cur_id].base]);
+                    // add node to output graph
+                    std::string seq = std::string(1, static_cast<char>("ACGTN"[abg->node[cur_id].base]));
+                    // std::cerr << "seq: " << seq << std::endl;
+                    output.create_handle(seq, cur_id - 1);
+                    // std::cerr << "cur_id: " << (cur_id - 1) << std::endl;
                     // output all links based pre_ids
                     for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
                         pre_id = abg->node[cur_id].in_id[i];
-                        if (pre_id != ABPOA_SRC_NODE_ID)
-                            fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id - 1, cur_id - 1);
+                        if (pre_id != ABPOA_SRC_NODE_ID) {
+                            // output edge
+                            // fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id - 1, cur_id - 1);
+                            // std::cerr << "cur_id edge: " << (cur_id - 1) << std::endl;
+                            // std::cerr << "pre_id edge: " << (pre_id - 1) << std::endl;
+                            output.create_edge(output.get_handle(pre_id - 1), output.get_handle(cur_id - 1));
+                        }
                     }
                     // add node id to read path
                     int b, read_id;
@@ -787,43 +802,80 @@ namespace smoothxg {
                 }
             }
         }
+
         // output read paths
-    for (i = 0; i < seq_n; ++i) {
-        if (sequence_names.size() != 0) fprintf(stdout, "P\t%s\t", sequence_names[i]);
-        else fprintf(stdout, "P\t%d\t", i+1);
-        if (aln_is_reverse[i]) {
-            for (j = read_path_i[i]-1; j >= 0; --j) {
-                fprintf(stdout, "%d-", read_paths[i][j]);
-                if (j != 0) fprintf(stdout, ",");
-                else fprintf(stdout, "\t*\n");
+
+        for (i = 0; i < seq_n; ++i) {
+            path_handle_t p;
+            std::vector<handle_t> steps;
+            std::uint32_t node_id;
+            if (sequence_names.size() != 0) {
+                // fprintf(stdout, "P\t%s\t", sequence_names[i]);
+                // std::cerr << "P\t" << sequence_names[i] << "\t";
+                p = output.create_path_handle(sequence_names[i]);
+            } else {
+                // fprintf(stdout, "P\t%d\t", i+1);
+                p = output.create_path_handle(std::to_string(i + 1));
             }
-        } else {
-            for (j = 0; j < read_path_i[i]; ++j) {
-                fprintf(stdout, "%d+", read_paths[i][j]);
-                if (j != read_path_i[i]-1) fprintf(stdout, ",");
-                else fprintf(stdout, "\t*\n");
+            if (aln_is_reverse[i]) {
+                for (j = read_path_i[i] - 1; j >= 0; --j) {
+                    // fprintf(stdout, "%d-", read_paths[i][j]);
+                    node_id = read_paths[i][j];
+                    output.append_step(p, output.flip(output.get_handle(node_id)));
+                    /*
+                    if (j != 0) {
+                        fprintf(stdout, ",");
+                    } else {
+                        fprintf(stdout, "\t*\n");
+                    }
+                     */
+                }
+            } else {
+                for (j = 0; j < read_path_i[i]; ++j) {
+                    // fprintf(stdout, "%d+", read_paths[i][j]);
+                    node_id = read_paths[i][j];
+                    output.append_step(p, output.get_handle(node_id));
+                    /*
+                    if (j != read_path_i[i]-1) {
+                        fprintf(stdout, ",");
+                    }
+                    else {
+                        fprintf(stdout, "\t*\n");
+                    }
+                    */
+                }
             }
         }
-    }
-    if (abpt->out_cons) {
-        // we already did that!
-        // abpoa_generate_consensus(ab, abpt, seq_n, NULL, NULL, NULL, NULL, NULL);
-        int id = abg->node[ABPOA_SRC_NODE_ID].max_out_id;
-        fprintf(stdout, "P\tConsensus_sequence\t");
-        while (1) {
-            fprintf(stdout, "%d+", id-1);
-            id = abg->node[id].max_out_id;
-            if (id != ABPOA_SINK_NODE_ID) fprintf(stdout, ",");
-            else {
-                fprintf(stdout, "\t*\n");
-                break;
+        if (abpt->out_cons) {
+            // we already did that!
+            // abpoa_generate_consensus(ab, abpt, seq_n, NULL, NULL, NULL, NULL, NULL);
+            int id = abg->node[ABPOA_SRC_NODE_ID].max_out_id;
+            // fprintf(stdout, "P\tConsensus_sequence\t");
+            path_handle_t p = output.create_path_handle(consensus_name);
+            while (1) {
+                // fprintf(stdout, "%d+", id-1);
+                output.append_step(p, output.get_handle(id - 1));
+                id = abg->node[id].max_out_id;
+                if (id == ABPOA_SINK_NODE_ID) {
+                    break;
+                }
+                /*
+                if (id != ABPOA_SINK_NODE_ID) {
+                    fprintf(stdout, ",");
+                }
+                else {
+                    // fprintf(stdout, "\t*\n");
+                    break;
+                }
+                 */
             }
         }
-    }
-    free(in_degree);
-    for (i = 0; i < seq_n; ++i) free(read_paths[i]);
-    free(read_paths); free(read_path_i);
-        std::cerr << "LEFT build_odgi_abPOA" << std::endl;
+
+        free(in_degree);
+        for (i = 0; i < seq_n; ++i) free(read_paths[i]);
+        free(read_paths);
+        free(read_path_i);
+        // std::cerr << "LEFT build_odgi_abPOA" << std::endl;
     }
 
 
