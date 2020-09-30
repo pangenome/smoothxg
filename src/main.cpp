@@ -39,11 +39,11 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "max-poa-length"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<int> _poa_m(parser, "N", "poa score for matching bases [default: 2]", {'M', "poa-match"});
-    args::ValueFlag<int> _poa_n(parser, "N", "poa score for mismatching bases [default: -4]", {'N', "poa-mismatch"});
-    args::ValueFlag<int> _poa_g(parser, "N", "poa gap opening penalty (must be negative) [default: -4]", {'G', "poa-gap-open"});
-    args::ValueFlag<int> _poa_e(parser, "N", "poa gap extension penalty (must be negative) [default: -2]", {'E', "poa-gap-extend"});
-    args::ValueFlag<int> _poa_q(parser, "N", "poa gap opening penalty of the second affine function (must be negative) [default: -24]", {'Q', "poa-2nd-gap-open"});
-    args::ValueFlag<int> _poa_c(parser, "N", "poa gap extension penalty of the second affine function (must be negative) [default: -1]", {'C', "poa-2nd-gap-extend"});
+    args::ValueFlag<int> _poa_n(parser, "N", "poa penalty for mismatching bases [default: 4]", {'N', "poa-mismatch"});
+    args::ValueFlag<int> _poa_g(parser, "N", "poa gap opening penalty [default: 4]", {'G', "poa-gap-open"});
+    args::ValueFlag<int> _poa_e(parser, "N", "poa gap extension penalty [default: 2]", {'E', "poa-gap-extend"});
+    args::ValueFlag<int> _poa_q(parser, "N", "poa gap opening penalty of the second affine function [default: 24]", {'Q', "poa-2nd-gap-open"});
+    args::ValueFlag<int> _poa_c(parser, "N", "poa gap extension penalty of the second affine function [default: 1]", {'C', "poa-2nd-gap-extend"});
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 10]", {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]", {'U', "path-sgd-term-updates"});
     args::Flag no_toposort(parser, "no-toposort", "don't apply topological sorting in the sort pipeline", {'T', "no-toposort"});
@@ -102,12 +102,12 @@ int main(int argc, char** argv) {
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
     uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
 
-    std::int8_t poa_m = 2;
-    std::int8_t poa_n = -4;
-    std::int8_t poa_g = -4;
-    std::int8_t poa_e = -2;
-    std::int8_t poa_q = -24;
-    std::int8_t poa_c = -1;
+    int poa_m = 2;
+    int poa_n = 4;
+    int poa_g = 4;
+    int poa_e = 2;
+    int poa_q = 24;
+    int poa_c = 1;
 
     if (_poa_m) poa_m = args::get(_poa_m);
     if (_poa_n) poa_n = args::get(_poa_n);

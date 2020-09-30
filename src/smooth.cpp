@@ -19,8 +19,8 @@ static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
 odgi::graph_t
 smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
        // std::unique_ptr<spoa::AlignmentEngine>& alignment_engine,
-       std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
-       std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
+       int poa_m, int poa_n, int poa_g,
+       int poa_e, int poa_q, int poa_c,
        const std::string &consensus_name) {
 
     // auto poa_graph = spoa::createGraph();
@@ -97,10 +97,18 @@ smooth(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
     // initialize abPOA parameters
     abpoa_para_t *abpt = abpoa_init_para();
     // we want to do local alignments
-    abpt->align_mode = ABPOA_LOCAL_MODE;
+    //abpt->align_mode = ABPOA_LOCAL_MODE;
     // possible other parameters to set?!
     // FIXME just for testing
-    abpt->out_msa = 1;
+    //abpt->out_msa = 1; // must be set when we extract the MSA
+    abpt->out_gfa = 1; // must be set to get the graph
+    abpt->amb_strand = 1;
+    abpt->match = poa_m;
+    abpt->mismatch = poa_n;
+    abpt->gap_open1 = poa_g;
+    abpt->gap_open2 = poa_q;
+    abpt->gap_ext1 = poa_e;
+    abpt->gap_ext2 = poa_c;
 
     // finalize parameters
     abpoa_post_set_para(abpt);
@@ -176,12 +184,13 @@ first defined here
     uint8_t **msa_seq;
     int msa_l = 0;
     // perform abpoa-msa
-    abpoa_reset_graph(ab, abpt, seq_lens[0]);
+    //abpoa_reset_graph(ab, abpt, seq_lens[0]);
     // abpoa_msa(ab, abpt, n_seqs, NULL, seq_lens, bseqs, stdout, NULL, NULL,
     // NULL, NULL, NULL, NULL); // WORKS
     int i, tot_n = n_seqs;
     uint8_t *is_rc = (uint8_t *)_err_malloc(n_seqs * sizeof(uint8_t));
     abpoa_reset_graph(ab, abpt, seq_lens[0]);
+    
     std::vector<bool> aln_is_reverse;
     for (i = 0; i < n_seqs; ++i) {
         abpoa_res_t res;
@@ -192,7 +201,7 @@ first defined here
         is_rc[i] = res.is_rc;
         if (res.is_rc) {
             aln_is_reverse.push_back(true);
-            std::cerr << "is_rc" << std::endl;
+            //std::cerr << "is_rc" << std::endl;
         } else {
             aln_is_reverse.push_back(false);
             // std::cerr << "is_rc_not" << std::endl;
@@ -368,9 +377,9 @@ odgi::graph_t smooth(const xg::XG &graph, const block_t &block,
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               const std::vector<block_t> &blocks,
-                              std::int8_t poa_m, std::int8_t poa_n,
-                              std::int8_t poa_g, std::int8_t poa_e,
-                              std::int8_t poa_q, std::int8_t poa_c,
+                              int poa_m, int poa_n,
+                              int poa_g, int poa_e,
+                              int poa_q, int poa_c,
                               const std::string &consensus_base_name) {
 
     //
