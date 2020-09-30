@@ -1,6 +1,8 @@
 #include "smooth.hpp"
 #include <cstring>
 
+#include "deps/abPOA/src/seq.h"
+
 namespace smoothxg {
 
 // klib stuff copied from abpoa_graph.c
@@ -110,54 +112,6 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
 
     // finalize parameters
     abpoa_post_set_para(abpt);
-
-    // FIXME
-    /*
-     * We should be able to use the already defined table in
-<deps/abPOA/src/seq.h>
-     * CMakeFiles/smoothxg_objs.dir/src/smooth.cpp.o:/home/heumos/git/smoothxg/deps/abPOA/src/seq.h:10: multiple definition of `nst_nt4_table'; CMakeFiles/smoothxg.dir/src/main.cpp.o:/home/heumos/git/smoothxg/deps/abPOA/src/seq.h:10: first defined here
-/usr/bin/ld:
-CMakeFiles/smoothxg_objs.dir/src/smooth.cpp.o:/home/heumos/git/smoothxg/deps/abPOA/src/seq.h:30:
-multiple definition of `com_nst_nt4_table';
-CMakeFiles/smoothxg.dir/src/main.cpp.o:/home/heumos/git/smoothxg/deps/abPOA/src/seq.h:30:
-first defined here
-     */
-    // AaCcGgTtNn ==> 0,1,2,3,4
-    unsigned char nst_nt4_table[256] = {
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 5 /*'-'*/, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 0,         4, 1, 4, 4, 4, 2, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 3, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 4, 1,
-        4, 4, 4, 2, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-        4, 4, 4, 4, 4, 4,         4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
-
-    const char nst_nt256_table[256] = {
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'A', 'N', 'C', 'N', 'N',
-        'N', 'G', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'T', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'A',
-        'N', 'C', 'N', 'N', 'N', 'G', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'T', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N',
-        'N', 'N', 'N', 'N'};
 
     std::vector<char *> seqs_;
     // transform so that we have an interface between C++ and C
