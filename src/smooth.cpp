@@ -24,6 +24,7 @@ static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
 odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
+                           bool local_alignment,
                            const std::string &consensus_name) {
 
     // collect sequences
@@ -101,7 +102,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     // initialize abPOA parameters
     abpoa_para_t *abpt = abpoa_init_para();
     // if we want to do local alignments
-    if (block.broken) abpt->align_mode = ABPOA_LOCAL_MODE;
+    if (local_alignment || block.broken) abpt->align_mode = ABPOA_LOCAL_MODE;
     //abpt->zdrop = 100; // could be useful in local mode
     //abpt->end_bonus = 100; // also useful in local mode
     abpt->rev_cigar = 0;
@@ -235,10 +236,16 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
 
 odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           const uint64_t &block_id,
-                          std::unique_ptr<spoa::AlignmentEngine> &alignment_engine,
                           std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
+                          bool local_alignment,
                           const std::string &consensus_name) {
+
+    std::uint8_t spoa_algorithm = local_alignment ? 0 : 1;
+    std::unique_ptr<spoa::AlignmentEngine> alignment_engine
+        = spoa::createAlignmentEngine(
+            static_cast<spoa::AlignmentType>(spoa_algorithm),
+            poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
 
     auto poa_graph = spoa::createGraph();
     // collect sequences
@@ -335,6 +342,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_m, int poa_n,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
+                              bool local_alignment,
                               bool use_abpoa,
                               const std::string &consensus_base_name) {
 
@@ -348,7 +356,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     bool add_consensus = !consensus_base_name.empty();
     std::mutex path_mapping_mutex, consensus_mapping_mutex, logging_mutex;
     uint64_t thread_count = odgi::get_thread_count();
-    std::uint8_t spoa_algorithm = 0; // global
 
     paryfor::parallel_for<uint64_t>(
         0, blocks.size(), thread_count, [&](uint64_t block_id, int tid) {
@@ -379,22 +386,19 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                            poa_e,
                                            poa_q,
                                            poa_c,
+                                           local_alignment,
                                            consensus_name);
             } else {
-                std::unique_ptr<spoa::AlignmentEngine> alignment_engine
-                    = spoa::createAlignmentEngine(
-                        static_cast<spoa::AlignmentType>(spoa_algorithm),
-                        poa_m, -poa_n, -poa_g, -poa_e, -poa_q, -poa_c);
                 block_graph = smooth_spoa(graph,
                                           block,
                                           block_id,
-                                          alignment_engine,
                                           poa_m,
                                           -poa_n,
                                           -poa_g,
                                           -poa_e,
                                           -poa_q,
                                           -poa_c,
+                                          local_alignment,
                                           consensus_name);
             }
 
