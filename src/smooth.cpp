@@ -238,7 +238,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           std::unique_ptr<spoa::AlignmentEngine> &alignment_engine,
                           std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
-                          std::string &maf, const std::string &consensus_name) {
+                          std::string *maf, const std::string &consensus_name) {
 
     auto poa_graph = spoa::createGraph();
     // collect sequences
@@ -321,10 +321,10 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     std::vector<std::string> msa;
     poa_graph->generate_multiple_sequence_alignment(msa);
 
-    maf += "a loops=false\n";
+    *maf += "a loops=false\n";
 
     for(uint64_t seq_rank = 0; seq_rank < msa.size(); seq_rank++){
-        maf += "s " + names[seq_rank] + " " + "XXXSTART/ENDXXX"
+        *maf += "s " + names[seq_rank] + " " + "XXXSTART/ENDXXX"
                 + (aln_is_reverse[seq_rank] ? " - " : " + ") + std::to_string(seqs[seq_rank].size()) // <==> block.path_ranges[seq_rank].length
                 + " " + msa[seq_rank] + "\n";
 
@@ -360,14 +360,16 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     //
     std::vector<odgi::graph_t> block_graphs;
     block_graphs.resize(blocks.size());
+
+    std::vector<std::string> mafs;
+    mafs.resize(blocks.size());
+
     std::vector<path_position_range_t> path_mapping;
     std::vector<path_position_range_t> consensus_mapping;
     bool add_consensus = !consensus_base_name.empty();
     std::mutex path_mapping_mutex, consensus_mapping_mutex, logging_mutex;
     uint64_t thread_count = odgi::get_thread_count();
     std::uint8_t spoa_algorithm = 0; // global
-
-    std::string maf;
 
     paryfor::parallel_for<uint64_t>(
         0, blocks.size(), thread_count, [&](uint64_t block_id, int tid) {
@@ -414,14 +416,10 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                           -poa_e,
                                           -poa_q,
                                           -poa_c,
-                                          maf,
+                                          &mafs[block_id],
                                           consensus_name
                                           );
             }
-
-            // ToDo: I would avoid keep everything in memory (but write directly to a file) if we can obtain
-            // tge start of the aligning region for each sequence before finalizing the smoothed graph.
-            std::cerr << maf << std::endl;
 
             // std::cerr << std::endl;
             // std::cerr << "After block graph. Exiting for now....." <<
@@ -478,6 +476,12 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 }
             }
         });
+
+    // ToDo: I would avoid to keep everything in memory (but write directly to a file) if we can obtain
+    //  the start of the aligning region for each sequence before finalizing the smoothed graph
+    for(auto& maf : mafs){
+        std::cout << maf << std::endl;
+    }
 
     std::cerr << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
               << " to block " << blocks.size() << "/" << blocks.size() << " " << std::fixed

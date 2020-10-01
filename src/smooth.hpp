@@ -42,7 +42,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           std::unique_ptr<spoa::AlignmentEngine> &alignment_engine,
                           std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
-                          std::string &maf, const std::string &consensus_name = "");
+                          std::string *maf, const std::string &consensus_name = "");
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               const std::vector<block_t> &blocks,
