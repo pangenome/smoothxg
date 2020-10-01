@@ -101,7 +101,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     // initialize abPOA parameters
     abpoa_para_t *abpt = abpoa_init_para();
     // if we want to do local alignments
-    //abpt->align_mode = ABPOA_LOCAL_MODE;
+    if (block.broken) abpt->align_mode = ABPOA_LOCAL_MODE;
     //abpt->zdrop = 100; // could be useful in local mode
     //abpt->end_bonus = 100; // also useful in local mode
     abpt->rev_cigar = 0;
@@ -357,7 +357,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             { // if (block_id % 100 == 0) {
                 std::lock_guard<std::mutex> guard(logging_mutex);
                 std::cerr
-                    << "[smoothxg::smooth_and_lace] applying " << (use_abpoa && block.path_ranges.size() <= 128 ? "abPOA" : "SPOA")
+                    << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
                     << " to block " << block_id << "/" << blocks.size() << " " << std::fixed
                     << std::showpoint << std::setprecision(3)
                     << (float)block_id / (float)blocks.size() * 100 << "%\r";
@@ -369,7 +369,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             // << std::endl;
             auto &block_graph = block_graphs[block_id];
 
-            if (use_abpoa && block.path_ranges.size() <= 128) {
+            if (use_abpoa) {
                 block_graph = smooth_abpoa(graph,
                                            block,
                                            block_id,

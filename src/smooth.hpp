@@ -49,7 +49,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_m, int poa_n,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
-                              bool use_abpoa = false,
+                              bool use_abpoa = true,
                               const std::string &consensus_name = "");
 
 void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,

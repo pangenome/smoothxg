@@ -33,6 +33,7 @@ struct block_t {
     uint64_t total_path_length = 0;
     uint64_t max_path_length = 0;
     std::vector<path_range_t> path_ranges;
+    bool broken = false;
 };
 
 // find the boundaries of blocks that we can compress with spoa
