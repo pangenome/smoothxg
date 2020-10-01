@@ -8,7 +8,9 @@ smoothable_blocks(
     const uint64_t& max_block_weight,
     const uint64_t& max_path_jump,
     const uint64_t& min_subpath,
-    const uint64_t& max_edge_jump) {
+    const uint64_t& max_edge_jump,
+    const bool& order_paths_from_longest
+    ) {
     // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
     std::vector<block_t> blocks;
     std::vector<std::vector<bool>> seen_steps;
@@ -139,13 +141,21 @@ smoothable_blocks(
             }
             //std::cerr << "max_path_length " << block.max_path_length << std::endl;
 
-            // order the path ranges from longest to shortest
+            // order the path ranges from longest/shortest to shortest/longest
             ips4o::parallel::sort(
                 block.path_ranges.begin(), block.path_ranges.end(),
+                order_paths_from_longest || block.path_ranges.size() > 128
+                ?
+                [](const path_range_t& a,
+                   const path_range_t& b) {
+                    return a.length > b.length;
+                }
+                :
                 [](const path_range_t& a,
                    const path_range_t& b) {
                     return a.length < b.length;
-                });
+                }
+                );
             /*
             std::cerr << "block----" << std::endl;
             for (auto& path_range : block.path_ranges) {
