@@ -401,6 +401,31 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             // std::cerr << std::endl;
             // std::cerr << "After block graph. Exiting for now....." <<
             // std::endl; exit(0);
+
+            // validate the edges of the block
+            block_graph.for_each_path_handle([&](const path_handle_t &path) {
+               handle_t current_handle;
+               handle_t next_handle;
+               block_graph.for_each_step_in_path(path, [&](const step_handle_t &step) {
+                    current_handle = block_graph.get_handle_of_step(step);
+                    if (block_graph.has_next_step(step)) {
+                        next_handle = block_graph.get_handle_of_step(block_graph.get_next_step(step));
+                        // validate the edges between handles
+                        if (!block_graph.has_edge(current_handle, next_handle)) {
+                            std::cerr << "[smoothxg] error! path "
+                                      << block_graph.get_path_name(path)
+                                      << " was corrupted in the block graph" << std::endl
+                                      << " block_id: " << block_id << std::endl
+                                      << "Expected edges from node rank "
+                                      << number_bool_packing::unpack_number(current_handle)
+                                      << " and node rank "
+                                      << number_bool_packing::unpack_number(next_handle) << std::endl;
+                            exit(1);
+                        }
+                    }
+               });
+            });
+
             if (block_graph.get_node_count() > 0) {
                 // auto& block_graph = block_graphs.back();
                 // record the start and end paths
