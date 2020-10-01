@@ -626,6 +626,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     smoothed.for_each_path_handle([&](const path_handle_t &path) {
         // collect sequence
         std::string orig_seq, smoothed_seq;
+        handle_t current_handle, next_handle;
         graph.for_each_step_in_path(
             graph.get_path_handle(smoothed.get_path_name(path)),
             [&](const step_handle_t &step) {
@@ -635,6 +636,21 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         smoothed.for_each_step_in_path(path, [&](const step_handle_t &step) {
             smoothed_seq.append(
                 smoothed.get_sequence(smoothed.get_handle_of_step(step)));
+            current_handle = smoothed.get_handle_of_step(step);
+            if (smoothed.has_next_step(step)) {
+                next_handle = smoothed.get_handle_of_step(smoothed.get_next_step(step));
+                // validate the edges between handles
+                if (!smoothed.has_edge(current_handle, next_handle)) {
+                    std::cerr << "[smoothxg] error! path "
+                              << smoothed.get_path_name(path)
+                              << " was corrupted in path validation step." << std::endl
+                              << "Expected edges from node rank "
+                              << number_bool_packing::unpack_number(current_handle)
+                              << " and node rank "
+                              << number_bool_packing::unpack_number(next_handle) << std::endl;
+                    exit(1);
+                }
+            }
         });
         if (orig_seq != smoothed_seq) {
             std::cerr << "[smoothxg] error! path "
