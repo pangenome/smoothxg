@@ -365,6 +365,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 std::lock_guard<std::mutex> guard(logging_mutex);
                 std::cerr
                     << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
+                    << " (" << (local_alignment ? "local" : "global") << " alignment mode)"
                     << " to block " << block_id << "/" << blocks.size() << " " << std::fixed
                     << std::showpoint << std::setprecision(3)
                     << (float)block_id / (float)blocks.size() * 100 << "%\r";
@@ -459,6 +460,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         });
 
     std::cerr << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
+              << " (" << (local_alignment ? "local" : "global") << " alignment mode)"
               << " to block " << blocks.size() << "/" << blocks.size() << " " << std::fixed
               << std::showpoint << std::setprecision(3) << 100.0 << "%"
               << std::endl;
