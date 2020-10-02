@@ -25,6 +25,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
                            bool local_alignment,
+                           std::string *maf,
                            const std::string &consensus_name) {
 
     // collect sequences
@@ -134,19 +135,18 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         bseqs[i] = (uint8_t *)malloc(sizeof(uint8_t) * seq_lens[i]);
         for (int j = 0; j < seq_lens[i]; ++j) {
             bseqs[i][j] =
-                nst_nt4_table[(int)seqs_[i][j]]; // TODO we make a c_str for
-                                                 // every char in the string
+                nst_nt4_table[(int)seqs_[i][j]]; // TODO we make a c_str for every char in the string
         }
     }
-    uint8_t **cons_seq;
-    int **cons_cov, *cons_l, cons_n = 0;
-    uint8_t **msa_seq;
-    int msa_l = 0;
-    // perform abpoa-msa
+
+    // variables to store result
+    uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n=0;
+    uint8_t **msa_seq; int msa_l=0;
+
     int i, tot_n = n_seqs;
     uint8_t *is_rc = (uint8_t *)_err_malloc(n_seqs * sizeof(uint8_t));
     abpoa_reset_graph(ab, abpt, seq_lens[0]);
-    
+
     std::vector<bool> aln_is_reverse;
     for (i = 0; i < n_seqs; ++i) {
         abpoa_res_t res;
@@ -169,7 +169,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     }
 
     if (generate_consensus) {
-        abpoa_generate_consensus(ab, abpt, tot_n, NULL, NULL, NULL, NULL, NULL);
+        abpoa_generate_consensus(ab, abpt, tot_n, NULL, &cons_seq, &cons_cov, &cons_l, &cons_n);
         if (ab->abg->is_called_cons == 0) {
             // TODO Abort mission here?
             err_printf("ERROR: no consensus sequence generated.\n");
@@ -178,24 +178,6 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         aln_is_reverse.push_back(false);
     }
     free(is_rc);
-
-    /*
-    fprintf(stdout, "=== output to variables ===\n");
-    for (int i = 0; i < cons_n; ++i) {
-        fprintf(stdout, ">Consensus_sequence\n");
-        for (int j = 0; j < cons_l[i]; ++j)
-            fprintf(stdout, "%c", nst_nt256_table[cons_seq[i][j]]);
-        fprintf(stdout, "\n");
-    }
-
-    fprintf(stdout, ">Multiple_sequence_alignment\n");
-    for (i = 0; i < n_seqs; ++i) {
-        for (int j = 0; j < msa_l; ++j) {
-            fprintf(stdout, "%c", "ACGTN-"[msa_seq[i][j]]);
-        }
-        fprintf(stdout, "\n");
-    }
-    */
 
     if (cons_n) {
         for (i = 0; i < cons_n; ++i) {
@@ -444,6 +426,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                            poa_q,
                                            poa_c,
                                            local_alignment,
+                                           &mafs[block_id],
                                            consensus_name);
             } else {
                 block_graph = smooth_spoa(graph,
