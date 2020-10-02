@@ -321,7 +321,6 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     std::vector<std::string> msa;
     poa_graph->generate_multiple_sequence_alignment(msa);
 
-
     *maf += "a loops=false\n";
 
     for(uint64_t seq_rank = 0; seq_rank < msa.size(); seq_rank++){
@@ -332,7 +331,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                                 graph.get_path_length(path_handle) - graph.get_position_of_step(block.path_ranges[seq_rank].begin) :
                                 graph.get_position_of_step(block.path_ranges[seq_rank].begin) ;
 
-        *maf += "s " + names[seq_rank] + " " + std::to_string(record_start)
+        *maf += "s " + graph.get_path_name(path_handle) + " " + std::to_string(record_start)
                 + (aln_is_reverse[seq_rank] ? " - " : " + ") + std::to_string(seqs[seq_rank].size()) // <==> block.path_ranges[seq_rank].length
                 + " " + msa[seq_rank] + "\n";
     }
@@ -487,21 +486,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     for(auto& maf : mafs){
         std::cout << maf << std::endl;
     }
-    /*
-     * struct path_position_range_t {
-    path_handle_t base_path;   // base path in input graph
-    uint64_t start_pos;        // start position of the range
-    uint64_t end_pos;          // end position of the range
-    step_handle_t start_step;  // start step in the base graph
-    step_handle_t end_step;    // end step in the base graph
-    path_handle_t target_path; // target path in smoothed block graph
-    uint64_t target_graph_id;  // the block graph id
-
-
-     *
-    for (auto& x : path_mapping){
-        std::cerr << x.start_pos << " - " << x.end_pos << " --- " << x.target_graph_id << std::endl;
-    }*/
 
     std::cerr << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
               << " to block " << blocks.size() << "/" << blocks.size() << " " << std::fixed
