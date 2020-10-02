@@ -16,7 +16,10 @@ The path-guided stochastic gradient descent based 1D sort implemented in `odgi s
 
 ## building
 
-`smoothxg` is built with cmake:
+`smoothxg` uses cmake to build itself and its dependencies.
 
-    cmake -H. -Bbuild && cmake --build build -- -j4
-
+```
+git clone --recursive https://github.com/pangenome/smoothxg.git
+cd smoothxg
+cmake -H. -Bbuild && cmake --build build -- -j 4
+```

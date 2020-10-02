@@ -17,7 +17,7 @@ void break_blocks(const xg::XG& graph,
 
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
-    std::cerr << "[smoothxg::break_blocks] cutting blocks that contain sequences above max-poa-length" << std::endl;
+    std::cerr << "[smoothxg::break_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
 
     uint64_t n_cut_blocks = 0;
     uint64_t n_repeat_blocks = 0;
@@ -123,7 +123,7 @@ void break_blocks(const xg::XG& graph,
         // order the path ranges from longest/shortest to shortest/longest
         ips4o::parallel::sort(
             block.path_ranges.begin(), block.path_ranges.end(),
-            order_paths_from_longest || block.path_ranges.size() > 128
+            order_paths_from_longest
             ?
             [](const path_range_t& a,
                const path_range_t& b) {
@@ -135,6 +135,8 @@ void break_blocks(const xg::XG& graph,
                 return a.length < b.length;
             }
         );
+        block.broken = true;
+        block.is_repeat = found_repeat;
     }
     std::cerr << "[smoothxg::break_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
 }

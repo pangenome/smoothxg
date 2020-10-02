@@ -35,21 +35,24 @@ struct path_position_range_t {
 odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
+                           bool local_alignment,
                            const std::string &consensus_name = "");
 
 odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           const uint64_t &block_id,
-                          std::unique_ptr<spoa::AlignmentEngine> &alignment_engine,
                           std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
-                          std::string *maf, const std::string &consensus_name = "");
+                          bool local_alignment,
+                          std::string *maf,
+                          const std::string &consensus_name = "");
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               const std::vector<block_t> &blocks,
                               int poa_m, int poa_n,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
-                              bool use_abpoa = false,
+                              bool local_alignment,
+                              bool use_abpoa = true,
                               const std::string &consensus_name = "");
 
 void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
