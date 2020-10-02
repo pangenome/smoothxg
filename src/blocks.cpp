@@ -144,7 +144,7 @@ smoothable_blocks(
             // order the path ranges from longest/shortest to shortest/longest
             ips4o::parallel::sort(
                 block.path_ranges.begin(), block.path_ranges.end(),
-                order_paths_from_longest || block.path_ranges.size() > 128
+                order_paths_from_longest
                 ?
                 [](const path_range_t& a,
                    const path_range_t& b) {
