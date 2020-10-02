@@ -47,8 +47,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]", {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]", {'U', "path-sgd-term-updates"});
     args::Flag use_spoa(parser, "use-spoa", "run spoa (in local alignment mode) instead of abPOA (in global alignment mode) for smoothing", {'S', "spoa"});
-    args::Flag global_alignment(parser, "global-alignment", "force global alignment in spoa (local is default)", {'Z', "global-alignment"});
-    args::Flag local_alignment(parser, "local-alignment", "force local alignment in abPOA (global is default except for broken blocks)", {'L', "local-alignment"});
+    args::Flag change_alignment_mode(parser, "change-alignment-mode", "change the alignment mode (global for spoa and local for abPOA)", {'Z', "change-alignment-mode"});
     args::Flag no_toposort(parser, "no-toposort", "don't apply topological sorting in the sort pipeline", {'T', "no-toposort"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
@@ -138,13 +137,6 @@ int main(int argc, char** argv) {
                            autocorr_stride,
                            order_paths_from_longest);
 
-    bool _local_alignment = false;
-    if (args::get(use_spoa)) {
-        _local_alignment = !args::get(global_alignment);
-    } else {
-        _local_alignment = args::get(local_alignment);
-    }
-
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,
                                               poa_m,
@@ -153,7 +145,7 @@ int main(int argc, char** argv) {
                                               poa_e,
                                               poa_q,
                                               poa_c,
-                                              _local_alignment,
+                                              args::get(use_spoa) ^ args::get(change_alignment_mode),
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
 

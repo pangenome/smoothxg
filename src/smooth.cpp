@@ -365,6 +365,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 std::lock_guard<std::mutex> guard(logging_mutex);
                 std::cerr
                     << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
+                    << " (" << (local_alignment ? "local" : "global") << " alignment mode)"
                     << " to block " << block_id << "/" << blocks.size() << " " << std::fixed
                     << std::showpoint << std::setprecision(3)
                     << (float)block_id / (float)blocks.size() * 100 << "%\r";
@@ -459,6 +460,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         });
 
     std::cerr << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
+              << " (" << (local_alignment ? "local" : "global") << " alignment mode)"
               << " to block " << blocks.size() << "/" << blocks.size() << " " << std::fixed
               << std::showpoint << std::setprecision(3) << 100.0 << "%"
               << std::endl;
@@ -626,7 +628,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         assert(orig_seq == smoothed_seq);
     });
 
-    if (consensus_mapping.size()) {
+    if (!consensus_mapping.empty()) {
         std::cerr << "[smoothxg::smooth_and_lace] sorting consensus"
                   << std::endl;
     }
@@ -642,7 +644,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     // by definition, the consensus paths are embedded in our blocks, which
     // simplifies things we'll still need to add a new path for each consensus
     // path
-    if (consensus_mapping.size()) {
+    if (!consensus_mapping.empty()) {
         std::cerr << "[smoothxg::smooth_and_lace] embedding consensus"
                   << std::endl;
     }
@@ -819,7 +821,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t &output,
         path_handle_t p;
         std::vector<handle_t> steps;
         std::uint32_t node_id;
-        if (sequence_names.size() != 0) {
+        if (!sequence_names.empty()) {
             // fprintf(stdout, "P\t%s\t", sequence_names[i]);
             // std::cerr << "P\t" << sequence_names[i] << "\t";
             p = output.create_path_handle(sequence_names[i]);
@@ -863,7 +865,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t &output,
         int id = abg->node[ABPOA_SRC_NODE_ID].max_out_id;
         // fprintf(stdout, "P\tConsensus_sequence\t");
         path_handle_t p = output.create_path_handle(consensus_name);
-        while (1) {
+        while (true) {
             // fprintf(stdout, "%d+", id-1);
             output.append_step(p, output.get_handle(id - 1));
             id = abg->node[id].max_out_id;
