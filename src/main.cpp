@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> gfa_in(parser, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
     //args::ValueFlag<std::string> xg_out(parser, "FILE", "write the resulting xg index to this file", {'o', "out"});
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
+    args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'W', "write-msa-in-maf-format"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
@@ -137,6 +138,7 @@ int main(int argc, char** argv) {
                            autocorr_stride,
                            order_paths_from_longest);
 
+    std::vector<std::string> mafs;
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,
                                               poa_m,
@@ -146,8 +148,34 @@ int main(int argc, char** argv) {
                                               poa_q,
                                               poa_c,
                                               args::get(use_spoa) ^ args::get(change_alignment_mode),
+                                              write_msa_in_maf_format, mafs,
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
+
+    if (write_msa_in_maf_format) {
+        basic_string<char> filename;
+        if (!args::get(xg_in).empty()) {
+            size_t found = args::get(xg_in).find_last_of("/\\");
+            filename = (args::get(xg_in).substr(found + 1));
+        } else if (!args::get(gfa_in).empty()) {
+            size_t found = args::get(gfa_in).find_last_of("/\\");
+            filename = (args::get(gfa_in).substr(found + 1));
+        }
+
+        std::string maf_output = args::get(write_msa_in_maf_format);
+
+        ofstream f(maf_output.c_str());
+
+        f << "##maf version=1" << std::endl;
+        f << "# smoothxg (" << (args::get(use_spoa) ? "SPOA" : "abPOA") << ")" << std::endl;
+        f << "# input=" << filename << "\n" << std::endl;
+
+        for(auto& maf : mafs){
+            f << maf << std::endl;
+        }
+
+        f.close();
+    }
 
     smoothed.to_gfa(std::cout);
     

@@ -349,6 +349,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
 
             seq_size = seqs[seq_rank].size(); // <==> block.path_ranges[seq_rank].length
 
+            // ToDo: there is a problem when all sequences are reversed (?)
             min_path_range_begin = std::min(min_path_range_begin, path_range_begin);
         }else{
             // The last sequences is the consensus
@@ -384,6 +385,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
                               bool local_alignment,
+                              bool write_msa_in_maf_format, std::vector<std::string> &mafs,
                               bool use_abpoa,
                               const std::string &consensus_base_name) {
 
@@ -393,7 +395,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     std::vector<odgi::graph_t> block_graphs;
     block_graphs.resize(blocks.size());
 
-    std::vector<std::string> mafs;
     mafs.resize(blocks.size());
 
     std::vector<path_position_range_t> path_mapping;
