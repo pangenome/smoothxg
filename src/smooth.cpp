@@ -320,6 +320,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     }
 
     std::string consensus;
+    uint64_t max_path_length = 0;
     if (!consensus_name.empty()){
         consensus = poa_graph->generate_consensus();
 
@@ -332,35 +333,41 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     *maf += "a loops=false\n";
 
     uint64_t num_seqs = msa.size();
-    uint64_t min_path_range_begin = std::numeric_limits<uint64_t>::max();
     for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++){
         std::string path_name;
         uint64_t seq_size;
+        uint64_t path_length;
 
         uint64_t record_start;
         if (consensus_name.empty() || seq_rank < num_seqs - 1){
             auto path_handle = graph.get_path_handle_of_step(block.path_ranges[seq_rank].begin);
 
             path_name = graph.get_path_name(path_handle);
+            path_length = graph.get_path_length(path_handle);
 
             // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
             uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
-            record_start = aln_is_reverse[seq_rank] ? graph.get_path_length(path_handle) - path_range_begin : path_range_begin;
+            auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
+            record_start = aln_is_reverse[seq_rank] ?
+                    (path_length - graph.get_position_of_step(last_step) - graph.get_length(graph.get_handle_of_step(last_step))):
+                    path_range_begin;
 
             seq_size = seqs[seq_rank].size(); // <==> block.path_ranges[seq_rank].length
-
-            // ToDo: there is a problem when all sequences are reversed (?)
-            min_path_range_begin = std::min(min_path_range_begin, path_range_begin);
         }else{
-            // The last sequences is the consensus
+            // The last sequence is the consensus
 
             path_name = consensus_name;
-            record_start = min_path_range_begin;
-            seq_size = consensus.size();
+            path_length = consensus.size();
+            record_start = 0;
+            seq_size = path_length;
         }
 
-        *maf += "s " + path_name + " " + std::to_string(record_start) + (aln_is_reverse[seq_rank] ? " - " : " + ") +
-                std::to_string(seq_size) + " " + msa[seq_rank] + "\n";
+        *maf += "s " + path_name + " " +
+                std::to_string(record_start) + " " +
+                std::to_string(seq_size) +
+                (aln_is_reverse[seq_rank] ? " - " : " + ") +
+                std::to_string(path_length) + " " +
+                msa[seq_rank] + "\n";
     }
 
     // write the graph, with consensus as a path
