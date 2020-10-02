@@ -108,7 +108,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     //abpt->end_bonus = 100; // also useful in local mode
     abpt->rev_cigar = 0;
     abpt->out_gfa = 1; // must be set to get the graph
-    //abpt->out_msa = 1; // must be set when we extract the MSA
+    abpt->out_msa = 1; // must be set when we extract the MSA
     abpt->out_cons = generate_consensus;
     abpt->amb_strand = 1;
     abpt->match = poa_m;
@@ -168,6 +168,16 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         }
     }
 
+    abpoa_generate_rc_msa(ab, abpt, NULL, is_rc, tot_n, NULL, &msa_seq, &msa_l);
+
+   /*fprintf(stdout, ">Multiple_sequence_alignment\n");
+   for (i = 0; i < n_seqs; ++i) {
+       for (int j = 0; j < msa_l; ++j) {
+           fprintf(stdout, "%c", "ACGTN-"[msa_seq[i][j]]);
+       }
+       fprintf(stdout, "\n");
+   }*/
+
     if (generate_consensus) {
         abpoa_generate_consensus(ab, abpt, tot_n, NULL, &cons_seq, &cons_cov, &cons_l, &cons_n);
         if (ab->abg->is_called_cons == 0) {
@@ -176,9 +186,67 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
             exit(1);
         }
         aln_is_reverse.push_back(false);
-    }
-    free(is_rc);
 
+        /*fprintf(stdout, "=== output to variables ===\n");
+        for (int i = 0; i < cons_n; ++i) {
+            fprintf(stdout, ">Consensus_sequence\n");
+            for (int j = 0; j < cons_l[i]; ++j)
+                fprintf(stdout, "%c", nst_nt256_table[cons_seq[i][j]]);
+            fprintf(stdout, "\n");
+        }*/
+    }
+
+    *maf += "a loops=false\n";
+    uint64_t num_seqs = n_seqs + (generate_consensus ? 1 : 0);
+    for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++) {
+        std::basic_string<char> aligned_seq;
+
+        std::string path_name;
+        uint64_t seq_size;
+        uint64_t path_length;
+        uint64_t record_start;
+        if (!generate_consensus || seq_rank < num_seqs - 1) {
+            for (int j = 0; j < msa_l; ++j) {
+                aligned_seq += "ACGTN-"[msa_seq[seq_rank][j]];
+            }
+
+            auto path_handle = graph.get_path_handle_of_step(block.path_ranges[seq_rank].begin);
+
+            path_name = graph.get_path_name(path_handle);
+            path_length = graph.get_path_length(path_handle);
+
+            // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
+            uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
+            auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
+            record_start = aln_is_reverse[seq_rank] ?
+                           (path_length - graph.get_position_of_step(last_step) -
+                            graph.get_length(graph.get_handle_of_step(last_step))) :
+                           path_range_begin;
+
+            seq_size = seqs[seq_rank].size(); // <==> block.path_ranges[seq_rank].length
+        } else {
+            // The last sequence is the consensus
+
+            for (int j = 0; j < cons_l[0]; ++j) {
+                aligned_seq += nst_nt256_table[cons_seq[0][j]];
+            }
+
+            path_name = consensus_name;
+            path_length = aligned_seq.size();
+            record_start = 0;
+            seq_size = path_length;
+        }
+
+        *maf += "s " + path_name + " " +
+                std::to_string(record_start) + " " +
+                std::to_string(seq_size) +
+                (aln_is_reverse[seq_rank] ? " - " : " + ") +
+                std::to_string(path_length) + " ";
+        *maf += aligned_seq + "\n";
+    }
+
+    // free memory
+    free(is_rc);
     if (cons_n) {
         for (i = 0; i < cons_n; ++i) {
             free(cons_seq[i]);
@@ -194,23 +262,22 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         }
         free(msa_seq);
     }
-
     for (i = 0; i < n_seqs; ++i) {
         free(bseqs[i]);
     }
     free(bseqs);
     free(seq_lens);
 
-    build_odgi_abPOA(ab, abpt, output_graph, names, aln_is_reverse,
-                     consensus_name, generate_consensus);
+    build_odgi_abPOA(ab, abpt, output_graph, names, aln_is_reverse, consensus_name, generate_consensus);
 
     abpoa_free(ab, abpt);
     abpoa_free_para(abpt);
+
     // normalize the representation, allowing for nodes > 1bp
     odgi::algorithms::unchop(output_graph);
+
     // order the graph
-    output_graph.apply_ordering(
-        odgi::algorithms::topological_order(&output_graph), true);
+    output_graph.apply_ordering(odgi::algorithms::topological_order(&output_graph), true);
 
     // output_graph.to_gfa(std::cout);
     return output_graph;
