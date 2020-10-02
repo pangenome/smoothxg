@@ -324,24 +324,47 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     std::string consensus = poa_graph->generate_consensus();
     aln_is_reverse.push_back(false);
 
-
-
     std::vector<std::string> msa;
-    poa_graph->generate_multiple_sequence_alignment(msa);
+    poa_graph->generate_multiple_sequence_alignment(msa, !consensus_name.empty());
 
     *maf += "a loops=false\n";
+    uint64_t num_seqs = msa.size();
+    uint64_t min_path_range_begin = std::numeric_limits<uint64_t>::max();
+    for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++){
+        std::string path_name;
+        bool aligned_is_reversed;
+        uint64_t seq_size;
 
-    for(uint64_t seq_rank = 0; seq_rank < msa.size(); seq_rank++){
-        auto path_handle = graph.get_path_handle_of_step(block.path_ranges[seq_rank].begin);
+        uint64_t record_start;
+        if (consensus_name.empty() || seq_rank < num_seqs - 1){
+            auto path_handle = graph.get_path_handle_of_step(block.path_ranges[seq_rank].begin);
 
-        // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
-        uint64_t record_start = aln_is_reverse[seq_rank] ?
-                                graph.get_path_length(path_handle) - graph.get_position_of_step(block.path_ranges[seq_rank].begin) :
-                                graph.get_position_of_step(block.path_ranges[seq_rank].begin) ;
+            path_name = graph.get_path_name(path_handle);
 
-        *maf += "s " + graph.get_path_name(path_handle) + " " + std::to_string(record_start)
-                + (aln_is_reverse[seq_rank] ? " - " : " + ") + std::to_string(seqs[seq_rank].size()) // <==> block.path_ranges[seq_rank].length
-                + " " + msa[seq_rank] + "\n";
+            // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
+            uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
+            record_start = aln_is_reverse[seq_rank] ? graph.get_path_length(path_handle) - path_range_begin : path_range_begin;
+
+            aligned_is_reversed = aln_is_reverse[seq_rank];
+            seq_size = seqs[seq_rank].size(); // <==> block.path_ranges[seq_rank].length
+
+            min_path_range_begin = std::min(min_path_range_begin, path_range_begin);
+        }else{
+            // The last sequences is the consensus
+            path_name = consensus_name;
+            record_start = min_path_range_begin;
+            aligned_is_reversed = false; // the consensus is considered in forward
+
+            seq_size = 0;
+            for (auto& c : msa[seq_rank]){
+                if (c != '-'){
+                    seq_size++;
+                }
+            }
+        }
+
+        *maf += "s " + path_name + " " + std::to_string(record_start) + (aligned_is_reversed ? " - " : " + ")
+                + std::to_string(seq_size) + " " + msa[seq_rank] + "\n";
     }
 
     // write the graph, with consensus as a path
@@ -397,8 +420,11 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                     << (float)block_id / (float)blocks.size() * 100 << "%\r";
             }
 
-            std::string consensus_name =
-                consensus_base_name + std::to_string(block_id);
+            std::string consensus_name = "";
+            if (add_consensus){
+                consensus_name = consensus_base_name + std::to_string(block_id);
+            }
+
             // std::cerr << "on block " << block_id+1 << " of " << blocks.size()
             // << std::endl;
             auto &block_graph = block_graphs[block_id];
