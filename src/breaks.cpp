@@ -136,6 +136,7 @@ void break_blocks(const xg::XG& graph,
             }
         );
         block.broken = true;
+        block.is_repeat = found_repeat;
     }
     std::cerr << "[smoothxg::break_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
 }

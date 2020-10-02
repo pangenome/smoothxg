@@ -102,7 +102,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     // initialize abPOA parameters
     abpoa_para_t *abpt = abpoa_init_para();
     // if we want to do local alignments
-    if (local_alignment || block.broken) abpt->align_mode = ABPOA_LOCAL_MODE;
+    if (local_alignment) abpt->align_mode = ABPOA_LOCAL_MODE;
     //abpt->zdrop = 100; // could be useful in local mode
     //abpt->end_bonus = 100; // also useful in local mode
     abpt->rev_cigar = 0;
