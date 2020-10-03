@@ -423,6 +423,8 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                     std::to_string(path_length) + " " +
                     msa[seq_rank] + "\n";
         }
+
+        msa.clear(); // Is this really necessary?
     }
 
     // write the graph, with consensus as a path

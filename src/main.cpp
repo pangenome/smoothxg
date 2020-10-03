@@ -138,6 +138,8 @@ int main(int argc, char** argv) {
                            autocorr_stride,
                            order_paths_from_longest);
 
+    bool local_alignment = args::get(use_spoa) ^ args::get(change_alignment_mode);
+
     std::vector<std::string> mafs;
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,
@@ -147,7 +149,7 @@ int main(int argc, char** argv) {
                                               poa_e,
                                               poa_q,
                                               poa_c,
-                                              args::get(use_spoa) ^ args::get(change_alignment_mode),
+                                              local_alignment,
                                               write_msa_in_maf_format, mafs,
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
@@ -167,8 +169,13 @@ int main(int argc, char** argv) {
         ofstream f(maf_output.c_str());
 
         f << "##maf version=1" << std::endl;
-        f << "# smoothxg (" << (args::get(use_spoa) ? "SPOA" : "abPOA") << ")" << std::endl;
-        f << "# input=" << filename << "\n" << std::endl;
+        f << "# smoothxg" << std::endl;
+        f << "# input=" << filename << std::endl;
+        f << "# POA=" << (args::get(use_spoa) ? "SPOA" : "abPOA") << " alignment_mode=" <<
+             (local_alignment ? "local" : "global") << std::endl;
+        f << "# max_block_weight=" << max_block_weight << " max_block_jump=" << max_block_jump <<
+             " min_subpath=" << min_subpath << " max_edge_jump=" << max_edge_jump << std::endl;
+        f << "\n" << std::endl;
 
         for(auto& maf : mafs){
             f << maf << std::endl;
