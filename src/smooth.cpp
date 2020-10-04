@@ -2,6 +2,7 @@
 #include <cstring>
 
 #include "deps/abPOA/src/seq.h"
+#include "deps/abPOA/src/abpoa_graph.h"
 
 namespace smoothxg {
 
@@ -228,14 +229,30 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
 
                 seq_size = seqs[seq_rank].size(); // <==> block.path_ranges[seq_rank].length
             } else {
-                // The last sequence is the consensus
+                // The last sequence is the gapped consensus
 
-                for (int j = 0; j < cons_l[0]; ++j) {
-                    aligned_seq += nst_nt256_table[cons_seq[0][j]];
+                int j, k, aligned_id, rank;
+                i = ab->abg->node[ABPOA_SRC_NODE_ID].max_out_id;
+                int last_rank = 1;
+                while (i != ABPOA_SINK_NODE_ID) {
+                    rank = abpoa_graph_node_id_to_msa_rank(ab->abg, i);
+                    for (k = 0; k < ab->abg->node[i].aligned_node_n; ++k) {
+                        aligned_id = ab->abg->node[i].aligned_node_id[k];
+                        rank = MAX_OF_TWO(rank, abpoa_graph_node_id_to_msa_rank(ab->abg, aligned_id));
+                    }
+                    // last_rank -> rank : -
+                    for (k = last_rank; k < rank; ++k) aligned_seq += '-';
+                    // rank : base
+                    aligned_seq += "ACGTN"[ab->abg->node[i].base];
+                    last_rank = rank+1;
+                    i = ab->abg->node[i].max_out_id;
                 }
+                // last_rank -> msa_l:-
+                for (k = last_rank; k <= msa_l; ++k) aligned_seq += '-';
+
 
                 path_name = consensus_name;
-                path_length = aligned_seq.size();
+                path_length = cons_l[0];
                 record_start = 0;
                 seq_size = path_length;
             }
@@ -353,10 +370,12 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
         std::int32_t score_fwd = 0;
         auto alignment_fwd =
             alignment_engine->align(seq, poa_graph, &score_fwd);
+
         auto rev_seq = odgi::reverse_complement(seq);
         std::int32_t score_rev = 0;
         auto alignment_rev =
             alignment_engine->align(rev_seq, poa_graph, &score_rev);
+
         try {
             // could give weight here to influence consensus
             if (score_fwd >= score_rev) {
@@ -408,7 +427,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
 
                 seq_size = seqs[seq_rank].size(); // <==> block.path_ranges[seq_rank].length
             }else{
-                // The last sequence is the consensus
+                // The last sequence is the gapped consensus
 
                 path_name = consensus_name;
                 path_length = consensus.size();

@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
              (local_alignment ? "local" : "global") << std::endl;
         f << "# max_block_weight=" << max_block_weight << " max_block_jump=" << max_block_jump <<
              " min_subpath=" << min_subpath << " max_edge_jump=" << max_edge_jump << std::endl;
-        f << "\n" << std::endl;
+        f << std::endl;
 
         for(auto& maf : mafs){
             f << maf << std::endl;
