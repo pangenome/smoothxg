@@ -170,16 +170,6 @@ int main(int argc, char** argv) {
                 " min_subpath=" + std::to_string(min_subpath) +
                 " max_edge_jump=" + std::to_string(max_edge_jump) + "\n";
 
-        smoothxg::break_blocks(graph,
-                               blocks,
-                               max_poa_length,
-                               min_copy_length,
-                               max_copy_length,
-                               min_autocorr_z,
-                               autocorr_stride,
-                               order_paths_from_longest);
-
-
         // break_blocks
         maf_header += "# max_poa_length=" + std::to_string(max_poa_length) +
                 " min_copy_length=" + std::to_string(min_copy_length) +

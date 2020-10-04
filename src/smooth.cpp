@@ -509,8 +509,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 consensus_name = consensus_base_name + std::to_string(block_id);
             }
 
-            // std::cerr << "on block " << block_id+1 << " of " << blocks.size()
-            // << std::endl;
+            // std::cerr << "on block " << block_id+1 << " of " << blocks.size() << std::endl;
             auto &block_graph = block_graphs[block_id];
 
             if (use_abpoa) {
@@ -631,12 +630,14 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             auto &b_id = as_integer(b.base_path);
             return (a_id < b_id || a_id == b_id && a.start_pos < b.start_pos);
         });
+
     // build the sequence and edges into the output graph
     odgi::graph_t smoothed;
+
     // add the nodes and edges to the graph
     std::vector<uint64_t> id_mapping;
-    std::cerr << "[smoothxg::smooth_and_lace] building final graph"
-              << std::endl;
+    std::cerr << "[smoothxg::smooth_and_lace] building final graph" << std::endl;
+
     uint64_t j = 0;
     for (auto &block : block_graphs) {
         uint64_t id_trans = smoothed.get_node_count();
