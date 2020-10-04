@@ -200,7 +200,8 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     }
 
     if (write_msa_in_maf_format) {
-        *maf += "a loops=false\n";
+        *maf += "a block=" + std::to_string(block_id) + "\n";
+        
         uint64_t num_seqs = n_seqs + (generate_consensus ? 1 : 0);
         for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++) {
             std::basic_string<char> aligned_seq;
@@ -403,7 +404,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
         std::vector<std::string> msa;
         poa_graph->generate_multiple_sequence_alignment(msa, !consensus_name.empty());
 
-        *maf += "a loops=false\n";
+        *maf += "a block=" + std::to_string(block_id) + "\n";
 
         uint64_t num_seqs = msa.size();
         for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++){
@@ -468,7 +469,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
                               bool local_alignment,
-                              bool write_msa_in_maf_format, std::vector<std::string> &mafs,
+                              std::string &path_output_maf, std::string &maf_header,
                               bool use_abpoa,
                               const std::string &consensus_base_name) {
 
@@ -478,7 +479,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     std::vector<odgi::graph_t> block_graphs;
     block_graphs.resize(blocks.size());
 
-    if (write_msa_in_maf_format){
+    std::vector<std::string> mafs;
+    if (!path_output_maf.empty()){
         mafs.resize(blocks.size());
     }
 
@@ -522,7 +524,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                            poa_q,
                                            poa_c,
                                            local_alignment,
-                                           write_msa_in_maf_format, &mafs[block_id],
+                                           !path_output_maf.empty(), &mafs[block_id],
                                            consensus_name);
             } else {
                 block_graph = smooth_spoa(graph,
@@ -535,7 +537,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                           -poa_q,
                                           -poa_c,
                                           local_alignment,
-                                          write_msa_in_maf_format, &mafs[block_id],
+                                          !path_output_maf.empty(), &mafs[block_id],
                                           consensus_name
                                           );
             }
@@ -601,6 +603,22 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
               << " to block " << blocks.size() << "/" << blocks.size() << " " << std::fixed
               << std::showpoint << std::setprecision(3) << 100.0 << "%"
               << std::endl;
+
+    if (!path_output_maf.empty()) {
+        std::cerr << "[smoothxg::smooth_and_lace] write MAF output" << std::endl;
+
+        std::ofstream f(path_output_maf.c_str());
+        f << maf_header << std::endl;
+
+        for (auto &maf : mafs){
+            f << maf << std::endl;
+
+            maf.clear();
+        }
+        f.close();
+
+        mafs.clear();
+    }
 
     std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings"
               << std::endl;

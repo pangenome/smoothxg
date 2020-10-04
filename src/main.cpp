@@ -140,20 +140,7 @@ int main(int argc, char** argv) {
 
     bool local_alignment = args::get(use_spoa) ^ args::get(change_alignment_mode);
 
-    std::vector<std::string> mafs;
-    auto smoothed = smoothxg::smooth_and_lace(graph,
-                                              blocks,
-                                              poa_m,
-                                              poa_n,
-                                              poa_g,
-                                              poa_e,
-                                              poa_q,
-                                              poa_c,
-                                              local_alignment,
-                                              write_msa_in_maf_format, mafs,
-                                              !args::get(use_spoa),
-                                              args::get(add_consensus) ? "Consensus_" : "");
-
+    std::string maf_header;
     if (write_msa_in_maf_format) {
         basic_string<char> filename;
         if (!args::get(xg_in).empty()) {
@@ -164,28 +151,58 @@ int main(int argc, char** argv) {
             filename = (args::get(gfa_in).substr(found + 1));
         }
 
-        std::string maf_output = args::get(write_msa_in_maf_format);
+        maf_header += "##maf version=1\n";
+        maf_header += "# smoothxg\n";
+        maf_header += "# input=" + filename + "\n";
 
-        ofstream f(maf_output.c_str());
+        // POA
+        maf_header += "# POA=";
+        maf_header += (args::get(use_spoa) ? "SPOA" : "abPOA");
+        maf_header += " alignment_mode=";
+        maf_header += (local_alignment ? "local" : "global");
+        maf_header += " order_paths=from_";
+        maf_header += (order_paths_from_longest ? "longest" : "shortest");
+        maf_header += "\n";
 
-        f << "##maf version=1" << std::endl;
-        f << "# smoothxg" << std::endl;
-        f << "# input=" << filename << std::endl;
-        f << "# POA=" << (args::get(use_spoa) ? "SPOA" : "abPOA") << " alignment_mode=" <<
-             (local_alignment ? "local" : "global") << std::endl;
-        f << "# max_block_weight=" << max_block_weight << " max_block_jump=" << max_block_jump <<
-             " min_subpath=" << min_subpath << " max_edge_jump=" << max_edge_jump << std::endl;
-        f << std::endl;
+        // break_blocks parameters
+        maf_header += "# max_block_weight=" + std::to_string(max_block_weight) +
+                " max_block_jump=" + std::to_string(max_block_jump) +
+                " min_subpath=" + std::to_string(min_subpath) +
+                " max_edge_jump=" + std::to_string(max_edge_jump) + "\n";
 
-        for(auto& maf : mafs){
-            f << maf << std::endl;
-        }
+        smoothxg::break_blocks(graph,
+                               blocks,
+                               max_poa_length,
+                               min_copy_length,
+                               max_copy_length,
+                               min_autocorr_z,
+                               autocorr_stride,
+                               order_paths_from_longest);
 
-        f.close();
+
+        // break_blocks
+        maf_header += "# max_poa_length=" + std::to_string(max_poa_length) +
+                " min_copy_length=" + std::to_string(min_copy_length) +
+                " max_copy_length=" + std::to_string(max_copy_length) +
+                " min_autocorr_z=" + std::to_string(min_autocorr_z) +
+                " autocorr_stride=" + std::to_string(autocorr_stride) + "\n";
     }
 
+    auto smoothed = smoothxg::smooth_and_lace(graph,
+                                              blocks,
+                                              poa_m,
+                                              poa_n,
+                                              poa_g,
+                                              poa_e,
+                                              poa_q,
+                                              poa_c,
+                                              local_alignment,
+                                              args::get(write_msa_in_maf_format), maf_header,
+                                              !args::get(use_spoa),
+                                              args::get(add_consensus) ? "Consensus_" : "");
+
     smoothed.to_gfa(std::cout);
-    
+
     /*
     uint64_t block_id = 0;
     for (auto& block : blocks) {
