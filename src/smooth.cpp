@@ -609,20 +609,26 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             auto &block_graph = block_graphs[block_id];
 
             if (block_graph.get_node_count() > 0){
+                /*
+                std::string s = "smoothxg_block_" + std::to_string(block_id) + ".gfa";
+                std::ofstream gfa(s.c_str());
+                block_graph.to_gfa(gfa);
+                gfa.close();
+                */
+
                 bool contains_loops = false;
+                std::unordered_set<path_handle_t> seen_paths;
 
-                block_graph.for_each_handle([&](const handle_t &h) {
-                    std::unordered_set<path_handle_t> seen_paths;
-
-                    block_graph.for_each_step_on_handle(h, [&](const step_handle_t& step) {
-                        path_handle_t path = block_graph.get_path_handle_of_step(step);
-                        if (seen_paths.count(path)) {
-                            contains_loops = true;
-                        } else {
-                            seen_paths.insert(path);
-                        }
-                    });
-                });
+                for (auto &path_range : blocks[block_id].path_ranges){
+                    path_handle_t path = graph.get_path_handle_of_step(path_range.begin);
+                    if (seen_paths.count(path)) {
+                        contains_loops = true;
+                        break;
+                    } else {
+                        seen_paths.insert(path);
+                    }
+                }
+                seen_paths.clear();
 
                 f << "a block=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;
                 f << mafs[block_id] << std::endl;
