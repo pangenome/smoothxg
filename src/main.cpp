@@ -106,8 +106,13 @@ int main(int argc, char** argv) {
             poa_n = params[1];
             poa_g = params[2];
             poa_e = params[3];
-            poa_q = 0;
-            poa_c = 0;
+            if (args::get(use_spoa)) {
+                poa_q = poa_g;
+                poa_c = poa_e;
+            } else {
+                poa_q = 0;
+                poa_c = 0;
+            }
         } else {
             std::cerr << "[smoothxg::main] error: either 4 or 6 POA scoring parameters must be given to -p --poa-params" << std::endl;
             return 1;
