@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
     args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "max-block-weight"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "max-path-jump"});
-    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 16]", {'k', "min-subpath"});
+    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "max-edge-jump"});
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "min-copy-length"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'m', "max-copy-length"});
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
 
     uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
     uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 5000;
-    uint64_t min_subpath = _min_subpath ? args::get(_min_subpath) : 16;
+    uint64_t min_subpath = _min_subpath ? args::get(_min_subpath) : 0;
     uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 5000;
     uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
