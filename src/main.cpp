@@ -16,6 +16,7 @@
 #include "xg.hpp"
 #include "prep.hpp"
 #include "breaks.hpp"
+#include "utils.hpp"
 #include "odgi/odgi.hpp"
 
 using namespace std;
@@ -33,18 +34,13 @@ int main(int argc, char** argv) {
     args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "max-block-weight"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "max-path-jump"});
-    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 16]", {'k', "min-subpath"});
+    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "max-edge-jump"});
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "min-copy-length"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "max-copy-length"});
     args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "max-poa-length"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
-    args::ValueFlag<int> _poa_m(parser, "N", "poa score for matching bases [default: 2]", {'M', "poa-match"});
-    args::ValueFlag<int> _poa_n(parser, "N", "poa penalty for mismatching bases [default: 4]", {'N', "poa-mismatch"});
-    args::ValueFlag<int> _poa_g(parser, "N", "poa gap opening penalty [default: 4]", {'G', "poa-gap-open"});
-    args::ValueFlag<int> _poa_e(parser, "N", "poa gap extension penalty [default: 2]", {'E', "poa-gap-extend"});
-    args::ValueFlag<int> _poa_q(parser, "N", "poa gap opening penalty of the second affine function [default: 24]", {'Q', "poa-2nd-gap-open"});
-    args::ValueFlag<int> _poa_c(parser, "N", "poa gap extension penalty of the second affine function [default: 1]", {'C', "poa-2nd-gap-extend"});
+    args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)", "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 2,4,4,2,24,1]", {'p', "poa-params"});
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]", {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]", {'U', "path-sgd-term-updates"});
     args::Flag use_spoa(parser, "use-spoa", "run spoa (in local alignment mode) instead of abPOA (in global alignment mode) for smoothing", {'S', "spoa"});
@@ -75,6 +71,58 @@ int main(int argc, char** argv) {
         omp_set_num_threads(1);
     }
 
+    uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
+    uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 5000;
+    uint64_t min_subpath = _min_subpath ? args::get(_min_subpath) : 0;
+    uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 5000;
+    uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
+    uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
+    uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
+
+    int poa_m = 2;
+    int poa_n = 4;
+    int poa_g = 4;
+    int poa_e = 2;
+    int poa_q = 24;
+    int poa_c = 1;
+
+    if (!args::get(poa_params).empty()) {
+        if (args::get(poa_params).find(',') == std::string::npos) {
+            std::cerr << "[smoothxg::main] error: either 4 or 6 POA scoring parameters must be given to -p --poa-params" << std::endl;
+            return 1;
+        }
+        std::vector<std::string> params_str = smoothxg::split(args::get(poa_params),',');
+        std::vector<int> params(params_str.size());
+        std::transform(params_str.begin(), params_str.end(), params.begin(),
+                       [](const std::string& s) { return std::stoi(s); });
+        if (params.size() == 6) {
+            poa_m = params[0];
+            poa_n = params[1];
+            poa_g = params[2];
+            poa_e = params[3];
+            poa_q = params[4];
+            poa_c = params[5];
+        } else if (params.size() == 4) {
+            poa_m = params[0];
+            poa_n = params[1];
+            poa_g = params[2];
+            poa_e = params[3];
+            if (args::get(use_spoa)) {
+                poa_q = poa_g;
+                poa_c = poa_e;
+            } else {
+                poa_q = 0;
+                poa_c = 0;
+            }
+        } else {
+            std::cerr << "[smoothxg::main] error: either 4 or 6 POA scoring parameters must be given to -p --poa-params" << std::endl;
+            return 1;
+        }
+
+    }
+    
+    bool order_paths_from_longest = args::get(use_spoa);
+
     XG graph;
     if (!args::get(xg_in).empty()) {
         std::ifstream in(args::get(xg_in));
@@ -96,29 +144,6 @@ int main(int argc, char** argv) {
             std::remove(gfa_in_name.c_str());
         }
     }
-
-    uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
-    uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 5000;
-    uint64_t min_subpath = _min_subpath ? args::get(_min_subpath) : 16;
-    uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 5000;
-    uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
-    uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
-    uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
-
-    int poa_m = 2;
-    int poa_n = 4;
-    int poa_g = 4;
-    int poa_e = 2;
-    int poa_q = 24;
-    int poa_c = 1;
-
-    if (_poa_m) poa_m = args::get(_poa_m);
-    if (_poa_n) poa_n = args::get(_poa_n);
-    if (_poa_g) poa_g = args::get(_poa_g);
-    if (_poa_e) poa_e = args::get(_poa_e);
-    if (_poa_q) poa_q = args::get(_poa_q);
-    if (_poa_c) poa_c = args::get(_poa_c);
-    bool order_paths_from_longest = args::get(use_spoa);
 
     auto blocks = smoothxg::smoothable_blocks(graph,
                                               max_block_weight,
