@@ -200,8 +200,6 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     }
 
     if (write_msa_in_maf_format) {
-        *maf += "a block=" + std::to_string(block_id) + "\n";
-        
         uint64_t num_seqs = n_seqs + (generate_consensus ? 1 : 0);
         for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++) {
             std::basic_string<char> aligned_seq;
@@ -403,8 +401,6 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     if (write_msa_in_maf_format) {
         std::vector<std::string> msa;
         poa_graph->generate_multiple_sequence_alignment(msa, !consensus_name.empty());
-
-        *maf += "a block=" + std::to_string(block_id) + "\n";
 
         uint64_t num_seqs = msa.size();
         for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++){
@@ -609,11 +605,32 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         std::ofstream f(path_output_maf.c_str());
         f << maf_header << std::endl;
 
-        for (auto &maf : mafs){
-            f << maf << std::endl;
+        for (uint64_t block_id = 0; block_id < block_graphs.size(); block_id++){
+            auto &block_graph = block_graphs[block_id];
 
-            maf.clear();
+            if (block_graph.get_node_count() > 0){
+                bool contains_loops = false;
+
+                block_graph.for_each_handle([&](const handle_t &h) {
+                    std::unordered_set<path_handle_t> seen_paths;
+
+                    block_graph.for_each_step_on_handle(h, [&](const step_handle_t& step) {
+                        path_handle_t path = block_graph.get_path_handle_of_step(step);
+                        if (seen_paths.count(path)) {
+                            contains_loops = true;
+                        } else {
+                            seen_paths.insert(path);
+                        }
+                    });
+                });
+
+                f << "a block=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;
+                f << mafs[block_id] << std::endl;
+            }
+
+            mafs[block_id].clear();
         }
+
         f.close();
 
         mafs.clear();
