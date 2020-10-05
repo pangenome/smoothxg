@@ -106,8 +106,8 @@ int main(int argc, char** argv) {
             poa_n = params[1];
             poa_g = params[2];
             poa_e = params[3];
-            poa_q = poa_g; // TODO is this the right way to set affine gaps in abPOA?
-            poa_c = poa_e;
+            poa_q = 0;
+            poa_c = 0;
         } else {
             std::cerr << "[smoothxg::main] error: either 4 or 6 POA scoring parameters must be given to -p --poa-params" << std::endl;
             return 1;
