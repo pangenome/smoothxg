@@ -160,7 +160,8 @@ int main(int argc, char** argv) {
                            max_copy_length,
                            min_autocorr_z,
                            autocorr_stride,
-                           order_paths_from_longest);
+                           order_paths_from_longest,
+                           true); // break repeats
 
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,

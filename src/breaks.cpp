@@ -13,7 +13,8 @@ void break_blocks(const xg::XG& graph,
                   const uint64_t& max_copy_length,
                   const uint64_t& min_autocorr_z,
                   const uint64_t& autocorr_stride,
-                  const bool& order_paths_from_longest) {
+                  const bool& order_paths_from_longest,
+                  const bool& break_repeats) {
 
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
@@ -31,54 +32,53 @@ void break_blocks(const xg::XG& graph,
             }
         }
         if (!to_break) continue; // skip if we're spoa-able
+        ++n_cut_blocks;
+        uint64_t cut_length = max_poa_length;
+        bool found_repeat = false;
         // otherwise let's see if we've got repeats that we can use to chop things up
         // find if there is a repeat
-        std::vector<sautocorr::repeat_t> repeats;
-        for (auto& path_range : block.path_ranges) {
-            // steps in id space
-            std::string seq;
-            std::string name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
-            for (step_handle_t step = path_range.begin;
-                 step != path_range.end;
-                 step = graph.get_next_step(step)) {
-                seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+        if (break_repeats) {
+            std::vector<sautocorr::repeat_t> repeats;
+            for (auto& path_range : block.path_ranges) {
+                // steps in id space
+                std::string seq;
+                std::string name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
+                for (step_handle_t step = path_range.begin;
+                     step != path_range.end;
+                     step = graph.get_next_step(step)) {
+                    seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+                }
+                if (seq.length() < 2*min_copy_length) continue;
+                //std::cerr << "on " << name << "\t" << seq.length() << std::endl;
+                std::vector<uint8_t> vec(seq.begin(), seq.end());
+                sautocorr::repeat_t result = sautocorr::repeat(vec,
+                                                               min_copy_length,
+                                                               max_copy_length,
+                                                               min_copy_length,
+                                                               min_autocorr_z,
+                                                               autocorr_stride);
+                repeats.push_back(result);
             }
-            if (seq.length() < 2*min_copy_length) continue;
-            //std::cerr << "on " << name << "\t" << seq.length() << std::endl;
-            std::vector<uint8_t> vec(seq.begin(), seq.end());
-            sautocorr::repeat_t result = sautocorr::repeat(vec,
-                                                           min_copy_length,
-                                                           max_copy_length,
-                                                           min_copy_length,
-                                                           min_autocorr_z,
-                                                           autocorr_stride);
-            repeats.push_back(result);
-            /*
-            std::cerr << name
-                      << "\t" << seq.length()
-                      << "\t" << result.length
-                      << "\t" << result.z_score << std::endl;
-            */
-        }
-        // if there is, set the cut length to some fraction of it
-        std::vector<double> lengths;
-        for (auto& repeat : repeats) {
-            if (repeat.length > 0) {
-                lengths.push_back(repeat.length);
+            // if there is, set the cut length to some fraction of it
+            std::vector<double> lengths;
+            double max_z = 0;
+            for (auto& repeat : repeats) {
+                if (repeat.length > 0) {
+                    lengths.push_back(repeat.length);
+                    max_z = std::max(repeat.z_score, max_z);
+                }
+            }
+            found_repeat = !lengths.empty();
+            if (found_repeat) {
+                double repeat_length = sautocorr::vec_mean(lengths.begin(), lengths.end());
+                cut_length = std::round(repeat_length / 2.0);
+                ++n_repeat_blocks;
+                std::cerr << "found repeat of " << repeat_length << " and Z-score " << max_z << " cutting to " << cut_length << std::endl;
+            } else {
+                // if not, chop blindly
+                cut_length = max_poa_length;
             }
         }
-        uint64_t cut_length;
-        bool found_repeat = !lengths.empty();
-        if (found_repeat) {
-            double repeat_length = sautocorr::vec_mean(lengths.begin(), lengths.end());
-            cut_length = std::round(repeat_length / 2.0);
-            ++n_repeat_blocks;
-            //std::cerr << "found repeat of " << repeat_length << " cutting to " << cut_length << std::endl;
-        } else {
-            // if not, chop blindly
-            cut_length = max_poa_length;
-        }
-        ++n_cut_blocks;
         std::vector<path_range_t> chopped_ranges;
         for (auto& path_range : block.path_ranges) {
 
