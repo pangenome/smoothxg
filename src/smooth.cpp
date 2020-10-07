@@ -26,7 +26,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
                            bool local_alignment,
-                           bool write_msa_in_maf_format, std::string *maf,
+                           bool write_msa_in_maf_format, std::vector<maf_row_t> *maf,
                            const std::string &consensus_name) {
 
     // collect sequences
@@ -256,12 +256,14 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
                 seq_size = path_length;
             }
 
-            *maf += "s " + path_name + " " +
-                    std::to_string(record_start) + " " +
-                    std::to_string(seq_size) +
-                    (aln_is_reverse[seq_rank] ? " - " : " + ") +
-                    std::to_string(path_length) + " ";
-            *maf += aligned_seq + "\n";
+            maf->push_back({
+                path_name,
+                record_start,
+                seq_size,
+                aln_is_reverse[seq_rank],
+                path_length,
+                aligned_seq
+            });
         }
     }
 
@@ -308,7 +310,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                           bool local_alignment,
-                          bool write_msa_in_maf_format, std::string *maf,
+                          bool write_msa_in_maf_format, std::vector<maf_row_t> *maf,
                           const std::string &consensus_name) {
 
     std::uint8_t spoa_algorithm = local_alignment ? 0 : 1;
@@ -334,6 +336,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                << "_" << graph.get_position_of_step(path_range.begin);
         names.push_back(namess.str());
     }
+
     /*
     std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
     std::ofstream fasta(s.c_str());
@@ -343,6 +346,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     }
     fasta.close();
     */
+
     // set up POA
     // done...
     // run POA
@@ -431,13 +435,14 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                 record_start = 0;
                 seq_size = path_length;
             }
-
-            *maf += "s " + path_name + " " +
-                    std::to_string(record_start) + " " +
-                    std::to_string(seq_size) +
-                    (aln_is_reverse[seq_rank] ? " - " : " + ") +
-                    std::to_string(path_length) + " " +
-                    msa[seq_rank] + "\n";
+            maf->push_back({
+                path_name,
+                record_start,
+                seq_size,
+                aln_is_reverse[seq_rank],
+                path_length,
+                msa[seq_rank]
+            });
         }
 
         msa.clear(); // Is this really necessary?
@@ -475,10 +480,56 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     std::vector<odgi::graph_t> block_graphs;
     block_graphs.resize(blocks.size());
 
-    std::vector<std::string> mafs;
-    if (!path_output_maf.empty()){
-        mafs.resize(blocks.size());
-    }
+    std::vector<std::vector<maf_row_t>> mafs(!path_output_maf.empty() ? blocks.size() : 0);
+    std::vector<std::atomic<bool>> mafs_ready(!path_output_maf.empty() ? blocks.size() : 0);
+
+    auto write_maf_lambda = [&]() {
+        uint64_t num_block = blocks.size();
+        uint64_t block_id = 0, fist_block_id = 0;
+        bool wait_next_block = true;
+
+        std::ofstream out_maf(path_output_maf.c_str());
+        out_maf << maf_header << std::endl;
+
+        while (block_id < num_block) {
+            if (mafs_ready[block_id].load()){
+                bool contains_loops = false;
+                std::unordered_set<path_handle_t> seen_paths;
+                for (auto &path_range : blocks[block_id].path_ranges){
+                    path_handle_t path = graph.get_path_handle_of_step(path_range.begin);
+                    if (seen_paths.count(path)) {
+                        contains_loops = true;
+                        break;
+                    } else {
+                        seen_paths.insert(path);
+                    }
+                }
+                seen_paths.clear();
+
+                out_maf << "a block=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;\
+                for (auto& maf_row : mafs[block_id]){
+                    out_maf << "s " + maf_row.path_name + " " +
+                            std::to_string(maf_row.record_start) + " " +
+                            std::to_string(maf_row.seq_size) +
+                            (maf_row.is_reversed ? " - " : " + ") +
+                            std::to_string(maf_row.path_length) + " " +
+                            maf_row.aligned_seq + "\n";
+                }
+                out_maf << std::endl;
+
+                mafs[block_id].clear();
+                block_id++;
+            }
+
+            std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+        }
+
+        out_maf.close();
+
+        mafs.clear();
+    };
+
+    std::thread write_maf_thread(write_maf_lambda);
 
     std::vector<path_position_range_t> path_mapping;
     std::vector<path_position_range_t> consensus_mapping;
@@ -537,6 +588,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                           );
             }
 
+            mafs_ready[block_id].store(true);
+
             // std::cerr << std::endl;
             // std::cerr << "After block graph. Exiting for now....." <<
             // std::endl; exit(0);
@@ -593,54 +646,13 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             }
         });
 
+    write_maf_thread.join();
+
     std::cerr << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
               << " (" << (local_alignment ? "local" : "global") << " alignment mode)"
               << " to block " << blocks.size() << "/" << blocks.size() << " " << std::fixed
               << std::showpoint << std::setprecision(3) << 100.0 << "%"
               << std::endl;
-
-    if (!path_output_maf.empty()) {
-        std::cerr << "[smoothxg::smooth_and_lace] write MAF output" << std::endl;
-
-        std::ofstream f(path_output_maf.c_str());
-        f << maf_header << std::endl;
-
-        for (uint64_t block_id = 0; block_id < block_graphs.size(); block_id++){
-            auto &block_graph = block_graphs[block_id];
-
-            if (block_graph.get_node_count() > 0){
-                /*
-                std::string s = "smoothxg_block_" + std::to_string(block_id) + ".gfa";
-                std::ofstream gfa(s.c_str());
-                block_graph.to_gfa(gfa);
-                gfa.close();
-                */
-
-                bool contains_loops = false;
-                std::unordered_set<path_handle_t> seen_paths;
-
-                for (auto &path_range : blocks[block_id].path_ranges){
-                    path_handle_t path = graph.get_path_handle_of_step(path_range.begin);
-                    if (seen_paths.count(path)) {
-                        contains_loops = true;
-                        break;
-                    } else {
-                        seen_paths.insert(path);
-                    }
-                }
-                seen_paths.clear();
-
-                f << "a block=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;
-                f << mafs[block_id] << std::endl;
-            }
-
-            mafs[block_id].clear();
-        }
-
-        f.close();
-
-        mafs.clear();
-    }
 
     std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings"
               << std::endl;
