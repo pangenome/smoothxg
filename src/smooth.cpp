@@ -474,61 +474,64 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               bool use_abpoa,
                               const std::string &consensus_base_name) {
 
+    bool produce_maf = !path_output_maf.empty();
+
     //
     // record the start and end points of all the path ranges and the consensus
     //
     std::vector<odgi::graph_t> block_graphs;
     block_graphs.resize(blocks.size());
 
-    std::vector<std::vector<maf_row_t>> mafs(!path_output_maf.empty() ? blocks.size() : 0);
-    std::vector<std::atomic<bool>> mafs_ready(!path_output_maf.empty() ? blocks.size() : 0);
+    std::vector<std::vector<maf_row_t>> mafs(produce_maf ? blocks.size() : 0);
+    std::vector<std::atomic<bool>> mafs_ready(produce_maf ? blocks.size() : 0);
 
     auto write_maf_lambda = [&]() {
-        uint64_t num_block = blocks.size();
-        uint64_t block_id = 0, fist_block_id = 0;
-        bool wait_next_block = true;
+        if (produce_maf){
+            uint64_t num_block = blocks.size();
+            uint64_t block_id = 0, fist_block_id = 0;
+            bool wait_next_block = true;
 
-        std::ofstream out_maf(path_output_maf.c_str());
-        out_maf << maf_header << std::endl;
+            std::ofstream out_maf(path_output_maf.c_str());
+            out_maf << maf_header << std::endl;
 
-        while (block_id < num_block) {
-            if (mafs_ready[block_id].load()){
-                bool contains_loops = false;
-                std::unordered_set<path_handle_t> seen_paths;
-                for (auto &path_range : blocks[block_id].path_ranges){
-                    path_handle_t path = graph.get_path_handle_of_step(path_range.begin);
-                    if (seen_paths.count(path)) {
-                        contains_loops = true;
-                        break;
-                    } else {
-                        seen_paths.insert(path);
+            while (block_id < num_block) {
+                if (mafs_ready[block_id].load()){
+                    bool contains_loops = false;
+                    std::unordered_set<path_handle_t> seen_paths;
+                    for (auto &path_range : blocks[block_id].path_ranges){
+                        path_handle_t path = graph.get_path_handle_of_step(path_range.begin);
+                        if (seen_paths.count(path)) {
+                            contains_loops = true;
+                            break;
+                        } else {
+                            seen_paths.insert(path);
+                        }
                     }
-                }
-                seen_paths.clear();
+                    seen_paths.clear();
 
-                out_maf << "a block=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;\
-                for (auto& maf_row : mafs[block_id]){
-                    out_maf << "s " + maf_row.path_name + " " +
-                            std::to_string(maf_row.record_start) + " " +
-                            std::to_string(maf_row.seq_size) +
-                            (maf_row.is_reversed ? " - " : " + ") +
-                            std::to_string(maf_row.path_length) + " " +
-                            maf_row.aligned_seq + "\n";
-                }
-                out_maf << std::endl;
+                    out_maf << "a block=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;\
+                    for (auto& maf_row : mafs[block_id]){
+                        out_maf << "s " + maf_row.path_name + " " +
+                               std::to_string(maf_row.record_start) + " " +
+                               std::to_string(maf_row.seq_size) +
+                               (maf_row.is_reversed ? " - " : " + ") +
+                               std::to_string(maf_row.path_length) + " " +
+                               maf_row.aligned_seq + "\n";
+                    }
+                    out_maf << std::endl;
 
-                mafs[block_id].clear();
-                block_id++;
+                    mafs[block_id].clear();
+                    block_id++;
+                }
+
+                std::this_thread::sleep_for(std::chrono::nanoseconds(1));
             }
 
-            std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+            out_maf.close();
+
+            mafs.clear();
         }
-
-        out_maf.close();
-
-        mafs.clear();
     };
-
     std::thread write_maf_thread(write_maf_lambda);
 
     std::vector<path_position_range_t> path_mapping;
@@ -570,7 +573,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                            poa_q,
                                            poa_c,
                                            local_alignment,
-                                           !path_output_maf.empty(), &mafs[block_id],
+                                           produce_maf, produce_maf ? &mafs[block_id] : nullptr,
                                            consensus_name);
             } else {
                 block_graph = smooth_spoa(graph,
@@ -583,12 +586,14 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                           -poa_q,
                                           -poa_c,
                                           local_alignment,
-                                          !path_output_maf.empty(), &mafs[block_id],
+                                          produce_maf, produce_maf ? &mafs[block_id] : nullptr,
                                           consensus_name
                                           );
             }
 
-            mafs_ready[block_id].store(true);
+            if (produce_maf){
+                mafs_ready[block_id].store(true);
+            }
 
             // std::cerr << std::endl;
             // std::cerr << "After block graph. Exiting for now....." <<
