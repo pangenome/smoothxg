@@ -37,16 +37,6 @@ struct block_t {
     bool is_repeat = false;
 };
 
-struct maf_row_t {
-    std::string path_name;
-    uint64_t record_start;
-    uint64_t seq_size;
-    bool is_reversed;
-    uint64_t path_length;
-    std::string aligned_seq;
-};
-
-
 // find the boundaries of blocks that we can compress with spoa
 // assuming a maximum path length within each block
 std::vector<block_t>
