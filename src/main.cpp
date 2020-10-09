@@ -29,6 +29,7 @@ int main(int argc, char** argv) {
     //args::ValueFlag<std::string> xg_out(parser, "FILE", "write the resulting xg index to this file", {'o', "out"});
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
+    args::Flag do_not_merge_maf_blocks(parser, "bool","do not merge contiguous MAF blocks in the MAF output",{'M', "not-merge-maf-blocks"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
@@ -212,7 +213,7 @@ int main(int argc, char** argv) {
                                               poa_q,
                                               poa_c,
                                               local_alignment,
-                                              args::get(write_msa_in_maf_format), maf_header,
+                                              args::get(write_msa_in_maf_format), maf_header, args::get(do_not_merge_maf_blocks),
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
 

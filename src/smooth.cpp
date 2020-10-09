@@ -28,7 +28,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
                            bool local_alignment,
-                           bool write_msa_in_maf_format, std::vector<maf_row_t> *maf,
+                           std::vector<maf_row_t> *maf,
                            const std::string &consensus_name) {
 
     // collect sequences
@@ -111,7 +111,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     //abpt->end_bonus = 100; // also useful in local mode
     abpt->rev_cigar = 0;
     abpt->out_gfa = 1; // must be set to get the graph
-    abpt->out_msa = write_msa_in_maf_format ? 1 : 0; // must be set when we extract the MSA
+    abpt->out_msa = maf != nullptr ? 1 : 0; // must be set when we extract the MSA
     abpt->out_cons = generate_consensus;
     abpt->amb_strand = 1;
     abpt->match = poa_m;
@@ -171,7 +171,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         }
     }
 
-    if (write_msa_in_maf_format){
+    if (maf != nullptr){
         abpoa_generate_rc_msa(ab, abpt, NULL, is_rc, tot_n, NULL, &msa_seq, &msa_l);
     }
 
@@ -201,7 +201,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         }*/
     }
 
-    if (write_msa_in_maf_format) {
+    if (maf != nullptr) {
         uint64_t num_seqs = n_seqs + (generate_consensus ? 1 : 0);
         for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++) {
             std::basic_string<char> aligned_seq;
@@ -315,7 +315,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                           bool local_alignment,
-                          bool write_msa_in_maf_format, std::vector<maf_row_t> *maf,
+                          std::vector<maf_row_t> *maf,
                           const std::string &consensus_name) {
 
     std::uint8_t spoa_algorithm = local_alignment ? 0 : 1;
@@ -407,7 +407,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
         aln_is_reverse.push_back(false);  // the consensus is considered in forward
     }
 
-    if (write_msa_in_maf_format) {
+    if (maf != nullptr) {
         std::vector<std::string> msa;
         poa_graph->generate_multiple_sequence_alignment(msa, !consensus_name.empty());
 
@@ -474,7 +474,9 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
 }
 
 void _put_block_in_group(
-        maf_t &merged_maf_blocks, uint64_t block_id, uint64_t num_seq_in_block, bool add_consensus, std::vector<std::vector<maf_row_t>> &mafs, const std::string& consensus_base_name
+        maf_t &merged_maf_blocks, uint64_t block_id, uint64_t num_seq_in_block,
+        bool add_consensus,
+        std::vector<std::vector<maf_row_t>> &mafs
 ){
     merged_maf_blocks.field_blocks.push_back(block_id);
 
@@ -493,8 +495,8 @@ void _put_block_in_group(
                     }
             ));
         } else {
-            merged_maf_blocks.consensus_row = std::pair<std::string, maf_partial_row_t>(
-                    consensus_base_name,
+            merged_maf_blocks.consensus_rows.push_back(std::pair<std::string, maf_partial_row_t>(
+                    maf_row.path_name,
                     {
                             maf_row.record_start,
                             maf_row.seq_size,
@@ -502,7 +504,7 @@ void _put_block_in_group(
                             maf_row.path_length,
                             maf_row.aligned_seq
                     }
-            );;
+            ));
         }
     }
 }
@@ -521,7 +523,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
                               bool local_alignment,
-                              std::string &path_output_maf, std::string &maf_header,
+                              std::string &path_output_maf, std::string &maf_header, bool do_not_merge_maf_blocks,
                               bool use_abpoa,
                               const std::string &consensus_base_name) {
 
@@ -568,35 +570,37 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                     bool prep_new_merge_group = false;
                     bool merged = false;
-                    if (!contains_loops) {
-                        if (merged_maf_blocks.field_blocks.empty()){
-                            merged = true;
-                        } else {
-                            // The merged group has to have the number of rows (then paths in this case) as the block to merge
-                            if (merged_maf_blocks.rows.size() + (add_consensus ? 1 : 0) == num_seq_in_block) {
+                    if (!do_not_merge_maf_blocks){
+                        if (!contains_loops) {
+                            if (merged_maf_blocks.field_blocks.empty()){
                                 merged = true;
+                            } else {
+                                // The merged group has to have the number of rows (then paths in this case) as the block to merge
+                                if (merged_maf_blocks.rows.size() + (add_consensus ? 1 : 0) == num_seq_in_block) {
+                                    merged = true;
 
-                                for (uint64_t i = 0; i < num_seq_in_block; i++) {
-                                    // Do not check the consensus (always forward)
-                                    if (!add_consensus || i < num_seq_in_block - 1) {
-                                        auto maf_row = mafs[block_id][i];
+                                    for (uint64_t i = 0; i < num_seq_in_block; i++) {
+                                        // Do not check the consensus (always forward)
+                                        if (!add_consensus || i < num_seq_in_block - 1) {
+                                            auto maf_row = mafs[block_id][i];
 
-                                        if (merged_maf_blocks.rows.count(maf_row.path_name) != 1){
-                                            merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
-                                            prep_new_merge_group = !is_last_block;
-                                            break;
-                                        }
+                                            if (merged_maf_blocks.rows.count(maf_row.path_name) != 1){
+                                                merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
+                                                prep_new_merge_group = !is_last_block;
+                                                break;
+                                            }
 
-                                        maf_partial_row_t merged_maf_row = merged_maf_blocks.rows[maf_row.path_name];
+                                            maf_partial_row_t merged_maf_row = merged_maf_blocks.rows[maf_row.path_name];
 
-                                        if (
-                                                (merged_maf_row.is_reversed != maf_row.is_reversed) ||
-                                                (merged_maf_row.is_reversed && ((merged_maf_row.record_start - maf_row.seq_size) != maf_row.record_start)) ||
-                                                (!merged_maf_row.is_reversed && ((merged_maf_row.record_start + merged_maf_row.seq_size) != maf_row.record_start))
-                                                ) {
-                                            merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
-                                            prep_new_merge_group = !is_last_block;
-                                            break;
+                                            if (
+                                                    (merged_maf_row.is_reversed != maf_row.is_reversed) ||
+                                                    (merged_maf_row.is_reversed && ((merged_maf_row.record_start - maf_row.seq_size) != maf_row.record_start)) ||
+                                                    (!merged_maf_row.is_reversed && ((merged_maf_row.record_start + merged_maf_row.seq_size) != maf_row.record_start))
+                                                    ) {
+                                                merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
+                                                prep_new_merge_group = !is_last_block;
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -606,7 +610,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                     if (merged){
                         if (merged_maf_blocks.field_blocks.empty()){
-                            _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, add_consensus, mafs, consensus_base_name);
+                            _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, add_consensus, mafs);
                         } else {
                             merged_maf_blocks.field_blocks.push_back(block_id);
 
@@ -620,10 +624,17 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                     merged_maf_blocks.rows[maf_row.path_name].seq_size += maf_row.seq_size;
                                     merged_maf_blocks.rows[maf_row.path_name].aligned_seq += maf_row.aligned_seq;
                                 } else {
-                                    merged_maf_blocks.consensus_row.second.seq_size += maf_row.seq_size;
-                                    merged_maf_blocks.consensus_row.second.aligned_seq += maf_row.aligned_seq;
-
-                                    merged_maf_blocks.consensus_row.second.path_length += maf_row.path_length;
+                                    // The merged consensus is created when the merged block is written into a file
+                                    merged_maf_blocks.consensus_rows.push_back(std::pair<std::string, maf_partial_row_t>(
+                                            maf_row.path_name,
+                                            {
+                                                    maf_row.record_start,
+                                                    maf_row.seq_size,
+                                                    maf_row.is_reversed,
+                                                    maf_row.path_length,
+                                                    maf_row.aligned_seq
+                                            }
+                                    ));
                                 }
                             }
                         }
@@ -641,7 +652,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                             std::string block_id_range = std::to_string(merged_maf_blocks.field_blocks[0]);
                             if (merged_maf_blocks.field_blocks.size() > 1) {
-                                block_id_range += ".." + std::to_string(merged_maf_blocks.field_blocks[merged_maf_blocks.field_blocks.size() - 1]);
+                                block_id_range += "-" + std::to_string(merged_maf_blocks.field_blocks[merged_maf_blocks.field_blocks.size() - 1]);
                             }
 
                             out_maf << "a blocks=" << block_id_range << " loops=false" << std::endl;
@@ -660,17 +671,57 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 );
                             }
                             if (add_consensus){
+                                uint64_t merged_consensus_seq_size = 0;
+                                uint64_t merged_consensus_path_length = 0;
+                                std::string merged_consensus_aligned_seq;
+
+                                uint64_t length_alignment = merged_maf_blocks.rows.begin()->second.aligned_seq.length();
+                                uint64_t start_cons_pos_in_alignment = 0;
+                                for (auto & maf_cons_row : merged_maf_blocks.consensus_rows){
+                                    std::string gapped_cons;
+
+                                    uint64_t pos;
+                                    for (pos = 0; pos < start_cons_pos_in_alignment; pos++){ gapped_cons += "-"; }
+
+                                    gapped_cons += maf_cons_row.second.aligned_seq;
+
+                                    pos += maf_cons_row.second.aligned_seq.length();
+                                    for (; pos < length_alignment; pos++){ gapped_cons += "-"; }
+
+                                    write_maf_row(
+                                            out_maf,
+                                            {
+                                                    maf_cons_row.first,
+                                                    maf_cons_row.second.record_start,
+                                                    maf_cons_row.second.seq_size,
+                                                    maf_cons_row.second.is_reversed,
+                                                    maf_cons_row.second.path_length,
+                                                    gapped_cons
+                                            }
+                                    );
+
+                                    start_cons_pos_in_alignment += maf_cons_row.second.aligned_seq.length();
+
+
+                                    merged_consensus_seq_size += maf_cons_row.second.seq_size;
+                                    merged_consensus_path_length += maf_cons_row.second.path_length;
+                                    merged_consensus_aligned_seq += maf_cons_row.second.aligned_seq;
+                                }
+
+                                // Write the merged consensus
                                 write_maf_row(
                                         out_maf,
                                         {
-                                                merged_maf_blocks.consensus_row.first + block_id_range + " ",
-                                                merged_maf_blocks.consensus_row.second.record_start,
-                                                merged_maf_blocks.consensus_row.second.seq_size,
-                                                merged_maf_blocks.consensus_row.second.is_reversed,
-                                                merged_maf_blocks.consensus_row.second.path_length,
-                                                merged_maf_blocks.consensus_row.second.aligned_seq
+                                                consensus_base_name + block_id_range + " ",
+                                                merged_maf_blocks.consensus_rows.begin()->second.record_start,
+                                                merged_consensus_seq_size,
+                                                merged_maf_blocks.consensus_rows.begin()->second.is_reversed,
+                                                merged_consensus_path_length,
+                                                merged_consensus_aligned_seq
                                         }
                                 );
+
+                                merged_consensus_aligned_seq.clear();
                             }
                             out_maf << std::endl;
 
@@ -680,8 +731,12 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 maf_row.second.aligned_seq.clear();
                             }
                             merged_maf_blocks.rows.clear();
-                            merged_maf_blocks.consensus_row.first.clear();
-                            merged_maf_blocks.consensus_row.second.aligned_seq.clear();
+
+                            for (std::pair<std::string, maf_partial_row_t> maf_cons_row : merged_maf_blocks.consensus_rows){
+                                maf_cons_row.first.clear();
+                                maf_cons_row.second.aligned_seq.clear();
+                            }
+                            merged_maf_blocks.consensus_rows.clear();
                         }
 
                         if (!merged && !prep_new_merge_group) {
@@ -702,7 +757,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                         // This is a mergeable (and not the last) block: it is the first one, or the last merge failed
                         // (and the current un-merged block becomes the first one of the next group)
 
-                        _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, add_consensus, mafs, consensus_base_name);
+                        _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, add_consensus, mafs);
 
                         _clear_maf_block(block_id, mafs);
                     }
@@ -760,7 +815,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                            poa_q,
                                            poa_c,
                                            local_alignment,
-                                           produce_maf, produce_maf ? &mafs[block_id] : nullptr,
+                                           produce_maf ? &mafs[block_id] : nullptr,
                                            consensus_name);
             } else {
                 block_graph = smooth_spoa(graph,
@@ -773,7 +828,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                           -poa_q,
                                           -poa_c,
                                           local_alignment,
-                                          produce_maf, produce_maf ? &mafs[block_id] : nullptr,
+                                          produce_maf ? &mafs[block_id] : nullptr,
                                           consensus_name
                                           );
             }
@@ -872,7 +927,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             std::cerr << "[smoothxg::smooth_and_lace] adding graph " << j << "/"
                       << block_graphs.size() << " " << std::fixed
                       << std::showpoint << std::setprecision(3)
-                      << (float)j / (float)block_graphs.size() << "%\r";
+                      << (float)j * 100 / (float)block_graphs.size() << "%\r";
         }
         ++j;
         // record the id translation

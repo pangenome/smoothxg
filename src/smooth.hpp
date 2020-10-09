@@ -36,7 +36,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
                            bool local_alignment,
-                           bool write_msa_in_maf_format, std::string *maf,
+                           std::string *maf,
                            const std::string &consensus_name = "");
 
 odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
@@ -53,7 +53,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
                               bool local_alignment,
-                              std::string &path_output_maf, std::string &maf_header,
+                              std::string &path_output_maf, std::string &maf_header, bool do_not_merge_maf_blocks,
                               bool use_abpoa = true,
                               const std::string &consensus_name = "");
 
