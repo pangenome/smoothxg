@@ -53,7 +53,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
                               bool local_alignment,
-                              std::string &path_output_maf, std::string &maf_header, bool do_not_merge_maf_blocks,
+                              std::string &path_output_maf, std::string &maf_header, bool merge_blocks,
                               bool use_abpoa = true,
                               const std::string &consensus_name = "");
 
