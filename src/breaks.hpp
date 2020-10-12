@@ -26,6 +26,7 @@ void break_blocks(const xg::XG& graph,
                   const uint64_t& max_copy_length,
                   const uint64_t& min_autocorr_z,
                   const uint64_t& autocorr_stride,
-                  const bool& order_paths_from_longest);
+                  const bool& order_paths_from_longest,
+                  const bool& break_repeats);
 
 }
