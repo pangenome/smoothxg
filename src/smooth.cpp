@@ -200,7 +200,9 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
                 return smooth_abpoa(graph, block, block_id,
                                     poa_m, poa_n, poa_g,
                                     poa_e, poa_q, poa_c,
-                                    local_alignment, false,
+                                    local_alignment,
+                                    maf, keep_sequence,
+                                    false,
                                     consensus_name);
             }
         }
