@@ -24,7 +24,7 @@ static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
 odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
-                           bool local_alignment,
+                           bool local_alignment, bool banded_alignment,
                            const std::string &consensus_name) {
 
     // collect sequences
@@ -103,13 +103,14 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     abpoa_para_t *abpt = abpoa_init_para();
     // if we want to do local alignments
     if (local_alignment) abpt->align_mode = ABPOA_LOCAL_MODE;
+    if (!banded_alignment) abpt->wb = -1;
     //abpt->zdrop = 100; // could be useful in local mode
     //abpt->end_bonus = 100; // also useful in local mode
     abpt->rev_cigar = 0;
     abpt->out_gfa = 1; // must be set to get the graph
     //abpt->out_msa = 1; // must be set when we extract the MSA
     abpt->out_cons = generate_consensus;
-    abpt->amb_strand = 1;
+    abpt->amb_strand = 0; // we'll align both ways and check which is better
     abpt->match = poa_m;
     abpt->mismatch = poa_n;
     abpt->gap_open1 = poa_g;
@@ -153,18 +154,51 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         res.graph_cigar = 0, res.n_cigar = 0, res.is_rc = 0;
         abpt->rev_cigar = 0;
         abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
-        abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i,
-                                  n_seqs);
-        is_rc[i] = res.is_rc;
-        if (res.is_rc) {
-            aln_is_reverse.push_back(true);
-            //std::cerr << "is_rc" << std::endl;
+        if (res.traceback_ok) {
+            abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i,
+                                      n_seqs);
+            is_rc[i] = res.is_rc;
+            if (res.is_rc) {
+                aln_is_reverse.push_back(true);
+                //std::cerr << "is_rc" << std::endl;
+            } else {
+                aln_is_reverse.push_back(false);
+                // std::cerr << "is_rc_not" << std::endl;
+            }
+            if (res.n_cigar) {
+                free(res.graph_cigar);
+            }
         } else {
-            aln_is_reverse.push_back(false);
-            // std::cerr << "is_rc_not" << std::endl;
-        }
-        if (res.n_cigar) {
-            free(res.graph_cigar);
+            // the alignment traceback failed
+            if (!banded_alignment) {
+                // we bail if we are already running without banding
+                std::string s = "smoothxg_failed_block_" + std::to_string(block_id) + ".fa";
+                std::cerr << "[smoothxg] error! failure in alignment in non-banded mode, "
+                          << "writing failed block to " << s << std::endl;
+                std::ofstream fasta(s.c_str());
+                for (uint64_t i = 0; i < seqs.size(); ++i) {
+                    fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
+                          << seqs[i] << std::endl;
+                }
+                fasta.close();
+                exit(1);
+            } else {
+                // otherwise, we will try to align this without banding
+                // first cleaning up
+                for (i = 0; i < n_seqs; ++i) {
+                    free(bseqs[i]);
+                }
+                free(bseqs);
+                free(seq_lens);
+                abpoa_free(ab, abpt);
+                abpoa_free_para(abpt);
+                // then running non-banded abPOA
+                return smooth_abpoa(graph, block, block_id,
+                                    poa_m, poa_n, poa_g,
+                                    poa_e, poa_q, poa_c,
+                                    local_alignment, false,
+                                    consensus_name);
+            }
         }
     }
 
@@ -388,6 +422,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                            poa_q,
                                            poa_c,
                                            local_alignment,
+                                           true, // banded alignment
                                            consensus_name);
             } else {
                 block_graph = smooth_spoa(graph,
