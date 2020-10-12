@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]", {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]", {'U', "path-sgd-term-updates"});
     args::Flag use_spoa(parser, "use-spoa", "run spoa (in local alignment mode) instead of abPOA (in global alignment mode) for smoothing", {'S', "spoa"});
-    args::Flag change_alignment_mode(parser, "change-alignment-mode", "change the alignment mode (global for spoa and local for abPOA)", {'Z', "change-alignment-mode"});
+    args::Flag change_alignment_mode(parser, "change-alignment-mode", "change the alignment mode of spoa to global, the local alignment mode of abpoa is currently not supported", {'Z', "change-alignment-mode"});
     args::Flag no_toposort(parser, "no-toposort", "don't apply topological sorting in the sort pipeline", {'T', "no-toposort"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
@@ -77,6 +77,15 @@ int main(int argc, char** argv) {
     uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
     uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
+
+    if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
+        std::cerr
+                << "[smoothxg::main] error: Currently, the local alignment mode of abpoa is not supported. As default "
+                << "abpoa is ran in global mode. You can select spoa in local alignment mode via -S, --spoa. To run spoa in "
+                   "global mode, please additionally specify -Z, --change-alignment-mode."
+                << std::endl;
+        return 1;
+    }
 
     int poa_m = 2;
     int poa_n = 4;
