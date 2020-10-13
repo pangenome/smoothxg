@@ -709,9 +709,9 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                             if (produce_maf){
                                 out_maf << "a blocks=" << block_id_range << " loops=false" << std::endl;
 
-                                for (auto& maf_row : merged_maf_blocks.rows){
-                                    write_maf_row(
-                                            out_maf,
+                                std::vector<maf_row_t> rows;
+                                for (auto& maf_row : merged_maf_blocks.rows) {
+                                    rows.push_back(
                                             {
                                                     maf_row.first,
                                                     maf_row.second.record_start,
@@ -740,8 +740,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                         pos += maf_cons_row.second.aligned_seq.length();
                                         for (; pos < length_alignment; pos++){ gapped_cons += "-"; }
 
-                                        write_maf_row(
-                                                out_maf,
+                                        rows.push_back(
                                                 {
                                                         maf_cons_row.first,
                                                         maf_cons_row.second.record_start,
@@ -761,8 +760,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                     }
 
                                     // Write the merged consensus
-                                    write_maf_row(
-                                            out_maf,
+                                    rows.push_back(
                                             {
                                                     consensus_base_name + block_id_range + " ",
                                                     merged_maf_blocks.consensus_rows.begin()->second.record_start,
@@ -775,7 +773,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                     merged_consensus_aligned_seq.clear();
                                 }
-                                out_maf << std::endl;
+                                write_maf_rows(out_maf, rows);
                             }
 
 
@@ -796,13 +794,13 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                         if (!merged && !prep_new_merge_group) {
                             if (produce_maf){
                                 out_maf << "a blocks=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;
+                                std::vector<maf_row_t> rows;
                                 for (auto& maf_row : mafs[block_id]){
-                                    write_maf_row(
-                                            out_maf,
-                                            {maf_row.path_name, maf_row.record_start, maf_row.seq_size, maf_row.is_reversed, maf_row.path_length, maf_row.aligned_seq}
+                                    rows.push_back(
+                                        {maf_row.path_name, maf_row.record_start, maf_row.seq_size, maf_row.is_reversed, maf_row.path_length, maf_row.aligned_seq}
                                     );
                                 }
-                                out_maf << std::endl;
+                                write_maf_rows(out_maf, rows);
                             }
 
                             _clear_maf_block(block_id, mafs);
