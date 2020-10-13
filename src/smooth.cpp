@@ -707,7 +707,11 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                             }
 
                             if (produce_maf){
-                                out_maf << "a blocks=" << block_id_range << " loops=false" << std::endl;
+                                out_maf << "a blocks=" << block_id_range << " loops=false";
+                                if (merged_maf_blocks.field_blocks.size() > 1) {
+                                    out_maf << " merged=true";
+                                }
+                                out_maf << std::endl;
 
                                 std::vector<maf_row_t> rows;
                                 for (auto& maf_row : merged_maf_blocks.rows) {
