@@ -115,7 +115,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     abpt->out_gfa = 1; // must be set to get the graph
     abpt->out_msa = maf != nullptr ? 1 : 0; // must be set when we extract the MSA
     abpt->out_cons = generate_consensus;
-    abpt->amb_strand = 0; // we'll align both ways and check which is better
+    abpt->amb_strand = 1;
     abpt->match = poa_m;
     abpt->mismatch = poa_n;
     abpt->gap_open1 = poa_g;
