@@ -197,7 +197,7 @@ int main(int argc, char** argv) {
 
         maf_header += "##maf version=1\n";
         maf_header += "# smoothxg\n";
-        maf_header += "# input=" + filename + "\n";
+        maf_header += "# input=" + filename + " sequences=" + std::to_string(graph.get_path_count()) + "\n";
 
         // POA
         maf_header += "# POA=";
