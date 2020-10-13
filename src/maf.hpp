@@ -28,15 +28,6 @@ struct maf_t {
     std::vector<std::pair<std::string, maf_partial_row_t>> consensus_rows;
 };
 
-void write_maf_row(std::ofstream &out, const maf_row_t& row){
-    out << "s " + row.path_name + " " +
-           std::to_string(row.record_start) + " " +
-           std::to_string(row.seq_size) +
-           (row.is_reversed ? " - " : " + ") +
-           std::to_string(row.path_length) + " " +
-           row.aligned_seq + "\n";
-}
-
 void write_maf_rows(std::ofstream &out, const std::vector<maf_row_t>& rows) {
     // determine output widths for everything
     size_t max_src_length = 0;
@@ -58,7 +49,7 @@ void write_maf_rows(std::ofstream &out, const std::vector<maf_row_t>& rows) {
             << row.path_name << std::string(max_src_length - row.path_name.size(), ' ')
             << std::setw(max_start_length+1) << row.record_start
             << std::setw(max_seq_size_length+1) << row.seq_size
-            << std::setw(max_is_rev_length+1) << row.is_reversed
+            << std::setw(max_is_rev_length+1) << (row.is_reversed ? " - " : " + ")
             << std::setw(max_src_size_length+1) << row.path_length
             << " " << row.aligned_seq
             << "\n";
