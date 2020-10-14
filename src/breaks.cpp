@@ -1,4 +1,5 @@
 #include "breaks.hpp"
+#include "progress.hpp"
 
 namespace smoothxg {
 
@@ -19,6 +20,10 @@ void break_blocks(const xg::XG& graph,
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
     std::cerr << "[smoothxg::break_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
+
+    std::stringstream breaks_banner;
+    breaks_banner << "[smoothxg::break_blocks] cutting " << blocks.size() << " blocks:";
+    progress_meter::ProgressMeter breaks_progress(blocks.size(), breaks_banner.str());
 
     uint64_t n_cut_blocks = 0;
     uint64_t n_repeat_blocks = 0;
@@ -137,7 +142,9 @@ void break_blocks(const xg::XG& graph,
         );
         block.broken = true;
         block.is_repeat = found_repeat;
+        breaks_progress.increment(1);
     }
+    breaks_progress.finish();
     std::cerr << "[smoothxg::break_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
 }
 

@@ -141,6 +141,7 @@ int main(int argc, char** argv) {
     
     bool order_paths_from_longest = args::get(use_spoa);
 
+    std::cerr << "[smoothxg::main] building xg index" << std::endl;
     XG graph;
     if (!args::get(xg_in).empty()) {
         std::ifstream in(args::get(xg_in));

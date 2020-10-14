@@ -809,8 +809,9 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     uint64_t thread_count = odgi::get_thread_count();
 
     std::stringstream poa_banner;
-    poa_banner << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
-               << " (" << (local_alignment ? "local" : "global") << " alignment mode)"
+    poa_banner << "[smoothxg::smooth_and_lace] applying "
+               << (local_alignment ? "local" : "global")
+               << (use_abpoa ? "abPOA" : "SPOA")
                << " to " << blocks.size() << " blocks:";
     progress_meter::ProgressMeter poa_progress(blocks.size(), poa_banner.str());
 
@@ -940,7 +941,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
     // add the nodes and edges to the graph
     std::vector<uint64_t> id_mapping;
-    std::cerr << "[smoothxg::smooth_and_lace] building final graph" << std::endl;
 
     std::stringstream add_graph_banner;
     add_graph_banner << "[smoothxg::smooth_and_lace] adding "
@@ -1165,7 +1165,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     }
 
     std::stringstream embed_banner;
-    embed_banner << "[smoothxg::smooth_and_lace] embedding "
+    embed_banner << "[smoothxg::smooth_and_lace] walking edges in "
                  << paths.size() << " paths:";
     progress_meter::ProgressMeter embed_progress(paths.size(), embed_banner.str());
     // embed all paths in the graph

@@ -1,4 +1,5 @@
 #include "blocks.hpp"
+#include "progress.hpp"
 
 namespace smoothxg {
 
@@ -168,13 +169,14 @@ smoothable_blocks(
             */                    
         };
     //uint64_t id = 0;
+    std::stringstream blocks_banner;
+    blocks_banner << "[smoothxg::smoothable_blocks] computing blocks for "
+                    << graph.get_node_count() << " handles:";
+    progress_meter::ProgressMeter blocks_progress(graph.get_node_count(), blocks_banner.str());
+
+    
     graph.for_each_handle(
         [&](const handle_t& handle) {
-            if (graph.get_id(handle) % 100 == 0) {
-                std::cerr << std::fixed << std::showpoint << std::setprecision(3)
-                          << "[smoothxg::smoothable_blocks] computing blocks "
-                          << (float)graph.get_id(handle) / (float)graph.get_node_count() * 100 << "%\r";
-            }
             if (blocks.empty()) {
                 blocks.emplace_back();
                 auto& block = blocks.back();
@@ -228,8 +230,10 @@ smoothable_blocks(
                     block.total_path_length += sequence_to_add;
                 }
             }
+            blocks_progress.increment(1);
         });
-    std::cerr << "[smoothxg::smoothable_blocks] computing blocks 100.00%" << std::endl;
+    blocks_progress.finish();
+    
     if (blocks.back().path_ranges.empty()) {
         finalize_block(blocks.back());
     }
