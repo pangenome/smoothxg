@@ -51,7 +51,7 @@ void write_maf_rows(std::ofstream &out, const std::vector<maf_row_t>& rows) {
             << std::setw(max_seq_size_length+1) << row.seq_size
             << std::setw(max_is_rev_length+1) << (row.is_reversed ? " - " : " + ")
             << std::setw(max_src_size_length+1) << row.path_length
-            << " " << row.aligned_seq
+            << row.aligned_seq
             << "\n";
     }
     out << std::endl;
