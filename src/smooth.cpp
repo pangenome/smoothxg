@@ -810,7 +810,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
     std::stringstream poa_banner;
     poa_banner << "[smoothxg::smooth_and_lace] applying "
-               << (local_alignment ? "local" : "global")
+               << (local_alignment ? "local" : "global") << " "
                << (use_abpoa ? "abPOA" : "SPOA")
                << " to " << blocks.size() << " blocks:";
     progress_meter::ProgressMeter poa_progress(blocks.size(), poa_banner.str());

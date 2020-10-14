@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
     
     bool order_paths_from_longest = args::get(use_spoa);
 
-    std::cerr << "[smoothxg::main] building xg index" << std::endl;
+    std::cerr << "[smoothxg::main] loading graph" << std::endl;
     XG graph;
     if (!args::get(xg_in).empty()) {
         std::ifstream in(args::get(xg_in));
@@ -153,10 +153,12 @@ int main(int argc, char** argv) {
             gfa_in_name = args::get(gfa_in) + ".prep.gfa";
             float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
             float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
+            std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
             smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort));
         } else {
             gfa_in_name = args::get(gfa_in);
         }
+        std::cerr << "[smoothxg::main] building xg index" << std::endl;
         graph.from_gfa(gfa_in_name, args::get(validate),
                        args::get(base).empty() ? gfa_in_name : args::get(base));
         if (!args::get(keep_temp) && !args::get(no_prep)) {
@@ -236,34 +238,8 @@ int main(int argc, char** argv) {
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
 
+    std::cerr << "[smoothxg::main] writing smoothed graph" << std::endl;
     smoothed.to_gfa(std::cout);
-
-    /*
-    uint64_t block_id = 0;
-    for (auto& block : blocks) {
-        std::cout << "block" << block_id++ << "\t"
-                  << block.total_path_length << "\t"
-                  << block.max_path_length << "\t"
-                  << graph.get_id(block.handles.front())
-                  << "-" << graph.get_id(block.handles.back()) << "\t"
-                  << block.path_ranges.size()
-                  << std::endl;
-        std::string consensus_id = (args::get(add_consensus) ? "Consensus." + std::to_string(block_id) : "");
-        auto block_graph = smoothxg::smooth(graph, block, consensus_id);
-        block_graph.to_gfa(std::cout);
-    }
-    */
-
-    /*
-    if (!args::get(xg_out).empty()) {
-        std::ofstream out(args::get(xg_out));
-        graph.serialize(out);
-    }
-
-    if (args::get(gfa_out)) {
-        graph.to_gfa(std::cout);
-    }
-    */
 
     return 0;
 }
