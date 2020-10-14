@@ -73,7 +73,7 @@ void break_blocks(const xg::XG& graph,
                 double repeat_length = sautocorr::vec_mean(lengths.begin(), lengths.end());
                 cut_length = std::round(repeat_length / 2.0);
                 ++n_repeat_blocks;
-                std::cerr << "found repeat of " << repeat_length << " and Z-score " << max_z << " cutting to " << cut_length << std::endl;
+                //std::cerr << "found repeat of " << repeat_length << " and Z-score " << max_z << " cutting to " << cut_length << std::endl;
             } else {
                 // if not, chop blindly
                 cut_length = max_poa_length;
