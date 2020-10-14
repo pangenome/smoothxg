@@ -28,15 +28,19 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> gfa_in(parser, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
     //args::ValueFlag<std::string> xg_out(parser, "FILE", "write the resulting xg index to this file", {'o', "out"});
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
+
+    args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
+    args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
+    args::Flag do_not_merge_blocks(parser, "bool","do not merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "not-merge-blocks"});
+
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
-    args::Flag add_consensus(parser, "bool", "include consensus sequence in graph", {'a', "add-consensus"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "max-block-weight"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "max-path-jump"});
     args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "max-edge-jump"});
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "min-copy-length"});
-    args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'m', "max-copy-length"});
+    args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "max-copy-length"});
     args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "max-poa-length"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)", "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 2,4,4,2,24,1]", {'p', "poa-params"});
@@ -60,6 +64,12 @@ int main(int argc, char** argv) {
     }
     if (argc==1) {
         std::cout << parser;
+        return 1;
+    }
+
+    if (args::get(do_not_merge_blocks) && (!write_msa_in_maf_format && !args::get(add_consensus))) {
+        std::cerr << "[smoothxg::main] error: Please specify the -M/--not-merge-blocks-either to use the "
+                   "-m/--write-msa-in-maf-format and -a/--add-consensus options." << std::endl;
         return 1;
     }
 
@@ -172,6 +182,46 @@ int main(int argc, char** argv) {
                            order_paths_from_longest,
                            true); // break repeats
 
+    bool local_alignment = args::get(use_spoa) ^ args::get(change_alignment_mode);
+
+    std::string maf_header;
+    if (write_msa_in_maf_format) {
+        basic_string<char> filename;
+        if (!args::get(xg_in).empty()) {
+            size_t found = args::get(xg_in).find_last_of("/\\");
+            filename = (args::get(xg_in).substr(found + 1));
+        } else if (!args::get(gfa_in).empty()) {
+            size_t found = args::get(gfa_in).find_last_of("/\\");
+            filename = (args::get(gfa_in).substr(found + 1));
+        }
+
+        maf_header += "##maf version=1\n";
+        maf_header += "# smoothxg\n";
+        maf_header += "# input=" + filename + " sequences=" + std::to_string(graph.get_path_count()) + "\n";
+
+        // POA
+        maf_header += "# POA=";
+        maf_header += (args::get(use_spoa) ? "SPOA" : "abPOA");
+        maf_header += " alignment_mode=";
+        maf_header += (local_alignment ? "local" : "global");
+        maf_header += " order_paths=from_";
+        maf_header += (order_paths_from_longest ? "longest" : "shortest");
+        maf_header += "\n";
+
+        // break_blocks parameters
+        maf_header += "# max_block_weight=" + std::to_string(max_block_weight) +
+                " max_block_jump=" + std::to_string(max_block_jump) +
+                " min_subpath=" + std::to_string(min_subpath) +
+                " max_edge_jump=" + std::to_string(max_edge_jump) + "\n";
+
+        // break_blocks
+        maf_header += "# max_poa_length=" + std::to_string(max_poa_length) +
+                " min_copy_length=" + std::to_string(min_copy_length) +
+                " max_copy_length=" + std::to_string(max_copy_length) +
+                " min_autocorr_z=" + std::to_string(min_autocorr_z) +
+                " autocorr_stride=" + std::to_string(autocorr_stride) + "\n";
+    }
+
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,
                                               poa_m,
@@ -180,15 +230,14 @@ int main(int argc, char** argv) {
                                               poa_e,
                                               poa_q,
                                               poa_c,
-                                              args::get(use_spoa) ^ args::get(change_alignment_mode),
+                                              local_alignment,
+                                              args::get(write_msa_in_maf_format), maf_header, !args::get(do_not_merge_blocks),
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
 
     smoothed.to_gfa(std::cout);
-    
+
     /*
-
-
     uint64_t block_id = 0;
     for (auto& block : blocks) {
         std::cout << "block" << block_id++ << "\t"

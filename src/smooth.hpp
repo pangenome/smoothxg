@@ -35,7 +35,9 @@ struct path_position_range_t {
 odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
-                           bool local_alignment, bool banded_alignment = true,
+                           bool local_alignment,
+                           std::string *maf,
+                           bool banded_alignment = true,
                            const std::string &consensus_name = "");
 
 odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
@@ -43,6 +45,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                           bool local_alignment,
+                          std::string *maf,
                           const std::string &consensus_name = "");
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
@@ -51,6 +54,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
                               bool local_alignment,
+                              std::string &path_output_maf, std::string &maf_header, bool merge_blocks,
                               bool use_abpoa = true,
                               const std::string &consensus_name = "");
 

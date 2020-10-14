@@ -236,7 +236,7 @@ add_library(smoothxg_objs OBJECT
   src/breaks.cpp
   src/smooth.cpp
   src/utils.cpp
-  ${sautocorr_INCLUDE}/sautocorr.cpp)
+  ${sautocorr_INCLUDE}/sautocorr.cpp src/maf.hpp)
 
 add_dependencies(smoothxg_objs handlegraph)
 add_dependencies(smoothxg_objs sdsl-lite)
