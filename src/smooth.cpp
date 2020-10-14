@@ -158,53 +158,18 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         res.graph_cigar = 0, res.n_cigar = 0, res.is_rc = 0;
         abpt->rev_cigar = 0;
         abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
-        if (res.traceback_ok) {
-            abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i,
-                                      n_seqs);
-            is_rc[i] = res.is_rc;
-            if (res.is_rc) {
-                aln_is_reverse.push_back(true);
-                //std::cerr << "is_rc" << std::endl;
-            } else {
-                aln_is_reverse.push_back(false);
-                // std::cerr << "is_rc_not" << std::endl;
-            }
-            if (res.n_cigar) {
-                free(res.graph_cigar);
-            }
+        abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i,
+                                  n_seqs);
+        is_rc[i] = res.is_rc;
+        if (res.is_rc) {
+            aln_is_reverse.push_back(true);
+            //std::cerr << "is_rc" << std::endl;
         } else {
-            // the alignment traceback failed
-            if (!banded_alignment) {
-                // we bail if we are already running without banding
-                std::string s = "smoothxg_failed_block_" + std::to_string(block_id) + ".fa";
-                std::cerr << "[smoothxg] error! failure in alignment in non-banded mode, "
-                          << "writing failed block to " << s << std::endl;
-                std::ofstream fasta(s.c_str());
-                for (uint64_t i = 0; i < seqs.size(); ++i) {
-                    fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
-                          << seqs[i] << std::endl;
-                }
-                fasta.close();
-                exit(1);
-            } else {
-                // otherwise, we will try to align this without banding
-                // first cleaning up
-                for (i = 0; i < n_seqs; ++i) {
-                    free(bseqs[i]);
-                }
-                free(bseqs);
-                free(seq_lens);
-                abpoa_free(ab, abpt);
-                abpoa_free_para(abpt);
-                // then running non-banded abPOA
-                return smooth_abpoa(graph, block, block_id,
-                                    poa_m, poa_n, poa_g,
-                                    poa_e, poa_q, poa_c,
-                                    local_alignment,
-                                    maf, keep_sequence,
-                                    false,
-                                    consensus_name);
-            }
+            aln_is_reverse.push_back(false);
+            // std::cerr << "is_rc_not" << std::endl;
+        }
+        if (res.n_cigar) {
+            free(res.graph_cigar);
         }
     }
 
@@ -845,16 +810,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         0, blocks.size(), thread_count, [&](uint64_t block_id, int tid) {
             auto &block = blocks[block_id];
 
-            { // if (block_id % 100 == 0) {
-                std::lock_guard<std::mutex> guard(logging_mutex);
-                std::cerr
-                    << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
-                    << " (" << (local_alignment ? "local" : "global") << " alignment mode)"
-                    << " to block " << block_id << "/" << blocks.size() << " " << std::fixed
-                    << std::showpoint << std::setprecision(3)
-                    << (float)block_id / (float)blocks.size() * 100 << "%\r";
-            }
-
             std::string consensus_name;
             if (add_consensus){
                 consensus_name = consensus_base_name + std::to_string(block_id);
@@ -957,11 +912,13 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
     write_maf_thread.join();
 
+    /*
     std::cerr << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
               << " (" << (local_alignment ? "local" : "global") << " alignment mode)"
               << " to block " << blocks.size() << "/" << blocks.size() << " " << std::fixed
               << std::showpoint << std::setprecision(3) << 100.0 << "%"
               << std::endl;
+    */
 
     std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings"
               << std::endl;
