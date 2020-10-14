@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     }
 
     if (args::get(do_not_merge_blocks) && (!write_msa_in_maf_format && !args::get(add_consensus))) {
-        std::cerr << "[smoothxg::main] error: Please specify the -M/--not-merge-blocks-either to use the "
+        std::cerr << "[smoothxg::main] error: Please specify the -M/--not-merge-blocks to use the "
                    "-m/--write-msa-in-maf-format and -a/--add-consensus options." << std::endl;
         return 1;
     }
