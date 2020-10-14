@@ -6,6 +6,8 @@
 
 #include "maf.hpp"
 
+#include "progress.hpp"
+
 namespace smoothxg {
 
 // klib stuff copied from abpoa_graph.c
@@ -158,53 +160,18 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         res.graph_cigar = 0, res.n_cigar = 0, res.is_rc = 0;
         abpt->rev_cigar = 0;
         abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
-        if (res.traceback_ok) {
-            abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i,
-                                      n_seqs);
-            is_rc[i] = res.is_rc;
-            if (res.is_rc) {
-                aln_is_reverse.push_back(true);
-                //std::cerr << "is_rc" << std::endl;
-            } else {
-                aln_is_reverse.push_back(false);
-                // std::cerr << "is_rc_not" << std::endl;
-            }
-            if (res.n_cigar) {
-                free(res.graph_cigar);
-            }
+        abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i,
+                                  n_seqs);
+        is_rc[i] = res.is_rc;
+        if (res.is_rc) {
+            aln_is_reverse.push_back(true);
+            //std::cerr << "is_rc" << std::endl;
         } else {
-            // the alignment traceback failed
-            if (!banded_alignment) {
-                // we bail if we are already running without banding
-                std::string s = "smoothxg_failed_block_" + std::to_string(block_id) + ".fa";
-                std::cerr << "[smoothxg] error! failure in alignment in non-banded mode, "
-                          << "writing failed block to " << s << std::endl;
-                std::ofstream fasta(s.c_str());
-                for (uint64_t i = 0; i < seqs.size(); ++i) {
-                    fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
-                          << seqs[i] << std::endl;
-                }
-                fasta.close();
-                exit(1);
-            } else {
-                // otherwise, we will try to align this without banding
-                // first cleaning up
-                for (i = 0; i < n_seqs; ++i) {
-                    free(bseqs[i]);
-                }
-                free(bseqs);
-                free(seq_lens);
-                abpoa_free(ab, abpt);
-                abpoa_free_para(abpt);
-                // then running non-banded abPOA
-                return smooth_abpoa(graph, block, block_id,
-                                    poa_m, poa_n, poa_g,
-                                    poa_e, poa_q, poa_c,
-                                    local_alignment,
-                                    maf, keep_sequence,
-                                    false,
-                                    consensus_name);
-            }
+            aln_is_reverse.push_back(false);
+            // std::cerr << "is_rc_not" << std::endl;
+        }
+        if (res.n_cigar) {
+            free(res.graph_cigar);
         }
     }
 
@@ -841,19 +808,16 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     std::mutex path_mapping_mutex, consensus_mapping_mutex, logging_mutex;
     uint64_t thread_count = odgi::get_thread_count();
 
+    std::stringstream poa_banner;
+    poa_banner << "[smoothxg::smooth_and_lace] applying "
+               << (local_alignment ? "local" : "global")
+               << (use_abpoa ? "abPOA" : "SPOA")
+               << " to " << blocks.size() << " blocks:";
+    progress_meter::ProgressMeter poa_progress(blocks.size(), poa_banner.str());
+
     paryfor::parallel_for<uint64_t>(
         0, blocks.size(), thread_count, [&](uint64_t block_id, int tid) {
             auto &block = blocks[block_id];
-
-            { // if (block_id % 100 == 0) {
-                std::lock_guard<std::mutex> guard(logging_mutex);
-                std::cerr
-                    << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
-                    << " (" << (local_alignment ? "local" : "global") << " alignment mode)"
-                    << " to block " << block_id << "/" << blocks.size() << " " << std::fixed
-                    << std::showpoint << std::setprecision(3)
-                    << (float)block_id / (float)blocks.size() * 100 << "%\r";
-            }
 
             std::string consensus_name;
             if (add_consensus){
@@ -953,15 +917,12 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                     }
                 }
             }
+            poa_progress.increment(1);
         });
 
-    write_maf_thread.join();
+    poa_progress.finish();
 
-    std::cerr << "[smoothxg::smooth_and_lace] applying " << (use_abpoa ? "abPOA" : "SPOA")
-              << " (" << (local_alignment ? "local" : "global") << " alignment mode)"
-              << " to block " << blocks.size() << "/" << blocks.size() << " " << std::fixed
-              << std::showpoint << std::setprecision(3) << 100.0 << "%"
-              << std::endl;
+    write_maf_thread.join();
 
     std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings"
               << std::endl;
@@ -980,18 +941,14 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
     // add the nodes and edges to the graph
     std::vector<uint64_t> id_mapping;
-    std::cerr << "[smoothxg::smooth_and_lace] building final graph" << std::endl;
 
-    uint64_t j = 0;
+    std::stringstream add_graph_banner;
+    add_graph_banner << "[smoothxg::smooth_and_lace] adding "
+                     << block_graphs.size() << " graphs:";
+    progress_meter::ProgressMeter add_graph_progress(block_graphs.size(), add_graph_banner.str());
+
     for (auto &block : block_graphs) {
         uint64_t id_trans = smoothed.get_node_count();
-        { // if (j % 100 == 0) {
-            std::cerr << "[smoothxg::smooth_and_lace] adding graph " << j << "/"
-                      << block_graphs.size() << " " << std::fixed
-                      << std::showpoint << std::setprecision(3)
-                      << (float)j * 100 / (float)block_graphs.size() << "%\r";
-        }
-        ++j;
         // record the id translation
         id_mapping.push_back(id_trans);
         if (block.get_node_count() == 0) {
@@ -1005,17 +962,18 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 smoothed.get_handle(id_trans + block.get_id(e.first)),
                 smoothed.get_handle(id_trans + block.get_id(e.second)));
         });
+        add_graph_progress.increment(1);
     }
-    std::cerr << "[smoothxg::smooth_and_lace] adding graph " << j++ << "/"
-              << block_graphs.size() << " 100.000%" << std::endl;
+    add_graph_progress.finish();
+    
     // then for each path, ensure that it's embedded in the graph by walking
     // through its block segments in order and linking them up in the output
     // graph
+    std::stringstream lace_banner;
+    lace_banner << "[smoothxg::smooth_and_lace] embedding "
+                << path_mapping.size() << " path fragments:";
+    progress_meter::ProgressMeter lace_progress(path_mapping.size(), lace_banner.str());
     for (uint64_t i = 0; i < path_mapping.size(); ++i) {
-        {
-            std::cerr << "[smoothxg::smooth_and_lace] embedding path fragment "
-                      << i << "/" << path_mapping.size() << "\r";
-        }
         path_position_range_t *pos_range = &path_mapping[i];
         path_position_range_t *last_pos_range = nullptr;
         step_handle_t last_step = {0, 0};
@@ -1084,6 +1042,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 ++i;
                 pos_range = &path_mapping[i];
             }
+            lace_progress.increment(1);
         }
         // now add in any final sequence in the path
         // and add it to the path, add the edge
@@ -1099,34 +1058,47 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             smoothed.append_step(smoothed_path, h);
         }
     }
-    std::cerr << "[smoothxg::smooth_and_lace] embedding path fragment "
-              << path_mapping.size() << "/" << path_mapping.size() << std::endl;
+    lace_progress.finish();
     // now verify that smoothed has paths that are equal to the base graph
     // and that all the paths are fully embedded in the graph
-    std::cerr << "[smoothxg::smooth_and_lace] verifying paths" << std::endl;
-    smoothed.for_each_path_handle([&](const path_handle_t &path) {
-        // collect sequence
-        std::string orig_seq, smoothed_seq;
-        graph.for_each_step_in_path(
-            graph.get_path_handle(smoothed.get_path_name(path)),
-            [&](const step_handle_t &step) {
-                orig_seq.append(
-                    graph.get_sequence(graph.get_handle_of_step(step)));
-            });
-        smoothed.for_each_step_in_path(path, [&](const step_handle_t &step) {
-            smoothed_seq.append(
-                smoothed.get_sequence(smoothed.get_handle_of_step(step)));
+    std::vector<path_handle_t> paths;
+    smoothed.for_each_path_handle(
+        [&](const path_handle_t &path) {
+            paths.push_back(path);
         });
-        if (orig_seq != smoothed_seq) {
-            std::cerr << "[smoothxg] error! path "
-                      << smoothed.get_path_name(path)
-                      << " was corrupted in the smoothed graph" << std::endl
-                      << "original\t" << orig_seq << std::endl
-                      << "smoothed\t" << smoothed_seq << std::endl;
-            exit(1);
-        }
-        assert(orig_seq == smoothed_seq);
-    });
+    std::stringstream validate_banner;
+    validate_banner << "[smoothxg::smooth_and_lace] validating "
+                    << paths.size() << " path sequences:";
+    progress_meter::ProgressMeter validate_progress(paths.size(), validate_banner.str());
+    paryfor::parallel_for<uint64_t>(
+        0, paths.size(), thread_count,
+        [&](uint64_t path_id, int tid) {
+            auto path = paths[path_id];
+            std::string orig_seq, smoothed_seq;
+            graph.for_each_step_in_path(
+                graph.get_path_handle(smoothed.get_path_name(path)),
+                [&](const step_handle_t &step) {
+                    orig_seq.append(
+                        graph.get_sequence(graph.get_handle_of_step(step)));
+                });
+            smoothed.for_each_step_in_path(
+                path,
+                [&](const step_handle_t &step) {
+                    smoothed_seq.append(
+                        smoothed.get_sequence(smoothed.get_handle_of_step(step)));
+                });
+            if (orig_seq != smoothed_seq) {
+                std::cerr << "[smoothxg] error! path "
+                          << smoothed.get_path_name(path)
+                          << " was corrupted in the smoothed graph" << std::endl
+                          << "original\t" << orig_seq << std::endl
+                          << "smoothed\t" << smoothed_seq << std::endl;
+                exit(1);
+            }
+            assert(orig_seq == smoothed_seq);
+            validate_progress.increment(1);
+        });
+    validate_progress.finish();
 
     if (!consensus_mapping.empty()) {
         std::cerr << "[smoothxg::smooth_and_lace] sorting consensus"
@@ -1192,6 +1164,10 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         // todo: validate the consensus paths as well
     }
 
+    std::stringstream embed_banner;
+    embed_banner << "[smoothxg::smooth_and_lace] walking edges in "
+                 << paths.size() << " paths:";
+    progress_meter::ProgressMeter embed_progress(paths.size(), embed_banner.str());
     // embed all paths in the graph
     smoothed.for_each_path_handle(
         [&](const path_handle_t& path) {
@@ -1206,8 +1182,9 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                     }
                     last = h;
                 });
+            embed_progress.increment(1);
         });
-
+    embed_progress.finish();
 
     return smoothed;
 }
