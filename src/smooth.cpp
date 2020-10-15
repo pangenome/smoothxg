@@ -26,6 +26,27 @@ static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
     return (t = v >> 16) ? 16 + abpt->LogTable65536[t] : abpt->LogTable65536[v];
 }
 
+template<typename T>
+void clear_vector(std::vector<T>& vec) {
+    vec.clear();
+    vec.shrink_to_fit();
+    std::vector<T>().swap(vec);
+}
+void clear_string(std::string str){
+    str.clear();
+    str.shrink_to_fit();
+    std::string().swap(str);
+}
+
+void _clear_maf_block(uint64_t block_id, std::vector<std::vector<maf_row_t>> &mafs){
+    for (auto& maf_row : mafs[block_id]){
+        clear_string(maf_row.path_name);
+        clear_string(maf_row.aligned_seq);
+    }
+    clear_vector(mafs[block_id]);
+}
+
+
 odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
@@ -274,8 +295,8 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
                 aligned_seq
             });
 
-            path_name.clear();
-            aligned_seq.clear();
+            clear_string(path_name);
+            clear_string(aligned_seq);
         }
     }
 
@@ -455,11 +476,11 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                 keep_sequence ? msa[seq_rank] : ""
             });
 
-            path_name.clear();
-            msa[seq_rank].clear();
+            clear_string(path_name);
+            clear_string(msa[seq_rank]);
         }
 
-        msa.clear(); // Is this really necessary?
+        clear_vector(msa);
     }
 
     // write the graph, with consensus as a path
@@ -512,14 +533,6 @@ void _put_block_in_group(
             ));
         }
     }
-}
-
-void _clear_maf_block(uint64_t block_id, std::vector<std::vector<maf_row_t>> &mafs){
-    for (auto& maf_row : mafs[block_id]){
-        maf_row.path_name.clear();
-        maf_row.aligned_seq.clear();
-    }
-    mafs[block_id].clear();
 }
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
@@ -742,24 +755,24 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                             }
                                     );
 
-                                    merged_consensus_aligned_seq.clear();
+                                    clear_string(merged_consensus_aligned_seq);
                                 }
                                 write_maf_rows(out_maf, rows);
                             }
 
 
-                            merged_maf_blocks.field_blocks.clear();
-                            for (std::pair<std::string, maf_partial_row_t> maf_row : merged_maf_blocks.rows){
-                                maf_row.first.clear();
-                                maf_row.second.aligned_seq.clear();
+                            clear_vector(merged_maf_blocks.field_blocks);
+                            for (auto& maf_row : merged_maf_blocks.rows){
+                                clear_string(maf_row.first);
+                                clear_string(maf_row.second.aligned_seq);
                             }
                             merged_maf_blocks.rows.clear();
 
-                            for (std::pair<std::string, maf_partial_row_t> maf_cons_row : merged_maf_blocks.consensus_rows){
-                                maf_cons_row.first.clear();
-                                maf_cons_row.second.aligned_seq.clear();
+                            for (auto& maf_cons_row : merged_maf_blocks.consensus_rows){
+                                clear_string(maf_cons_row.first);
+                                clear_string(maf_cons_row.second.aligned_seq);
                             }
-                            merged_maf_blocks.consensus_rows.clear();
+                            clear_vector(merged_maf_blocks.consensus_rows);
                         }
 
                         if (!merged && !prep_new_merge_group) {
@@ -797,8 +810,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 out_maf.close();
             }
 
-            mafs.clear();
-            mafs_ready.clear();
+            clear_vector(mafs);
+            clear_vector(mafs_ready);
         }
     };
     std::thread write_maf_thread(write_maf_lambda);
