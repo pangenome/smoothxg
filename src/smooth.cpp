@@ -738,22 +738,26 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                         start_cons_pos_in_alignment += maf_cons_row.second.aligned_seq.length();
 
 
-                                        merged_consensus_seq_size += maf_cons_row.second.seq_size;
-                                        merged_consensus_path_length += maf_cons_row.second.path_length;
-                                        merged_consensus_aligned_seq += maf_cons_row.second.aligned_seq;
+                                        if (merged_maf_blocks.field_blocks.size() > 1) {
+                                            merged_consensus_seq_size += maf_cons_row.second.seq_size;
+                                            merged_consensus_path_length += maf_cons_row.second.path_length;
+                                            merged_consensus_aligned_seq += maf_cons_row.second.aligned_seq;
+                                        }
                                     }
 
-                                    // Write the merged consensus
-                                    rows.push_back(
-                                            {
-                                                    consensus_base_name + block_id_range + " ",
-                                                    merged_maf_blocks.consensus_rows.begin()->second.record_start,
-                                                    merged_consensus_seq_size,
-                                                    merged_maf_blocks.consensus_rows.begin()->second.is_reversed,
-                                                    merged_consensus_path_length,
-                                                    merged_consensus_aligned_seq
-                                            }
-                                    );
+                                    if (merged_maf_blocks.field_blocks.size() > 1) {
+                                        // Write the merged consensus
+                                        rows.push_back(
+                                                {
+                                                        consensus_base_name + block_id_range + " ",
+                                                        merged_maf_blocks.consensus_rows.begin()->second.record_start,
+                                                        merged_consensus_seq_size,
+                                                        merged_maf_blocks.consensus_rows.begin()->second.is_reversed,
+                                                        merged_consensus_path_length,
+                                                        merged_consensus_aligned_seq
+                                                }
+                                        );
+                                    }
 
                                     clear_string(merged_consensus_aligned_seq);
                                 }
