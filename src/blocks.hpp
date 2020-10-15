@@ -35,6 +35,7 @@ struct block_t {
     std::vector<path_range_t> path_ranges;
     bool broken = false;
     bool is_repeat = false;
+    bool is_split = false;
 };
 
 // find the boundaries of blocks that we can compress with spoa

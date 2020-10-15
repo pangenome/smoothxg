@@ -15,7 +15,7 @@ KDQ_INIT(int)
 #define kdq_int_t kdq_t(int)
 
 // to write each block to a FASTA and TSV
-//#define SMOOTH_WRITE_BLOCKS_FASTA true
+#define SMOOTH_WRITE_BLOCKS_FASTA true
 
 static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
     uint64_t t, tt;
