@@ -28,6 +28,18 @@ struct maf_t {
     std::vector<std::pair<std::string, maf_partial_row_t>> consensus_rows;
 };
 
+template<typename T>
+void clear_vector(std::vector<T>& vec) {
+    vec.clear();
+    vec.shrink_to_fit();
+    std::vector<T>().swap(vec);
+}
+void clear_string(std::string str){
+    str.clear();
+    str.shrink_to_fit();
+    std::string().swap(str);
+}
+
 void write_maf_rows(std::ofstream &out, const std::vector<maf_row_t>& rows) {
     // determine output widths for everything
     size_t max_src_length = 0;
