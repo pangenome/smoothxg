@@ -73,6 +73,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (args::get(keep_temp) && args::get(no_prep)) {
+        std::cerr << "[smoothxg::main] error: Please specify -K/--keep-temp or -n/--no-prep, not both." << std::endl;
+        return 1;
+    }
+
     size_t n_threads = args::get(num_threads);
     if (n_threads) {
         omp_set_num_threads(args::get(num_threads));
