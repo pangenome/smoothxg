@@ -761,6 +761,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 clear_vector(rows);
                             }
 
+                            clear_string(block_id_range);
+
                             clear_vector(merged_maf_blocks.field_blocks);
                             for (auto& maf_row : merged_maf_blocks.rows){
                                 clear_string(maf_row.first);
