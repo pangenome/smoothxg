@@ -73,6 +73,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (args::get(keep_temp) && args::get(no_prep)) {
+        std::cerr << "[smoothxg::main] error: Please specify -K/--keep-temp or -n/--no-prep, not both." << std::endl;
+        return 1;
+    }
+
     size_t n_threads = args::get(num_threads);
     if (n_threads) {
         omp_set_num_threads(args::get(num_threads));
@@ -150,7 +155,11 @@ int main(int argc, char** argv) {
         // prep the graph by default
         std::string gfa_in_name;
         if (!args::get(no_prep)) {
-            gfa_in_name = args::get(gfa_in) + ".prep.gfa";
+            if (args::get(base).empty()){
+                gfa_in_name = args::get(gfa_in) + ".prep.gfa";
+            }else{
+                gfa_in_name = args::get(base) + '/' + args::get(gfa_in) + ".prep.gfa";
+            }
             float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
             float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
             std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
@@ -161,7 +170,7 @@ int main(int argc, char** argv) {
         std::cerr << "[smoothxg::main] building xg index" << std::endl;
         graph.from_gfa(gfa_in_name, args::get(validate),
                        args::get(base).empty() ? gfa_in_name : args::get(base));
-        if (!args::get(keep_temp) || !args::get(no_prep)) {
+        if (!args::get(keep_temp) && !args::get(no_prep)) {
             std::remove(gfa_in_name.c_str());
         }
     }
