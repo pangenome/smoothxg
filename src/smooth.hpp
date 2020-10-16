@@ -37,7 +37,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
                            int poa_e, int poa_q, int poa_c,
                            bool local_alignment,
                            std::string *maf,
-                           bool banded_alignment = true,
+                           bool banded_alignment,
                            const std::string &consensus_name = "");
 
 odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,

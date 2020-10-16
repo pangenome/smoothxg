@@ -15,7 +15,7 @@ KDQ_INIT(int)
 #define kdq_int_t kdq_t(int)
 
 // to write each block to a FASTA and TSV
-#define SMOOTH_WRITE_BLOCKS_FASTA true
+//#define SMOOTH_WRITE_BLOCKS_FASTA true
 
 static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
     uint64_t t, tt;
@@ -158,53 +158,19 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     for (i = 0; i < n_seqs; ++i) {
         abpoa_res_t res;
         res.graph_cigar = 0, res.n_cigar = 0, res.is_rc = 0;
+        res.traceback_ok = 1;
         abpt->rev_cigar = 0;
-        abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
-        if (res.traceback_ok) {
-            abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i,
-                                      n_seqs);
-            is_rc[i] = res.is_rc;
-            if (res.is_rc) {
-                aln_is_reverse.push_back(true);
-                //std::cerr << "is_rc" << std::endl;
-            } else {
-                aln_is_reverse.push_back(false);
-                // std::cerr << "is_rc_not" << std::endl;
-            }
-            if (res.n_cigar) {
-                free(res.graph_cigar);
-            }
+        bool aligned = -1 != abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
+        // nb: we should check if we should do anything special when !res->traceback_ok
+        abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i, n_seqs);
+        is_rc[i] = res.is_rc;
+        if (res.is_rc) {
+            aln_is_reverse.push_back(true);
         } else {
-            // the alignment traceback failed
-            if (!banded_alignment) {
-                // we bail if we are already running without banding
-                std::string s = "smoothxg_failed_block_" + std::to_string(block_id) + ".fa";
-                std::cerr << "[smoothxg] error! failure in alignment in non-banded mode, "
-                          << "writing failed block to " << s << std::endl;
-                std::ofstream fasta(s.c_str());
-                for (uint64_t i = 0; i < seqs.size(); ++i) {
-                    fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
-                          << seqs[i] << std::endl;
-                }
-                fasta.close();
-                exit(1);
-            } else {
-                // otherwise, we will try to align this without banding
-                // first cleaning up
-                for (i = 0; i < n_seqs; ++i) {
-                    free(bseqs[i]);
-                }
-                free(bseqs);
-                free(seq_lens);
-                abpoa_free(ab, abpt);
-                abpoa_free_para(abpt);
-                // then running non-banded abPOA
-                return smooth_abpoa(graph, block, block_id,
-                                    poa_m, poa_n, poa_g,
-                                    poa_e, poa_q, poa_c,
-                                    local_alignment, false,
-                                    consensus_name);
-            }
+            aln_is_reverse.push_back(false);
+        }
+        if (res.n_cigar) {
+            free(res.graph_cigar);
         }
     }
 
