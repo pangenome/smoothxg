@@ -125,7 +125,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     abpt->out_gfa = 1; // must be set to get the graph
     abpt->out_msa = maf != nullptr ? 1 : 0; // must be set when we extract the MSA
     abpt->out_cons = generate_consensus;
-    abpt->amb_strand = 1;
+    abpt->amb_strand = 1; // we'll align both ways and check which is better
     abpt->match = poa_m;
     abpt->mismatch = poa_n;
     abpt->gap_open1 = poa_g;
@@ -166,17 +166,16 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     for (i = 0; i < n_seqs; ++i) {
         abpoa_res_t res;
         res.graph_cigar = 0, res.n_cigar = 0, res.is_rc = 0;
+        res.traceback_ok = 1;
         abpt->rev_cigar = 0;
-        abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
-        abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i,
-                                  n_seqs);
+        bool aligned = -1 != abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
+        // nb: we should check if we should do anything special when !res->traceback_ok
+        abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i, n_seqs);
         is_rc[i] = res.is_rc;
         if (res.is_rc) {
             aln_is_reverse.push_back(true);
-            //std::cerr << "is_rc" << std::endl;
         } else {
             aln_is_reverse.push_back(false);
-            // std::cerr << "is_rc_not" << std::endl;
         }
         if (res.n_cigar) {
             free(res.graph_cigar);

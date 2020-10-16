@@ -39,6 +39,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "max-path-jump"});
     args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "max-edge-jump"});
+    args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.05]", {'R', "min-segment-ratio"});
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "min-copy-length"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "max-copy-length"});
     args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "max-poa-length"});
@@ -82,6 +83,7 @@ int main(int argc, char** argv) {
     if (n_threads) {
         omp_set_num_threads(args::get(num_threads));
     } else {
+        n_threads = 1;
         omp_set_num_threads(1);
     }
 
@@ -92,6 +94,7 @@ int main(int argc, char** argv) {
     uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
     uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
+    double min_segment_ratio = _min_segment_ratio ? args::get(_min_segment_ratio) : 0.05;
 
     if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
         std::cerr
@@ -192,7 +195,9 @@ int main(int argc, char** argv) {
                            min_autocorr_z,
                            autocorr_stride,
                            order_paths_from_longest,
-                           true); // break repeats
+                           true,
+                           min_segment_ratio,
+                           n_threads);
 
     bool local_alignment = args::get(use_spoa) ^ args::get(change_alignment_mode);
 
