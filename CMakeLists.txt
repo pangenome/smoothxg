@@ -232,6 +232,7 @@ add_library(smoothxg_objs OBJECT
   src/xg.cpp
   src/chain.cpp
   src/prep.cpp
+  src/cleanup.cpp
   src/blocks.cpp
   src/breaks.cpp
   src/smooth.cpp

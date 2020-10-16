@@ -15,6 +15,7 @@
 #include "smooth.hpp"
 #include "xg.hpp"
 #include "prep.hpp"
+#include "cleanup.hpp"
 #include "breaks.hpp"
 #include "utils.hpp"
 #include "odgi/odgi.hpp"
@@ -148,6 +149,8 @@ int main(int argc, char** argv) {
     }
     
     bool order_paths_from_longest = args::get(use_spoa);
+    float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
+    float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
     std::cerr << "[smoothxg::main] loading graph" << std::endl;
     XG graph;
@@ -163,8 +166,6 @@ int main(int argc, char** argv) {
             }else{
                 gfa_in_name = args::get(base) + '/' + args::get(gfa_in) + ".prep.gfa";
             }
-            float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
-            float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
             std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
             smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort));
         } else {
@@ -251,6 +252,9 @@ int main(int argc, char** argv) {
                                               args::get(write_msa_in_maf_format), maf_header, !args::get(do_not_merge_blocks),
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
+
+    std::cerr << "[smoothxg::main] sorting smoothed graph" << std::endl;
+    smoothxg::cleanup(smoothed, term_updates, !args::get(no_toposort));
 
     std::cerr << "[smoothxg::main] writing smoothed graph" << std::endl;
     smoothed.to_gfa(std::cout);
