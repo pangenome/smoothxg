@@ -150,7 +150,11 @@ int main(int argc, char** argv) {
         // prep the graph by default
         std::string gfa_in_name;
         if (!args::get(no_prep)) {
-            gfa_in_name = args::get(gfa_in) + ".prep.gfa";
+            if (args::get(base).empty()){
+                gfa_in_name = args::get(gfa_in) + ".prep.gfa";
+            }else{
+                gfa_in_name = args::get(base) + '/' + args::get(gfa_in) + ".prep.gfa";
+            }
             float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
             float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
             std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
