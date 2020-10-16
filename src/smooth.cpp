@@ -779,19 +779,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                         if (!merged && !prep_new_merge_group) {
                             if (produce_maf){
                                 out_maf << "a blocks=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;
-                                std::vector<maf_row_t> rows;
-                                for (auto& maf_row : mafs[block_id]){
-                                    rows.push_back(
-                                        {maf_row.path_name, maf_row.record_start, maf_row.seq_size, maf_row.is_reversed, maf_row.path_length, maf_row.aligned_seq}
-                                    );
-                                }
-                                write_maf_rows(out_maf, rows);
-
-                                for(auto& row : rows){
-                                    clear_string(row.path_name);
-                                    clear_string(row.aligned_seq);
-                                }
-                                clear_vector(rows);
+                                write_maf_rows(out_maf, mafs[block_id]);
                             }
 
                             _clear_maf_block(block_id, mafs);
