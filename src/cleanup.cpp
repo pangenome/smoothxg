@@ -6,7 +6,7 @@ namespace smoothxg {
 // we'll then build the xg index on top of that in low memory
 
 void cleanup(
-    odgi::graph_t graph,
+    odgi::graph_t& graph,
     const float& p_sgd_min_term_updates,
     const bool& toposort) {
 
@@ -86,18 +86,11 @@ void cleanup(
 
     graph.apply_ordering(order, true);
 
-    // groom
-    /*
-    odgi::graph_t groomed;
-    odgi::algorithms::groom(graph, groomed);
-    graph = groomed;
-    */
-
     // final toposort
     if (toposort) {
-        graph.apply_ordering(odgi::algorithms::topological_order(
-                                 &graph, false, false, true),
-                             true);
+        graph.apply_ordering(
+            odgi::algorithms::topological_order(&graph, false, false, true),
+            true);
     }
 }
 

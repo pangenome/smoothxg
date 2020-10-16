@@ -21,11 +21,8 @@
 
 namespace smoothxg {
 
-// prep the graph into a given GFA file
-// we'll then build the xg index on top of that in low memory
-
 void cleanup(
-    odgi::graph_t graph,
+    odgi::graph_t& graph,
     const float& p_sgd_min_term_updates,
     const bool& toposort);
 
