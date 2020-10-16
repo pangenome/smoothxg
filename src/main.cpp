@@ -15,6 +15,7 @@
 #include "smooth.hpp"
 #include "xg.hpp"
 #include "prep.hpp"
+#include "cleanup.hpp"
 #include "breaks.hpp"
 #include "utils.hpp"
 #include "odgi/odgi.hpp"
@@ -39,7 +40,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "max-path-jump"});
     args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "min-subpath"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "max-edge-jump"});
-    args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.05]", {'R', "min-segment-ratio"});
+    args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.1]", {'R', "min-segment-ratio"});
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "min-copy-length"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "max-copy-length"});
     args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "max-poa-length"});
@@ -94,7 +95,7 @@ int main(int argc, char** argv) {
     uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
     uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
-    double min_segment_ratio = _min_segment_ratio ? args::get(_min_segment_ratio) : 0.05;
+    double min_segment_ratio = _min_segment_ratio ? args::get(_min_segment_ratio) : 0.1;
 
     if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
         std::cerr
@@ -148,6 +149,8 @@ int main(int argc, char** argv) {
     }
     
     bool order_paths_from_longest = args::get(use_spoa);
+    float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
+    float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
     std::cerr << "[smoothxg::main] loading graph" << std::endl;
     XG graph;
@@ -163,8 +166,6 @@ int main(int argc, char** argv) {
             }else{
                 gfa_in_name = args::get(base) + '/' + args::get(gfa_in) + ".prep.gfa";
             }
-            float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
-            float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
             std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
             smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort));
         } else {
@@ -251,6 +252,9 @@ int main(int argc, char** argv) {
                                               args::get(write_msa_in_maf_format), maf_header, !args::get(do_not_merge_blocks),
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
+
+    std::cerr << "[smoothxg::main] sorting smoothed graph" << std::endl;
+    smoothxg::cleanup(smoothed, term_updates, !args::get(no_toposort));
 
     std::cerr << "[smoothxg::main] writing smoothed graph" << std::endl;
     smoothed.to_gfa(std::cout);
