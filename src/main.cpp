@@ -20,7 +20,7 @@
 #include "utils.hpp"
 #include "odgi/odgi.hpp"
 #include "consensus_graph.hpp"
-#include "step_blocks_index.hpp"
+#include "path_nuc_range_block_index.hpp"
 
 using namespace std;
 using namespace xg;
@@ -81,6 +81,12 @@ int main(int argc, char** argv) {
     if (!args::get(add_consensus) && write_consensus_graph) {
         std::cerr << "[smoothxg::main] error: Please only use the -s/--write-consensus-graph parameter together with"
                    "the -a/--add-consensus option." << std::endl;
+        return 1;
+    }
+
+    if (_min_subpath && write_consensus_graph) {
+        std::cerr << "[smoothxg::main] error: Please only use the -s/--write-consensus-graph parameter without"
+                   "the -k/--subpath option." << std::endl;
         return 1;
     }
 
@@ -207,13 +213,14 @@ int main(int argc, char** argv) {
                            order_paths_from_longest,
                            true,
                            min_segment_ratio,
-                           n_threads);
+                           n_threads,
+                           write_consensus_graph);
 
     // build the path_step_rank_ranges -> index_in_blocks_vector
     // flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:
     // we collect path_step_rank_ranges and the identifier of an interval is the index of a block in the blocks vector
-    ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> happy_tree_friends = smoothxg::generate_step_rank_to_path_ranges_trees(
-            blocks);
+    ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> happy_tree_friends = smoothxg::generate_path_nuc_range_block_index(
+            blocks, graph);
 
     bool local_alignment = args::get(use_spoa) ^ args::get(change_alignment_mode);
 

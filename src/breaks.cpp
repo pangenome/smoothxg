@@ -17,7 +17,8 @@ void break_blocks(const xg::XG& graph,
                   const bool& order_paths_from_longest,
                   const bool& break_repeats,
                   const double& min_segment_ratio,
-                  const uint64_t& thread_count) {
+                  const uint64_t& thread_count,
+                  const bool& consensus_graph) {
 
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
@@ -229,6 +230,14 @@ void break_blocks(const xg::XG& graph,
                 block.broken = true;
                 block.is_repeat = found_repeat;
                 breaks_progress.increment(1);
+            }
+            // prepare the path_ranges_t for a consensus graph if necessary
+            // we do this here, because it works in parallel
+            if (consensus_graph) {
+                for (auto& path_range : block.path_ranges) {
+                    path_range.nuc_begin = graph.get_position_of_step(path_range.begin);
+                    path_range.nuc_end = graph.get_position_of_step(path_range.end);
+                }
             }
         });
     breaks_progress.finish();
