@@ -24,10 +24,10 @@ ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> generate_path_nuc_r
             IITree<uint64_t , uint64_t> happy_tree = happy_trees_map[path_name];
             if (happy_tree.size() == 0) {
                 IITree<uint64_t , uint64_t> happy_tree_;
-                happy_tree_.add(path_range.nuc_begin, path_range.nuc_end, i);
+                happy_tree_.add(path_range.nuc_begin, path_range.nuc_end + 1, i);
                 happy_trees_map[path_name] = happy_tree_;
             } else {
-                happy_tree.add(path_range.nuc_begin, path_range.nuc_end, i);
+                happy_tree.add(path_range.nuc_begin, path_range.nuc_end + 1, i);
             }
             /*
             std::cerr << path_range.nuc_begin << std::endl;
@@ -50,6 +50,21 @@ ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> generate_path_nuc_r
         }
         */
     }
+    /*
+            IITree<int, int> tree;
+tree.add(12, 34, 0); // add an interval
+tree.add(0, 23, 1);
+tree.add(34, 56, 2);
+tree.index(); // index
+std::vector<size_t> a;
+tree.overlap(23, 25, a); // retrieve overlaps
+for (size_t i = 0; i < a.size(); ++i) {
+    printf("%d\t%d\t%d\n", tree.start(a[i]), tree.end(a[i]), tree.data(a[i]));
+    std::cerr << tree.start(a[i]) << std::endl;
+    std::cerr << tree.end(a[i]) << std::endl;
+    std::cerr << tree.data(a[i]) << std::endl;
+}
+     */
 
     return happy_trees_map;
 }
