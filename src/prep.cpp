@@ -97,7 +97,7 @@ void prep(
 
     // groom
     odgi::graph_t groomed;
-    odgi::algorithms::groom(graph, groomed);
+    odgi::algorithms::groom(graph, groomed, true);
     graph = groomed;
 
     // final toposort
