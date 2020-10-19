@@ -19,6 +19,8 @@
 #include "breaks.hpp"
 #include "utils.hpp"
 #include "odgi/odgi.hpp"
+#include "consensus_graph.hpp"
+#include "step_blocks_index.hpp"
 
 using namespace std;
 using namespace xg;
@@ -32,6 +34,7 @@ int main(int argc, char** argv) {
 
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
+    args::ValueFlag<std::string> write_consensus_graph(parser, "FILE", "write the consensus graph in this file", {'s', "write-consensus-graph"});
     args::Flag do_not_merge_blocks(parser, "bool","do not merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "not-merge-blocks"});
 
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
@@ -72,6 +75,12 @@ int main(int argc, char** argv) {
     if (args::get(do_not_merge_blocks) && (!write_msa_in_maf_format && !args::get(add_consensus))) {
         std::cerr << "[smoothxg::main] error: Please specify the -M/--not-merge-blocks to use the "
                    "-m/--write-msa-in-maf-format and -a/--add-consensus options." << std::endl;
+        return 1;
+    }
+
+    if (!args::get(add_consensus) && write_consensus_graph) {
+        std::cerr << "[smoothxg::main] error: Please only use the -s/--write-consensus-graph parameter together with"
+                   "the -a/--add-consensus option." << std::endl;
         return 1;
     }
 
@@ -200,6 +209,12 @@ int main(int argc, char** argv) {
                            min_segment_ratio,
                            n_threads);
 
+    // build the path_step_rank_ranges -> index_in_blocks_vector
+    // flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:
+    // we collect path_step_rank_ranges and the identifier of an interval is the index of a block in the blocks vector
+    ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> happy_tree_friends = smoothxg::generate_step_rank_to_path_ranges_trees(
+            blocks);
+
     bool local_alignment = args::get(use_spoa) ^ args::get(change_alignment_mode);
 
     std::string maf_header;
@@ -252,6 +267,17 @@ int main(int argc, char** argv) {
                                               args::get(write_msa_in_maf_format), maf_header, !args::get(do_not_merge_blocks),
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
+
+    // do we need to build the consensus graph?
+    std::string consensus_graph_out;
+    odgi::graph_t consensus_graph;
+    if (write_consensus_graph) {
+        consensus_graph_out = args::get(write_consensus_graph);
+        consensus_graph = smoothxg::create_consensus_graph(happy_tree_friends, smoothed, blocks, args::get(base));
+        ofstream o(consensus_graph_out);
+        consensus_graph.to_gfa(o);
+        o.close();
+    }
 
     std::cerr << "[smoothxg::main] sorting smoothed graph" << std::endl;
     smoothxg::cleanup(smoothed, term_updates, !args::get(no_toposort));

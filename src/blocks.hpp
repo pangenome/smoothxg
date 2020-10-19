@@ -26,6 +26,8 @@ struct path_range_t {
     step_handle_t begin;
     step_handle_t end;
     uint64_t length;
+    uint64_t prev_block_id;
+    uint64_t next_block_id;
 };
 
 struct block_t {
@@ -38,7 +40,7 @@ struct block_t {
     bool is_split = false;
 };
 
-// find the boundaries of blocks that we can compress with spoa
+// find the boundaries of blocks that we can compress with xpoa
 // assuming a maximum path length within each block
 std::vector<block_t>
 smoothable_blocks(
