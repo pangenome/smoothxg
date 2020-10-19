@@ -6,6 +6,10 @@ ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> generate_step_rank_
     std::vector<smoothxg::block_t>& blocks) {
     ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> happy_trees_map;
     // TODO PLAY AROUND WITH THE MAP
+    IITree<uint64_t, uint64_t> some_tree = happy_trees_map["a"];
+    if (some_tree.size() == 0) {
+        std::cerr << "SO IT GOES" << std::endl;
+    }
     for (uint64_t i; i < blocks.size(); i++) {
         auto& block = blocks[i];
         // find out each path's step_handle ranges of a block
