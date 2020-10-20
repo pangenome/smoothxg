@@ -589,34 +589,33 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 merged = true;
                             } else {
                                 // The block to merge must have no new paths respect to the merged group
-                                if (merged_maf_blocks.rows.size() >= num_seq_in_block - (add_consensus ? 1 : 0) ) {
-                                    merged = true;
+                                merged = true;
 
-                                    for (uint64_t i = 0; i < num_seq_in_block; i++) {
-                                        // Do not check the consensus (always forward)
-                                        if (!add_consensus || i < num_seq_in_block - 1) {
-                                            auto maf_row = mafs[block_id][i];
+                                for (uint64_t i = 0; i < num_seq_in_block; i++) {
+                                    // Do not check the consensus (always forward)
+                                    if (!add_consensus || i < num_seq_in_block - 1) {
+                                        auto maf_row = mafs[block_id][i];
 
-                                            if (merged_maf_blocks.rows.count(maf_row.path_name) != 1){
-                                                merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
-                                                prep_new_merge_group = !is_last_block;
-                                                break;
-                                            }
+                                        if (merged_maf_blocks.rows.count(maf_row.path_name) != 1){
+                                            merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
+                                            prep_new_merge_group = !is_last_block;
+                                            break;
+                                        }
 
-                                            maf_partial_row_t merged_maf_row = merged_maf_blocks.rows[maf_row.path_name];
+                                        maf_partial_row_t merged_maf_row = merged_maf_blocks.rows[maf_row.path_name];
 
-                                            if (
-                                                    (merged_maf_row.is_reversed != maf_row.is_reversed) ||
-                                                    (merged_maf_row.is_reversed && ((merged_maf_row.record_start - maf_row.seq_size) != maf_row.record_start)) ||
-                                                    (!merged_maf_row.is_reversed && ((merged_maf_row.record_start + merged_maf_row.seq_size) != maf_row.record_start))
-                                                    ) {
-                                                merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
-                                                prep_new_merge_group = !is_last_block;
-                                                break;
-                                            }
+                                        if (
+                                                (merged_maf_row.is_reversed != maf_row.is_reversed) ||
+                                                (merged_maf_row.is_reversed && ((merged_maf_row.record_start - maf_row.seq_size) != maf_row.record_start)) ||
+                                                (!merged_maf_row.is_reversed && ((merged_maf_row.record_start + merged_maf_row.seq_size) != maf_row.record_start))
+                                                ) {
+                                            merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
+                                            prep_new_merge_group = !is_last_block;
+                                            break;
                                         }
                                     }
                                 }
+
                             }
                         }
                     }
