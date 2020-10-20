@@ -2,6 +2,21 @@
 
 namespace smoothxg {
 
+bool operator<(const link_path_t& a,
+               const link_path_t& b) {
+    auto& a_0 = as_integer(a.from_cons);
+    auto& a_1 = as_integer(a.to_cons);
+    auto& b_0 = as_integer(b.from_cons);
+    auto& b_1 = as_integer(b.to_cons);
+    return (a_0 < b_0) 
+        || (a_0 == b_0
+            && (a_1 < b_1
+                || (a_1 == b_1
+                    && (a.length < b.length
+                        || (a.length == b.length
+                            && a.hash < b.hash)))));
+}
+
 // prep the graph into a given GFA file
 // we'll then build the xg index on top of that in low memory
 
@@ -39,8 +54,10 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         [&](uint64_t idx, int tid) {
             auto& path = non_consensus_paths[idx];
             
+            //link_path_ms.append();
         });
 
+    link_path_ms.index(thread_count);
     
     // we need to create a copy of the original graph
     // this sounds memory expensive
