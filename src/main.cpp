@@ -280,7 +280,8 @@ int main(int argc, char** argv) {
     odgi::graph_t consensus_graph;
     if (write_consensus_graph) {
         consensus_graph_out = args::get(write_consensus_graph);
-        consensus_graph = smoothxg::create_consensus_graph(happy_tree_friends, smoothed, blocks, args::get(base));
+        std::vector<std::shared_ptr<std::string>> consensus_names;
+        consensus_graph = smoothxg::create_consensus_graph(happy_tree_friends, smoothed, consensus_names, blocks, args::get(base));
         ofstream o(consensus_graph_out);
         consensus_graph.to_gfa(o);
         o.close();

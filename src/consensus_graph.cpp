@@ -6,11 +6,16 @@ namespace smoothxg {
 // we'll then build the xg index on top of that in low memory
 
 odgi::graph_t create_consensus_graph(ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>>& happy_tree_friends,
-                                     odgi::graph_t& smoothed, std::vector<smoothxg::block_t>& blocks, std::string& base) {
-    xp::XP smoothed_xp;
-    smoothed_xp.from_handle_graph(smoothed);
+                                     const odgi::graph_t& smoothed,
+                                     const std::vector<std::shared_ptr<std::string>>& consensus_names, // pointers to consensus path names for each block
+                                     const std::vector<smoothxg::block_t>& blocks,
+                                     const std::string& base) {
+    // we need to create a copy of the original graph
+    // this sounds memory expensive
+    odgi::graph_t consensus_graph; // = smoothed;
     // build an xp index of the smoothed graph
-
+    xp::XP path_index;
+    path_index.from_handle_graph(smoothed);
     // iterate through all blocks
     // fetch the consensus path of the given block
     // we can go left or right!
@@ -35,7 +40,8 @@ odgi::graph_t create_consensus_graph(ska::flat_hash_map<std::string, IITree<uint
     // TODO we will create each link "twice", what to do?
 
     // 11. create new consensus graph which only has the consensus and link paths in it
-    return smoothed;
+
+    return consensus_graph;
 }
 
 }
