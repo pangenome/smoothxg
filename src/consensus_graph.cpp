@@ -7,7 +7,7 @@ namespace smoothxg {
 
 odgi::graph_t create_consensus_graph(ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>>& happy_tree_friends,
                                      const odgi::graph_t& smoothed,
-                                     const std::vector<std::shared_ptr<std::string>>& consensus_names, // pointers to consensus path names for each block
+                                     const std::vector<std::string>& consensus_names, // pointers to consensus path names for each block
                                      const std::vector<smoothxg::block_t>& blocks,
                                      const std::string& base) {
     // we need to create a copy of the original graph

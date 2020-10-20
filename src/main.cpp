@@ -276,11 +276,10 @@ int main(int argc, char** argv) {
                                               args::get(add_consensus) ? "Consensus_" : "");
 
     // do we need to build the consensus graph?
-    std::string consensus_graph_out;
-    odgi::graph_t consensus_graph;
     if (write_consensus_graph) {
-        consensus_graph_out = args::get(write_consensus_graph);
-        std::vector<std::shared_ptr<std::string>> consensus_names;
+        std::string consensus_graph_out = args::get(write_consensus_graph);
+        odgi::graph_t consensus_graph;
+        std::vector<std::string> consensus_names;
         consensus_graph = smoothxg::create_consensus_graph(happy_tree_friends, smoothed, consensus_names, blocks, args::get(base));
         ofstream o(consensus_graph_out);
         consensus_graph.to_gfa(o);
