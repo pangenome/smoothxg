@@ -53,8 +53,58 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         0, non_consensus_paths.size(), thread_count,
         [&](uint64_t idx, int tid) {
             auto& path = non_consensus_paths[idx];
-            
-            //link_path_ms.append();
+            // for each step in path
+            link_path_t link;
+            path_handle_t last_seen_consensus;
+            bool seen_consensus = false;
+            smoothed.for_each_step_in_path(
+                path,
+                [&](const step_handle_t& step) {
+                    // check if we're on the step with any consensus
+                    handle_t h = smoothed.get_handle_of_step(step);
+                    bool on_consensus = false;
+                    path_handle_t consensus;
+                    smoothed.for_each_step_on_handle(
+                        h,
+                        [&](const step_handle_t& s) {
+                            path_handle_t p = smoothed.get_path_handle_of_step(s);
+                            if (is_consensus[as_integer(p)]) {
+                                on_consensus = true;
+                                consensus = p;
+                            }
+                        });
+                    // if we're on the consensus
+                    if (on_consensus) {
+                        // we haven't seen any consensus before?
+                        if (!seen_consensus) {
+                            // we construct the first link path object
+                            link.length = 0;
+                            link.from_cons = consensus;
+                            link.to_cons = consensus;
+                            link.begin = step;
+                            link.end = step;
+                            seen_consensus = true;
+                        } else {
+                            // we've seen a consensus before, and it's the same
+                            if (link.to_cons == consensus) {
+                                // TODO is this the correct place to increment
+                                link.length += smoothed.get_length(h);
+                            } else { // or it's different
+                                // this is when we write a link candidate record
+                                link.to_cons = consensus;
+                                link.end = step;
+                                link_path_ms.append(link);
+
+                                // reset link
+                                link.length = 0;
+                                link.from_cons = consensus;
+                                link.to_cons = consensus;
+                                link.begin = step;
+                                link.end = step;
+                            }
+                        }
+                    }
+                });
         });
 
     link_path_ms.index(thread_count);
