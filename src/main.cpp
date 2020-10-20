@@ -219,8 +219,7 @@ int main(int argc, char** argv) {
     // build the path_step_rank_ranges -> index_in_blocks_vector
     // flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:
     // we collect path_step_rank_ranges and the identifier of an interval is the index of a block in the blocks vector
-    ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> happy_tree_friends = smoothxg::generate_path_nuc_range_block_index(
-            blocks, graph);
+    //ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> happy_tree_friends = smoothxg::generate_path_nuc_range_block_index(blocks, graph);
 
     bool local_alignment = args::get(use_spoa) ^ args::get(change_alignment_mode);
 
@@ -262,6 +261,7 @@ int main(int argc, char** argv) {
                 " autocorr_stride=" + std::to_string(autocorr_stride) + "\n";
     }
 
+    std::vector<path_handle_t> consensus_paths;
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,
                                               poa_m,
@@ -273,15 +273,13 @@ int main(int argc, char** argv) {
                                               local_alignment,
                                               args::get(write_msa_in_maf_format), maf_header, !args::get(do_not_merge_blocks),
                                               !args::get(use_spoa),
-                                              args::get(add_consensus) ? "Consensus_" : "");
+                                              args::get(add_consensus) ? "Consensus_" : "",
+                                              consensus_paths);
 
     // do we need to build the consensus graph?
     if (write_consensus_graph) {
-        std::string consensus_graph_out = args::get(write_consensus_graph);
-        odgi::graph_t consensus_graph;
-        std::vector<std::shared_ptr<std::string>> consensus_names;
-        consensus_graph = smoothxg::create_consensus_graph(happy_tree_friends, smoothed, consensus_names, blocks, args::get(base));
-        ofstream o(consensus_graph_out);
+        odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(smoothed, consensus_paths, args::get(base));
+        ofstream o(args::get(write_consensus_graph));
         consensus_graph.to_gfa(o);
         o.close();
     }

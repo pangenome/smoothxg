@@ -5,17 +5,22 @@ namespace smoothxg {
 // prep the graph into a given GFA file
 // we'll then build the xg index on top of that in low memory
 
-odgi::graph_t create_consensus_graph(ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>>& happy_tree_friends,
-                                     const odgi::graph_t& smoothed,
-                                     const std::vector<std::shared_ptr<std::string>>& consensus_names, // pointers to consensus path names for each block
-                                     const std::vector<smoothxg::block_t>& blocks,
+odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
+                                     const std::vector<path_handle_t>& consensus_paths,
                                      const std::string& base) {
+
+    // walk each path
+    // record distance since last step on a consensus path
+    // record first step handle off a consensus path
+    // detect consensus switches, writing the distance to the last consensus step, step
+    // into an array of tuples
+    
+
+    
     // we need to create a copy of the original graph
     // this sounds memory expensive
     odgi::graph_t consensus_graph; // = smoothed;
     // build an xp index of the smoothed graph
-    xp::XP path_index;
-    path_index.from_handle_graph(smoothed);
     // iterate through all blocks
     // fetch the consensus path of the given block
     // we can go left or right!
