@@ -278,7 +278,7 @@ int main(int argc, char** argv) {
 
     // do we need to build the consensus graph?
     if (write_consensus_graph) {
-        odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(smoothed, consensus_paths, args::get(base));
+        odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(smoothed, consensus_paths, n_threads, args::get(base));
         ofstream o(args::get(write_consensus_graph));
         consensus_graph.to_gfa(o);
         o.close();

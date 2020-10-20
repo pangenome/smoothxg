@@ -7,6 +7,7 @@ namespace smoothxg {
 
 odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                                      const std::vector<path_handle_t>& consensus_paths,
+                                     const uint64_t& thread_count,
                                      const std::string& base) {
 
     // walk each path
@@ -15,9 +16,31 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // detect consensus switches, writing the distance to the last consensus step, step
     // into an array of tuples
 
+    
+    std::vector<bool> is_consensus(smoothed.get_path_count()+1, false);
     for (auto& path : consensus_paths) {
-        std::cerr << "using consensus path " << smoothed.get_path_name(path) << std::endl;
+        is_consensus[as_integer(path)] = true;
     }
+
+    std::vector<path_handle_t> non_consensus_paths;
+    non_consensus_paths.reserve(smoothed.get_path_count()+1-consensus_paths.size());
+    smoothed.for_each_path_handle(
+        [&](const path_handle_t& p) {
+            if (!is_consensus[as_integer(p)]) {
+                non_consensus_paths.push_back(p);
+            }
+        });
+
+    // consensus path -> consensus path : link_path_t
+    mmmulti::set<link_path_t> link_path_ms(base);
+    
+    paryfor::parallel_for<uint64_t>(
+        0, non_consensus_paths.size(), thread_count,
+        [&](uint64_t idx, int tid) {
+            auto& path = non_consensus_paths[idx];
+            
+        });
+
     
     // we need to create a copy of the original graph
     // this sounds memory expensive
