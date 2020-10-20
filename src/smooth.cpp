@@ -588,8 +588,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                             if (merged_maf_blocks.field_blocks.empty()){
                                 merged = true;
                             } else {
-                                // The merged group has to have the number of rows (then paths in this case) as the block to merge
-                                if (merged_maf_blocks.rows.size() + (add_consensus ? 1 : 0) == num_seq_in_block) {
+                                // The block to merge must have no new paths respect to the merged group
+                                if (merged_maf_blocks.rows.size() >= num_seq_in_block - (add_consensus ? 1 : 0) ) {
                                     merged = true;
 
                                     for (uint64_t i = 0; i < num_seq_in_block; i++) {
@@ -648,6 +648,19 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                                     maf_row.aligned_seq
                                             }
                                     ));
+                                }
+                            }
+
+                            // Put gaps for paths not present in the last merged block (block_id) respect to the merged group
+                            if (merged_maf_blocks.rows.size() > num_seq_in_block - (add_consensus ? 1 : 0) ) {
+                                // I take the merged group length from a one of the path present in the merged group and in the last merged block
+                                uint64_t length_to_reach = merged_maf_blocks.rows[mafs[block_id][0].path_name].aligned_seq.length();
+
+                                for (auto & row : merged_maf_blocks.rows){
+                                    if (row.second.aligned_seq.length() < length_to_reach){
+                                        uint64_t num_gaps_to_add = length_to_reach - row.second.aligned_seq.length();
+                                        for (uint64_t  i = 0; i < num_gaps_to_add; i++){ row.second.aligned_seq += "-"; }
+                                    }
                                 }
                             }
                         }
