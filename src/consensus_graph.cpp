@@ -83,6 +83,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                             link.to_cons = consensus;
                             link.begin = step;
                             link.end = step;
+                            link.hash = 0;
                             seen_consensus = true;
                         } else {
                             // we've seen a consensus before, and it's the same
@@ -101,6 +102,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                                 link.to_cons = consensus;
                                 link.begin = step;
                                 link.end = step;
+                                link.hash = 0;
                             }
                         }
                     }
