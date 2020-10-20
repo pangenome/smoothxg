@@ -48,6 +48,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
     // consensus path -> consensus path : link_path_t
     mmmulti::set<link_path_t> link_path_ms(base);
+    link_path_ms.open_writer();
     
     paryfor::parallel_for<uint64_t>(
         0, non_consensus_paths.size(), thread_count,
