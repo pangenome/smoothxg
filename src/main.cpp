@@ -280,6 +280,7 @@ int main(int argc, char** argv) {
     if (write_consensus_graph) {
         odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(smoothed, consensus_paths, n_threads, "consenae");
         ofstream o(args::get(write_consensus_graph));
+        std::cerr << "BEFORE GFA" << std::endl;
         consensus_graph.to_gfa(o);
         o.close();
     }
