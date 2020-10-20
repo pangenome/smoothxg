@@ -1130,7 +1130,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                   << std::endl;
 
         // all raw consensus paths
-        std::vector<path_handle_t> consensus_paths(blocks.size());
+        consensus_paths.resize(blocks.size());
         //consensus_paths_by_block 
         for (auto &pos_range : consensus_mapping) {
             auto &block = block_graphs[pos_range.target_graph_id];
@@ -1185,7 +1185,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 std::remove_if(
                     consensus_paths.begin(), consensus_paths.end(),
                     [&consensus_path_is_merged,&smoothed](const path_handle_t& path) {
-                        std::cerr << "path " << smoothed.get_path_name(path) << " is merged? " << consensus_path_is_merged.count(as_integer(path)) << std::endl;
                         return consensus_path_is_merged.count(as_integer(path)) > 0;
                     }),
                 consensus_paths.end());
@@ -1199,10 +1198,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             merged_consensus_paths.begin(),
             merged_consensus_paths.end());
 
-        for (auto& path : consensus_paths) {
-            std::cerr << "using consensus path " << smoothed.get_path_name(path) << std::endl;
-        }
-        
         // todo: validate the consensus paths as well
     }
 

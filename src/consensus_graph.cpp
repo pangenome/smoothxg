@@ -14,8 +14,10 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // record first step handle off a consensus path
     // detect consensus switches, writing the distance to the last consensus step, step
     // into an array of tuples
-    
 
+    for (auto& path : consensus_paths) {
+        std::cerr << "using consensus path " << smoothed.get_path_name(path) << std::endl;
+    }
     
     // we need to create a copy of the original graph
     // this sounds memory expensive
