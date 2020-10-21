@@ -156,6 +156,9 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                                         smoothed.get_next_step(link.begin),
                                         link.end);
                                 link.hash = hash_seq(h.str());
+                                if (as_integer(link.from_cons) > as_integer(link.to_cons)) {
+                                    std::swap(link.from_cons, link.to_cons);
+                                }
                                 link_path_ms.append(link);
 
                                 // reset link
@@ -178,7 +181,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // collect sets of link paths that refer to the same consensus path pairs
     // and pick which one to keep in the consensus graph
 
-    std::vector<link_path_t> links;
+    std::vector<link_path_t> consensus_links;
     std::vector<link_path_t> curr_links;
 
     path_handle_t curr_from_cons;
@@ -197,7 +200,22 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             for (auto& c : hash_counts) {
                 std::cerr << c.first << " -> " << c.second << std::endl;
             }
-            uint64_t best_hash = hash_counts.rbegin()->second;
+            uint64_t best_count = 0;
+            uint64_t best_hash;
+            for (auto& c : hash_counts) {
+                if (c.second > best_count) {
+                    best_hash = c.first;
+                    best_count = c.second;
+                }
+            }
+            std::cerr << "best hash be " << best_hash << std::endl;
+            // save the best link path
+            for (auto& link : links) {
+                if (link.hash == best_hash) {
+                    consensus_links.push_back(link);
+                    break;
+                }
+            }
         };
     
     // collect edges by node
@@ -254,6 +272,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // TODO we will create each link "twice", what to do?
 
     std::vector<path_handle_t> link_paths;
+    // TODO create link paths
 
     // create links according to sorted set
     std::vector<path_handle_t> all_consensus_paths = consensus_paths;
