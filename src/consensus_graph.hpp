@@ -22,6 +22,9 @@ struct link_path_t {
 bool operator<(const link_path_t& a,
                const link_path_t& b);
 
+ostream& operator<<(ostream& o, const link_path_t& a);
+
+
 /// build the path_step_rank_ranges -> index_in_blocks_vector
 /// flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:
 /// we collect path_step_rank_ranges and the identifier of an interval is the index of a block in the blocks vector

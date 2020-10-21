@@ -17,6 +17,10 @@ bool operator<(const link_path_t& a,
                             && a.hash < b.hash)))));
 }
 
+ostream& operator<<(ostream& o, const link_path_t& a) {
+    return o;
+}
+
 // prep the graph into a given GFA file
 // we'll then build the xg index on top of that in low memory
 
@@ -111,17 +115,49 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         });
 
     link_path_ms.index(thread_count);
+    //link_path_ms.close_writer();
 
     // collect sets of link paths that refer to the same consensus path pairs
     // and pick which one to keep in the consensus graph
+
+    std::vector<link_path_t> links;
+    std::vector<link_path_t> curr_links;
+
+    path_handle_t curr_from_cons;
+    path_handle_t curr_to_cons;
+
+    auto compute_best_link =
+        [&](const std::vector<link_path_t>& links) {
+            for (auto& link : links) {
+                std::cerr << link << std::endl;
+            }
+        };
+    
+    // collect edges by node
+    // 
     link_path_ms.for_each_value(
         [&](const link_path_t& v) {
-            
+            if (curr_links.empty()) {
+                curr_from_cons = v.from_cons;
+                curr_to_cons = v.to_cons;
+                curr_links.push_back(v);
+            } else if (curr_from_cons != v.from_cons
+                       || curr_to_cons != v.to_cons) {
+                // compute the best link in the set of curr_links
+                compute_best_link(curr_links);
+                // reset the links
+                curr_links.clear();
+                curr_from_cons = v.from_cons;
+                curr_to_cons = v.to_cons;
+                curr_links.push_back(v);
+            }
         });
+
+    compute_best_link(curr_links);
 
     // we need to create a copy of the original graph
     // this sounds memory expensive
-    odgi::graph_t consensus_graph; // = smoothed;
+    //odgi::graph_t consensus_graph; // = smoothed;
     // build an xp index of the smoothed graph
     // iterate through all blocks
     // fetch the consensus path of the given block
@@ -146,14 +182,17 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // TODO how to deal with loops?
     // TODO we will create each link "twice", what to do?
 
-    // create links according to sorted set
     std::vector<path_handle_t> link_paths;
-    // TODO
+
+    // create links according to sorted set
+    std::vector<path_handle_t> all_consensus_paths = consensus_paths;
+    all_consensus_paths.reserve(consensus_paths.size() + link_paths.size());
+    all_consensus_paths.insert(consensus_paths.end(), link_paths.begin(), link_paths.end());
 
     // create new consensus graph which only has the consensus and link paths in it
     odgi::graph_t consensus_graph;
     // add the consensus paths first
-    for (auto& path : consensus_paths) {
+    for (auto& path : all_consensus_paths) {
         // create the path
         path_handle_t path_cons_graph = consensus_graph.create_path_handle(smoothed.get_path_name(path));
         handle_t cur_handle_in_cons_graph;
@@ -177,17 +216,6 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             };
         });
     }
-    // TODO add the link paths next
-    for (auto& path : link_paths) {
-        // create the path
-        path_handle_t link_path_in_cons_graph = consensus_graph.create_path_handle(smoothed.get_path_name(path));
-        smoothed.for_each_step_in_path(path,
-                                       [&]
-                                       (const step_handle_t& step) {
-            handle_t h = smoothed.get_handle_of_step(step);
-            nid_t node_id = smoothed.get_id(h);
-        });
-    }
     // finally add the edges
     consensus_graph.for_each_path_handle(
         [&](const path_handle_t& path) {
@@ -203,7 +231,6 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             });
         });
     // TODO validate consensus graph
-    link_path_ms.close_writer();
     return consensus_graph;
 }
 
