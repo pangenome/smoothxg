@@ -134,7 +134,14 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                             */
 
                             // we've seen a consensus before, and it's the same
-                            if (link.from_cons == curr_consensus) {
+                            // and the direction of movement is correct
+                            if (link.from_cons == curr_consensus
+                                && ((!link.is_rev
+                                     && smoothed.get_id(smoothed.get_handle_of_step(link.end))
+                                     <= smoothed.get_id(smoothed.get_handle_of_step(step)))
+                                    || (link.is_rev
+                                        && smoothed.get_id(smoothed.get_handle_of_step(link.end))
+                                        >= smoothed.get_id(smoothed.get_handle_of_step(step))))) {
                                 link.begin = step;
                                 link.end = step;
                                 link.length = 0;
@@ -168,6 +175,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                                 link.begin = step;
                                 link.end = step;
                                 link.hash = 0;
+                                link.is_rev = smoothed.get_is_reverse(smoothed.get_handle_of_step(step));
                             }
                         }
                     } else {
