@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <sstream>
 #include <unordered_map> // for string hash
 #include <odgi/odgi.hpp>
 #include <deps/cgranges/cpp/IITree.h>

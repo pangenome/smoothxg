@@ -4,13 +4,6 @@ namespace smoothxg {
 
 bool operator<(const link_path_t& a,
                const link_path_t& b) {
-    /*
-    auto& a_0 = as_integer(a.from_cons);
-    auto& a_1 = as_integer(a.to_cons);
-    auto& b_0 = as_integer(b.from_cons);
-    auto& b_1 = as_integer(b.to_cons);
-    return a_0 < b_0;
-    */
     auto& a_0 = as_integer(a.from_cons);
     auto& a_1 = as_integer(a.to_cons);
     auto& b_0 = as_integer(b.from_cons);
@@ -148,11 +141,21 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                             } else { // or it's different
                                 // this is when we write a link candidate record
                                 link.to_cons = consensus;
-                                link.begin = smoothed.get_next_step(link.begin);
+                                //link.begin = smoothed.get_next_step(link.begin);
                                 link.end = step;
                                 //std::cerr << "writing to mmset" << std::endl;
-                                link.length = get_path_seq_length(link.begin, link.end);
-                                link.hash = hash_seq(get_path_seq(link.begin, link.end));
+                                link.length = get_path_seq_length(
+                                    smoothed.get_next_step(link.begin),
+                                    link.end);
+                                stringstream h;
+                                h << as_integer(smoothed.get_handle_of_step(link.begin))
+                                  << ":"
+                                  << as_integer(smoothed.get_handle_of_step(link.end))
+                                  << ":"
+                                  << get_path_seq(
+                                        smoothed.get_next_step(link.begin),
+                                        link.end);
+                                link.hash = hash_seq(h.str());
                                 link_path_ms.append(link);
 
                                 // reset link
@@ -189,11 +192,12 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                 ++hash_counts[link.hash];
             }
             for (auto& link : links) {
-                std::cerr << link << " " << get_path_seq(link.begin, link.end) << std::endl;
+                std::cerr << link << " " << get_path_seq(smoothed.get_next_step(link.begin), link.end) << std::endl;
             }
             for (auto& c : hash_counts) {
                 std::cerr << c.first << " -> " << c.second << std::endl;
             }
+            uint64_t best_hash = hash_counts.rbegin()->second;
         };
     
     // collect edges by node
