@@ -102,14 +102,14 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                     // check if we're on the step with any consensus
                     handle_t h = smoothed.get_handle_of_step(step);
                     bool on_consensus = false;
-                    path_handle_t consensus;
+                    path_handle_t curr_consensus;
                     smoothed.for_each_step_on_handle(
                         h,
                         [&](const step_handle_t& s) {
                             path_handle_t p = smoothed.get_path_handle_of_step(s);
                             if (is_consensus[as_integer(p)]) {
                                 on_consensus = true;
-                                consensus = p;
+                                curr_consensus = p;
                             }
                         });
                     // if we're on the consensus
@@ -118,13 +118,13 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                         if (!seen_consensus) {
                             // we construct the first link path object
                             link.length = 0;
-                            link.from_cons = consensus;
-                            link.to_cons = consensus;
+                            link.from_cons = curr_consensus;
+                            link.to_cons = curr_consensus;
                             link.begin = step;
                             link.end = step;
                             link.hash = 0;
                             seen_consensus = true;
-                            last_seen_consensus = consensus;
+                            last_seen_consensus = curr_consensus;
                         } else {
                             /*
                             if (last_seen_consensus != consensus) {
@@ -134,13 +134,13 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                             */
 
                             // we've seen a consensus before, and it's the same
-                            if (link.from_cons == consensus) {
+                            if (link.from_cons == curr_consensus) {
                                 link.begin = step;
                                 link.end = step;
                                 link.length = 0;
                             } else { // or it's different
                                 // this is when we write a link candidate record
-                                link.to_cons = consensus;
+                                link.to_cons = curr_consensus;
                                 //link.begin = smoothed.get_next_step(link.begin);
                                 link.end = step;
                                 //std::cerr << "writing to mmset" << std::endl;
@@ -163,8 +163,8 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
                                 // reset link
                                 link.length = 0;
-                                link.from_cons = consensus;
-                                link.to_cons = consensus;
+                                link.from_cons = curr_consensus;
+                                link.to_cons = curr_consensus;
                                 link.begin = step;
                                 link.end = step;
                                 link.hash = 0;
@@ -276,41 +276,42 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     //all_consensus_paths.insert(consensus_paths.end(), link_paths.begin(), link_paths.end());
 
     // create new consensus graph which only has the consensus and link paths in it
-    odgi::graph_t consensus_graph;
+    odgi::graph_t consensus;
     // add the consensus paths first
     for (auto& path : consensus_paths) {
         // create the path
-        path_handle_t path_cons_graph = consensus_graph.create_path_handle(smoothed.get_path_name(path));
+        path_handle_t path_cons_graph = consensus.create_path_handle(smoothed.get_path_name(path));
         handle_t cur_handle_in_cons_graph;
         // add the current node first, then add the step
         smoothed.for_each_step_in_path(path,
-                                       [&consensus_graph, &smoothed, &path, &cur_handle_in_cons_graph, &path_cons_graph]
+                                       [&consensus, &smoothed, &path, &cur_handle_in_cons_graph, &path_cons_graph]
                                        (const step_handle_t& step) {
             handle_t h = smoothed.get_handle_of_step(step);
             handle_t next_handle;
             nid_t node_id = smoothed.get_id(h);
-            if (!consensus_graph.has_node(node_id)) {
-               cur_handle_in_cons_graph = consensus_graph.create_handle(smoothed.get_sequence(h), node_id);
+            if (!consensus.has_node(node_id)) {
+               cur_handle_in_cons_graph = consensus.create_handle(smoothed.get_sequence(h), node_id);
             } else {
-               cur_handle_in_cons_graph = consensus_graph.get_handle(node_id);
+               cur_handle_in_cons_graph = consensus.get_handle(node_id);
             }
             bool rev = smoothed.get_is_reverse(h);
             if (rev) {
-                consensus_graph.append_step(path_cons_graph, consensus_graph.flip(cur_handle_in_cons_graph));
+                consensus.append_step(path_cons_graph, consensus.flip(cur_handle_in_cons_graph));
             } else {
-                consensus_graph.append_step(path_cons_graph, cur_handle_in_cons_graph);
+                consensus.append_step(path_cons_graph, cur_handle_in_cons_graph);
             };
         });
     }
     // add link paths and edges not in the consensus paths
     //std::vector<path_handle_t> link_paths;
     for (auto& link : consensus_links) {
+        std::cerr << "making " << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << std::endl;
         // create link paths and paths
         // make the path name
         if (link.length > 0) {
             stringstream s;
             s << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons);
-            path_handle_t path_cons_graph = consensus_graph.create_path_handle(s.str());
+            path_handle_t path_cons_graph = consensus.create_path_handle(s.str());
             handle_t cur_handle_in_cons_graph;
             // add the current node first, then add the step
             for (step_handle_t step = smoothed.get_next_step(link.begin);
@@ -319,44 +320,59 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                 handle_t h = smoothed.get_handle_of_step(step);
                 handle_t next_handle;
                 nid_t node_id = smoothed.get_id(h);
-                if (!consensus_graph.has_node(node_id)) {
-                    cur_handle_in_cons_graph = consensus_graph.create_handle(smoothed.get_sequence(h), node_id);
+                if (!consensus.has_node(node_id)) {
+                    cur_handle_in_cons_graph = consensus.create_handle(smoothed.get_sequence(h), node_id);
                 } else {
-                    cur_handle_in_cons_graph = consensus_graph.get_handle(node_id);
+                    cur_handle_in_cons_graph = consensus.get_handle(node_id);
                 }
                 bool rev = smoothed.get_is_reverse(h);
                 if (rev) {
-                    consensus_graph.append_step(path_cons_graph, consensus_graph.flip(cur_handle_in_cons_graph));
+                    consensus.append_step(path_cons_graph, consensus.flip(cur_handle_in_cons_graph));
                 } else {
-                    consensus_graph.append_step(path_cons_graph, cur_handle_in_cons_graph);
+                    consensus.append_step(path_cons_graph, cur_handle_in_cons_graph);
                 }
             }
         }
-
-        // TODO handling edges
-        // ensure that we have a connection from link.begin to the next step
-        // and from the next-to-last step and link.end
-        // in the new graph
     }
 
     // finally add the edges
-    consensus_graph.for_each_path_handle(
+    consensus.for_each_path_handle(
         [&](const path_handle_t& path) {
-            consensus_graph.for_each_step_in_path(path, [&] (const step_handle_t step) {
-               if (consensus_graph.has_next_step(step)) {
-                   step_handle_t next_step = consensus_graph.get_next_step(step);
-                   handle_t h = consensus_graph.get_handle_of_step(step);
-                   handle_t next_h = consensus_graph.get_handle_of_step(next_step);
-                   if (!consensus_graph.has_edge(h, next_h)) {
-                       consensus_graph.create_edge(h, next_h);
+            consensus.for_each_step_in_path(path, [&] (const step_handle_t step) {
+               if (consensus.has_next_step(step)) {
+                   step_handle_t next_step = consensus.get_next_step(step);
+                   handle_t h = consensus.get_handle_of_step(step);
+                   handle_t next_h = consensus.get_handle_of_step(next_step);
+                   if (!consensus.has_edge(h, next_h)) {
+                       consensus.create_edge(h, next_h);
                    }
                }
             });
         });
 
+    auto link_steps =
+        [&](const step_handle_t& a, const step_handle_t& b) {
+            handle_t from = smoothed.get_handle_of_step(a);
+            handle_t to = smoothed.get_handle_of_step(b);
+            consensus.create_edge(consensus.get_handle(smoothed.get_id(from),
+                                                       smoothed.get_is_reverse(from)),
+                                  consensus.get_handle(smoothed.get_id(to),
+                                                       smoothed.get_is_reverse(to)));
+        };
+
+    for (auto& link : consensus_links) {
+        // edge from begin to begin+1
+        // edge from end-1 to end
+        step_handle_t next = smoothed.get_next_step(link.begin);
+        link_steps(link.begin, next);
+        step_handle_t prev = smoothed.get_previous_step(link.end);
+        if (prev != link.begin) {
+            link_steps(prev, link.end);
+        }
+    }
     
     // TODO validate consensus graph
-    return consensus_graph;
+    return consensus;
 }
 
 }
