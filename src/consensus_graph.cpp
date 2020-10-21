@@ -378,11 +378,49 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             link_steps(prev, link.end);
         }
     }
+    // validate consensus graph
+    // number of handles
+    smoothed.for_each_path_handle(
+            [&](const path_handle_t &p) {
+                if (is_consensus[as_integer(p)]) {
+                    std::string path_name = smoothed.get_path_name(p);
+                    if (!consensus.has_path(path_name)) {
+                        std::cerr << "[smoothxg::main::create_consensus_graph] error: consensus path " << path_name
+                        << " not present in the consensus graph!" << std::endl;
+                        exit(1);
+                    }
+                    smoothed.for_each_step_in_path(p,
+                                                   [&]
+                                                   (const step_handle_t& step) {
+                        handle_t h = smoothed.get_handle_of_step(step);
+                        nid_t node_id = smoothed.get_id(h);
+                        // node id comparison
+                        if (!consensus.has_node(node_id)) {
+                            std::cerr << "[smoothxg::main::create_consensus_graph] error: node " << node_id
+                            << " not present in the consensus graph!" << std::endl;
+                            exit(1);
+                        }
+                        // node orientation comparison
+                        handle_t consensus_h = consensus.get_handle(node_id, smoothed.get_is_reverse(h));
+                        if (consensus.get_is_reverse(consensus_h) != smoothed.get_is_reverse(h)) {
+                            std::cerr << "[smoothxg::main::create_consensus_graph] error: node " << node_id
+                            << " orientation in the consensus graph is " << consensus.get_is_reverse(consensus_h)
+                            << " but actually should be " << smoothed.get_is_reverse(h)  << std::endl;
+                            exit(1);
+                        }
+                        // sequence comparison
+                        if (consensus.get_sequence(consensus_h) != smoothed.get_sequence(h)) {
+                            std::cerr << "[smoothxg::main::create_consensus_graph] error: node " << node_id
+                            << " sequence in the consensus graph is " << consensus.get_sequence(consensus_h)
+                            << " but actually is " << smoothed.get_sequence(h) << std::endl;
+                            exit(1);
+                        }
+                    });
+                }
+            });
 
     // unchop the graph
     odgi::algorithms::unchop(consensus);
-
-    // TODO validate consensus graph
     return consensus;
 }
 
