@@ -279,6 +279,7 @@ int main(int argc, char** argv) {
     // do we need to build the consensus graph?
     if (write_consensus_graph) {
         odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(smoothed, consensus_paths, n_threads, "consenae");
+        smoothxg::cleanup(consensus_graph, term_updates, !args::get(no_toposort));
         ofstream o(args::get(write_consensus_graph));
         std::cerr << "BEFORE GFA" << std::endl;
         consensus_graph.to_gfa(o);

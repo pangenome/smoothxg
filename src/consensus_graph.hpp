@@ -4,6 +4,7 @@
 #include <sstream>
 #include <unordered_map> // for string hash
 #include <odgi/odgi.hpp>
+#include <odgi/unchop.hpp>
 #include <deps/cgranges/cpp/IITree.h>
 #include <deps/odgi/deps/flat_hash_map/flat_hash_map.hpp> // we are using odgi's flat_hash_map here, I suppose this is not a good idea? Maybe rather add the flat_hash_map to smoothxg itself?
 #include <mmmultiset.hpp>

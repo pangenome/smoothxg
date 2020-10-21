@@ -378,7 +378,10 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             link_steps(prev, link.end);
         }
     }
-    
+
+    // unchop the graph
+    odgi::algorithms::unchop(consensus);
+
     // TODO validate consensus graph
     return consensus;
 }
