@@ -155,17 +155,54 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // add the consensus paths first
     for (auto& path : consensus_paths) {
         // create the path
-        consensus_graph.create_path_handle(smoothed.get_path_name(path));
+        path_handle_t path_cons_graph = consensus_graph.create_path_handle(smoothed.get_path_name(path));
+        handle_t cur_handle_in_cons_graph;
         // add the current node first, then add the step
-        smoothed.for_each_step_in_path(path, [&consensus_graph, &smoothed, &path] (const step_handle_t& step) {
+        smoothed.for_each_step_in_path(path,
+                                       [&consensus_graph, &smoothed, &path, &cur_handle_in_cons_graph, &path_cons_graph]
+                                       (const step_handle_t& step) {
             handle_t h = smoothed.get_handle_of_step(step);
+            handle_t next_handle;
             nid_t node_id = smoothed.get_id(h);
             if (!consensus_graph.has_node(node_id)) {
-               consensus_graph.create_handle(smoothed.get_sequence(h), node_id);
-            }// TODO somehow insert or set the step ?!
-            // consensus_graph.set_step(step, h);
+               cur_handle_in_cons_graph = consensus_graph.create_handle(smoothed.get_sequence(h), node_id);
+            } else {
+               cur_handle_in_cons_graph = consensus_graph.get_handle(node_id);
+            }
+            bool rev = smoothed.get_is_reverse(h);
+            if (rev) {
+                consensus_graph.append_step(path_cons_graph, consensus_graph.flip(cur_handle_in_cons_graph));
+            } else {
+                consensus_graph.append_step(path_cons_graph, cur_handle_in_cons_graph);
+            };
         });
     }
+    // TODO add the link paths next
+    for (auto& path : link_paths) {
+        // create the path
+        path_handle_t link_path_in_cons_graph = consensus_graph.create_path_handle(smoothed.get_path_name(path));
+        smoothed.for_each_step_in_path(path,
+                                       [&]
+                                       (const step_handle_t& step) {
+            handle_t h = smoothed.get_handle_of_step(step);
+            nid_t node_id = smoothed.get_id(h);
+        });
+    }
+    // finally add the edges
+    consensus_graph.for_each_path_handle(
+        [&](const path_handle_t& path) {
+            consensus_graph.for_each_step_in_path(path, [&] (const step_handle_t step) {
+               if (consensus_graph.has_next_step(step)) {
+                   step_handle_t next_step = consensus_graph.get_next_step(step);
+                   handle_t h = consensus_graph.get_handle_of_step(step);
+                   handle_t next_h = consensus_graph.get_handle_of_step(next_step);
+                   if (!consensus_graph.has_edge(h, next_h)) {
+                       consensus_graph.create_edge(h, next_h);
+                   }
+               }
+            });
+        });
+    // TODO validate consensus graph
     link_path_ms.close_writer();
     return consensus_graph;
 }
