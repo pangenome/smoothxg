@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <unordered_map> // for string hash
 #include <odgi/odgi.hpp>
 #include <deps/cgranges/cpp/IITree.h>
 #include <deps/odgi/deps/flat_hash_map/flat_hash_map.hpp> // we are using odgi's flat_hash_map here, I suppose this is not a good idea? Maybe rather add the flat_hash_map to smoothxg itself?
@@ -17,6 +18,7 @@ struct link_path_t {
     uint64_t hash;
     step_handle_t begin; // first step off consensus path
     step_handle_t end; // one-past last step
+    path_handle_t path;
 };
 
 bool operator<(const link_path_t& a,
