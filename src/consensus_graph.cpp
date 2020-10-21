@@ -112,6 +112,40 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
     link_path_ms.index(thread_count);
 
+    // collect sets of link paths that refer to the same consensus path pairs
+    // and pick which one to keep in the consensus graph
+    link_path_ms.for_each_value(
+        [&](const link_path_t& v) {
+            
+        });
+
+    // we need to create a copy of the original graph
+    // this sounds memory expensive
+    odgi::graph_t consensus_graph; // = smoothed;
+    // build an xp index of the smoothed graph
+    // iterate through all blocks
+    // fetch the consensus path of the given block
+    // we can go left or right!
+    // for each path hitting the first or last node of the consensus path:
+    // 1. get the step
+    // 2. get the next step
+    // 3. translate to nucleotide position
+    // 4. use the path_nuc_range_block_index to find the block id which is corresponding to the range
+    // 5. go from block id to consensus path
+    // 6. we can get the first and last handle of the consensus path
+    // 7. find out the number of nucleotides for hitted path from:
+        // a) left cons_path -> left next_cons_path
+        // b) left const_path -> right next_cons_path
+        // c) right const_path -> left next_cons_path
+        // d) right const_path -> right next_const_path
+    // 8. choose the shortest path in nucleotides, note start and end step of that path
+    // 9. collect such tuples for all paths that we can hit in a consensus path of a current block
+    // we might travel to different blocks, so treat them seperately
+    // 10. sort by shortest nucleotide and then create a link path from noted start to end step
+
+    // TODO how to deal with loops?
+    // TODO we will create each link "twice", what to do?
+
     // create links according to sorted set
     std::vector<path_handle_t> link_paths;
     // TODO
