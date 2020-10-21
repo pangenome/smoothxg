@@ -501,9 +501,12 @@ void _put_block_in_group(
             if (merged_maf_blocks.rows.count(maf_row.path_name) == 1){
                 if (maf_row.is_reversed){
                     merged_maf_blocks.rows[maf_row.path_name].record_start -= maf_row.seq_size;
+
+                    merged_maf_blocks.rows[maf_row.path_name].aligned_seq = maf_row.aligned_seq + merged_maf_blocks.rows[maf_row.path_name].aligned_seq;
+                }else{
+                    merged_maf_blocks.rows[maf_row.path_name].aligned_seq += maf_row.aligned_seq;
                 }
                 merged_maf_blocks.rows[maf_row.path_name].seq_size += maf_row.seq_size;
-                merged_maf_blocks.rows[maf_row.path_name].aligned_seq += maf_row.aligned_seq;
             }else{
                 merged_maf_blocks.rows.insert(std::pair<std::string, maf_partial_row_t>(
                         maf_row.path_name,
