@@ -535,15 +535,15 @@ void _put_block_in_group(
             ));
         }
     }
-    
+
     // Put gaps for paths not present in the last merged block (block_id) respect to the merged group
     if (merged_maf_blocks.rows.size() > num_seq_in_block - (add_consensus ? 1 : 0) ) {
         // I take the merged group length from a one of the path present in the merged group and in the last merged block
-        uint64_t length_to_reach = merged_maf_blocks.rows[mafs[block_id][0].path_name].aligned_seq.length();
+        alignment_size_merged_maf_blocks = merged_maf_blocks.rows[mafs[block_id][0].path_name].aligned_seq.length();
 
         for (auto & row : merged_maf_blocks.rows){
-            if (row.second.aligned_seq.length() < length_to_reach){
-                uint64_t num_gaps_to_add = length_to_reach - row.second.aligned_seq.length();
+            if (row.second.aligned_seq.length() < alignment_size_merged_maf_blocks){
+                uint64_t num_gaps_to_add = alignment_size_merged_maf_blocks - row.second.aligned_seq.length();
                 for (uint64_t  i = 0; i < num_gaps_to_add; i++){ row.second.aligned_seq += "-"; }
             }
         }
@@ -581,7 +581,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         if (produce_maf || (add_consensus && merge_blocks)){
             uint64_t block_id = 0;
 
-            uint64_t alignment_size_merged_maf_blocks = 0;
             maf_t merged_maf_blocks;
 
             uint64_t num_block = blocks.size();
@@ -724,7 +723,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                         start_cons_pos_in_alignment += maf_cons_row.second.aligned_seq.length();
 
-
+                                        // Manage merged consensus sequence
                                         if (merged_maf_blocks_size > 1) {
                                             merged_consensus_seq_size += maf_cons_row.second.seq_size;
                                             merged_consensus_path_length += maf_cons_row.second.path_length;
@@ -758,8 +757,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                             }
 
                             clear_string(block_id_range);
-
-                            alignment_size_merged_maf_blocks = 0;
 
                             clear_vector(merged_maf_blocks.field_blocks);
                             for (auto& maf_row : merged_maf_blocks.rows){
