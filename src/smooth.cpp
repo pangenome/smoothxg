@@ -633,9 +633,12 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 if (!add_consensus || i < num_seq_in_block - 1) {
                                     if (maf_row.is_reversed){
                                         merged_maf_blocks.rows[maf_row.path_name].record_start -= maf_row.seq_size;
+
+                                        merged_maf_blocks.rows[maf_row.path_name].aligned_seq = maf_row.aligned_seq + merged_maf_blocks.rows[maf_row.path_name].aligned_seq;
+                                    }else{
+                                        merged_maf_blocks.rows[maf_row.path_name].aligned_seq += maf_row.aligned_seq;
                                     }
                                     merged_maf_blocks.rows[maf_row.path_name].seq_size += maf_row.seq_size;
-                                    merged_maf_blocks.rows[maf_row.path_name].aligned_seq += maf_row.aligned_seq;
                                 } else {
                                     // The merged consensus is created when the merged block is written into a file
                                     merged_maf_blocks.consensus_rows.push_back(std::pair<std::string, maf_partial_row_t>(
