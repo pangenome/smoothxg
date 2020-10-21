@@ -271,17 +271,14 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // TODO how to deal with loops?
     // TODO we will create each link "twice", what to do?
 
-    std::vector<path_handle_t> link_paths;
-    // TODO create link paths
-
     // create links according to sorted set
-    std::vector<path_handle_t> all_consensus_paths = consensus_paths;
-    all_consensus_paths.insert(consensus_paths.end(), link_paths.begin(), link_paths.end());
+    //std::vector<path_handle_t> all_consensus_paths = consensus_paths;
+    //all_consensus_paths.insert(consensus_paths.end(), link_paths.begin(), link_paths.end());
 
     // create new consensus graph which only has the consensus and link paths in it
     odgi::graph_t consensus_graph;
     // add the consensus paths first
-    for (auto& path : all_consensus_paths) {
+    for (auto& path : consensus_paths) {
         // create the path
         path_handle_t path_cons_graph = consensus_graph.create_path_handle(smoothed.get_path_name(path));
         handle_t cur_handle_in_cons_graph;
@@ -305,6 +302,43 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             };
         });
     }
+    // add link paths and edges not in the consensus paths
+    //std::vector<path_handle_t> link_paths;
+    for (auto& link : consensus_links) {
+        // create link paths and paths
+        // make the path name
+        if (link.length > 0) {
+            stringstream s;
+            s << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons);
+            path_handle_t path_cons_graph = consensus_graph.create_path_handle(s.str());
+            handle_t cur_handle_in_cons_graph;
+            // add the current node first, then add the step
+            for (step_handle_t step = smoothed.get_next_step(link.begin);
+                 step != link.end;
+                 step = smoothed.get_next_step(step)) {
+                handle_t h = smoothed.get_handle_of_step(step);
+                handle_t next_handle;
+                nid_t node_id = smoothed.get_id(h);
+                if (!consensus_graph.has_node(node_id)) {
+                    cur_handle_in_cons_graph = consensus_graph.create_handle(smoothed.get_sequence(h), node_id);
+                } else {
+                    cur_handle_in_cons_graph = consensus_graph.get_handle(node_id);
+                }
+                bool rev = smoothed.get_is_reverse(h);
+                if (rev) {
+                    consensus_graph.append_step(path_cons_graph, consensus_graph.flip(cur_handle_in_cons_graph));
+                } else {
+                    consensus_graph.append_step(path_cons_graph, cur_handle_in_cons_graph);
+                }
+            }
+        }
+
+        // TODO handling edges
+        // ensure that we have a connection from link.begin to the next step
+        // and from the next-to-last step and link.end
+        // in the new graph
+    }
+
     // finally add the edges
     consensus_graph.for_each_path_handle(
         [&](const path_handle_t& path) {
@@ -319,6 +353,8 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                }
             });
         });
+
+    
     // TODO validate consensus graph
     return consensus_graph;
 }
