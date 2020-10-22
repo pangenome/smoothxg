@@ -1132,13 +1132,18 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                   << std::endl;
 
         // consensus path and connections
-        ips4o::parallel::sort(
+        /*ips4o::parallel::sort(
             consensus_mapping.begin(), consensus_mapping.end(),
             [](const path_position_range_t &a, const path_position_range_t &b) {
                 auto &a_id = as_integer(a.base_path);
                 auto &b_id = as_integer(b.base_path);
                 return (a_id < b_id || a_id == b_id && a.start_pos < b.start_pos);
-            });
+            });*/
+        // Sort respect to the block_id, to avoid re-sorting to embed the merged consensus paths
+        ips4o::parallel::sort(consensus_mapping.begin(), consensus_mapping.end(),
+                              [](const path_position_range_t &a, const path_position_range_t &b) {
+                                  return (a.target_graph_id < b.target_graph_id);
+                              });
 
         // by definition, the consensus paths are embedded in our blocks, which
         // simplifies things we'll still need to add a new path for each consensus
@@ -1167,10 +1172,11 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
         // Sort respect to the target_graph_id (== block_id), because in the merged_block_id_intervals
         // there are the block_id_intervals expressed as first_block_id and last_block_id
-        ips4o::parallel::sort(consensus_mapping.begin(), consensus_mapping.end(),
+        // No longer necessary, if the first sort is confirmed.
+        /*ips4o::parallel::sort(consensus_mapping.begin(), consensus_mapping.end(),
                               [](const path_position_range_t &a, const path_position_range_t &b) {
                                   return (a.target_graph_id < b.target_graph_id);
-                              });
+                              });*/
         for (auto& merged_block_id_interval : merged_block_id_intervals){
             path_handle_t consensus_path = smoothed.create_path_handle(
                     consensus_base_name +
