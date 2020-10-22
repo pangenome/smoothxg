@@ -34,7 +34,7 @@ ostream& operator<<(ostream& o, const link_path_t& a) {
 
 odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                                      const std::vector<path_handle_t>& consensus_paths,
-                                     const uint64_t& max_continuation_gap,
+                                     const uint64_t& consensus_jump_max,
                                      const uint64_t& thread_count,
                                      const std::string& base) {
 
@@ -172,15 +172,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                                 &&
                                 std::abs(start_in_vector(curr_handle)
                                          - end_in_vector(last_handle))
-                                < max_continuation_gap) {
-                                /*
-                                && ((!link.is_rev
-                                     && smoothed.get_id(last_handle)
-                                     <= smoothed.get_id(curr_handle))
-                                    || (link.is_rev
-                                        && smoothed.get_id(last_handle)
-                                        >= smoothed.get_id(curr_handle)))) {
-                                */
+                                < consensus_jump_max) {
                                 link.begin = step;
                                 link.end = step;
                                 link.length = 0;

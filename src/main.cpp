@@ -35,18 +35,19 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "FILE", "write the consensus graph in this file", {'s', "write-consensus-graph"});
+    args::ValueFlag<uint64_t> _consensus_jump_max(parser, "N", "preserve all divergences from the consensus paths greater than this length [default: 100]", {'C', "consensus-jump-max"});
     args::Flag do_not_merge_blocks(parser, "bool","do not merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "not-merge-blocks"});
 
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
-    args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "max-block-weight"});
-    args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "max-path-jump"});
-    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "min-subpath"});
-    args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "max-edge-jump"});
+    args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "block-weight-max"});
+    args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "path-jump-max"});
+    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "subpath-min"});
+    args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "edge-jump-max"});
     args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.1]", {'R', "min-segment-ratio"});
-    args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "min-copy-length"});
-    args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "max-copy-length"});
-    args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "max-poa-length"});
+    args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "copy-length-min"});
+    args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "copy-length-max"});
+    args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "poa-length-max"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)", "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 2,4,4,2,24,1]", {'p', "poa-params"});
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]", {'X', "chop-to"});
@@ -276,11 +277,11 @@ int main(int argc, char** argv) {
                                               args::get(add_consensus) ? "Consensus_" : "",
                                               consensus_paths);
 
-    uint64_t max_continuation_gap = 100;
+    uint64_t consensus_jump_max = _consensus_jump_max ? args::get(_consensus_jump_max) : 100;
 
     // do we need to build the consensus graph?
     if (write_consensus_graph) {
-        odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(smoothed, consensus_paths, max_continuation_gap, n_threads, "consenae");
+        odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(smoothed, consensus_paths, consensus_jump_max, n_threads, "consenae");
         smoothxg::cleanup(consensus_graph, term_updates, !args::get(no_toposort));
         ofstream o(args::get(write_consensus_graph));
         consensus_graph.to_gfa(o);
