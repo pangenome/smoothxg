@@ -35,6 +35,7 @@ ostream& operator<<(ostream& o, const link_path_t& a);
 /// we collect path_step_rank_ranges and the identifier of an interval is the index of a block in the blocks vector
 odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                                      const std::vector<path_handle_t>& consensus_paths,
+                                     const uint64_t& max_continuation_gap,
                                      const uint64_t& thread_count,
                                      const std::string& base);
 }

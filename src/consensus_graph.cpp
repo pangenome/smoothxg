@@ -34,6 +34,7 @@ ostream& operator<<(ostream& o, const link_path_t& a) {
 
 odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                                      const std::vector<path_handle_t>& consensus_paths,
+                                     const uint64_t& max_continuation_gap,
                                      const uint64_t& thread_count,
                                      const std::string& base) {
 
@@ -82,7 +83,34 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         [&](const std::string& seq) {
             return std::hash<std::string>{}(seq);
         };
-    
+
+    std::vector<uint64_t> node_offset;
+    node_offset.push_back(0);
+    smoothed.for_each_handle(
+        [&](const handle_t& h) {
+            node_offset.push_back(node_offset.back()+smoothed.get_length(h));
+        });
+
+    auto start_in_vector =
+        [&](const handle_t& h) {
+            if (!smoothed.get_is_reverse(h)) {
+                return (int64_t) node_offset[smoothed.get_id(h)-1];
+            } else {
+                return (int64_t) (node_offset[smoothed.get_id(h)-1]
+                                  + smoothed.get_length(h));
+            }
+        };
+
+    auto end_in_vector =
+        [&](const handle_t& h) {
+            if (smoothed.get_is_reverse(h)) {
+                return (int64_t) node_offset[smoothed.get_id(h)-1];
+            } else {
+                return (int64_t) (node_offset[smoothed.get_id(h)-1]
+                                  + smoothed.get_length(h));
+            }
+        };
+
     // consensus path -> consensus path : link_path_t
     mmmulti::set<link_path_t> link_path_ms(base);
     link_path_ms.open_writer();
@@ -135,13 +163,24 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
                             // we've seen a consensus before, and it's the same
                             // and the direction of movement is correct
+                            // check the distance in the graph position vector
+                            // if it's over some threshold, record the link
+                            handle_t last_handle = smoothed.get_handle_of_step(link.end);
+                            handle_t curr_handle = smoothed.get_handle_of_step(step);
+                            
                             if (link.from_cons == curr_consensus
+                                &&
+                                std::abs(start_in_vector(curr_handle)
+                                         - end_in_vector(last_handle))
+                                < max_continuation_gap) {
+                                /*
                                 && ((!link.is_rev
-                                     && smoothed.get_id(smoothed.get_handle_of_step(link.end))
-                                     <= smoothed.get_id(smoothed.get_handle_of_step(step)))
+                                     && smoothed.get_id(last_handle)
+                                     <= smoothed.get_id(curr_handle))
                                     || (link.is_rev
-                                        && smoothed.get_id(smoothed.get_handle_of_step(link.end))
-                                        >= smoothed.get_id(smoothed.get_handle_of_step(step))))) {
+                                        && smoothed.get_id(last_handle)
+                                        >= smoothed.get_id(curr_handle)))) {
+                                */
                                 link.begin = step;
                                 link.end = step;
                                 link.length = 0;
@@ -219,10 +258,13 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             std::cerr << "best hash be " << best_hash << std::endl;
             // save the best link path
             for (auto& link : links) {
+                consensus_links.push_back(link);
+                /*
                 if (link.hash == best_hash) {
                     consensus_links.push_back(link);
                     break;
                 }
+                */
             }
         };
     
