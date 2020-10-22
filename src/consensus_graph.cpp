@@ -478,34 +478,128 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             };
         });
     }
+
+    auto add_path_segment
+        = [&](const link_path_t& link,
+              const step_handle_t& begin,
+              const step_handle_t& end,
+              uint64_t& new_rank) {
+              // how long was the last path? should we include it?
+              stringstream s;
+              s << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank << "_" << new_rank++;
+              path_handle_t path_cons_graph = consensus.create_path_handle(s.str());
+              for (step_handle_t step = begin;
+                   step != end;
+                   step = smoothed.get_next_step(step)) {
+                  handle_t curr_handle = smoothed.get_handle_of_step(step);
+                  nid_t node_id = smoothed.get_id(curr_handle);
+                  handle_t curr_handle_in_cons_graph = consensus.create_handle(smoothed.get_sequence(smoothed.get_handle(node_id)), node_id);
+                  bool rev = smoothed.get_is_reverse(curr_handle);
+                  if (rev) {
+                      consensus.append_step(path_cons_graph, consensus.flip(curr_handle_in_cons_graph));
+                  } else {
+                      consensus.append_step(path_cons_graph, curr_handle_in_cons_graph);
+                  }
+              }
+          };
+    
     // add link paths and edges not in the consensus paths
     //std::vector<path_handle_t> link_paths;
     for (auto& link : consensus_links) {
-        std::cerr << "making " << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << std::endl;
+        std::cerr << "making " << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank << std::endl;
         // create link paths and paths
         // make the path name
         if (link.length > 0) {
-            stringstream s;
-            s << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank;
-            path_handle_t path_cons_graph = consensus.create_path_handle(s.str());
-            handle_t cur_handle_in_cons_graph;
-            // add the current node first, then add the step
-            for (step_handle_t step = smoothed.get_next_step(link.begin);
+            /*
+            // progressively collect novel sequences >= consensus_jump_max
+            //std::vector<link_path_t> novel_paths;
+            //novel_paths.push_back(link);
+            //std::vector<step_handle_t> curr_path;
+            bool on_novel = false;
+            uint64_t new_rank = 0;
+            step_handle_t begin, end;
+            uint64_t length = 0;
+            for (step_handle_t step = link.begin; //smoothed.get_next_step(link.begin);
                  step != link.end;
                  step = smoothed.get_next_step(step)) {
                 handle_t h = smoothed.get_handle_of_step(step);
                 handle_t next_handle;
                 nid_t node_id = smoothed.get_id(h);
+                std::cerr << "walking node " << node_id << std::endl;
                 if (!consensus.has_node(node_id)) {
-                    cur_handle_in_cons_graph = consensus.create_handle(smoothed.get_sequence(h), node_id);
+                    std::cerr << "consensus doesn't have node " << node_id << std::endl;
+                    // it's novel!
+                    if (!on_novel) {
+                        std::cerr << "Starting novelty" << std::endl;
+                        on_novel = true;
+                        begin = step;
+                    }
+                    std::cerr << "Getting next step " << std::endl;
+                    //end = smoothed.get_next_step(step);
+                    length += smoothed.get_length(h);
+                    std::cerr << "Length is now " << length << std::endl;
                 } else {
-                    cur_handle_in_cons_graph = consensus.get_handle(node_id);
+                    std::cerr << "on novel? " << on_novel << " " << length << " " << consensus_jump_max << std::endl;
+                    if (on_novel) {
+                        //&& length >= consensus_jump_max) {
+                        std::cerr << "ending novelty " << std::endl;
+                        end = step;
+                        add_path_segment(link, begin, end, new_rank);
+                    }
+                    // not novel
+                    on_novel = false;
+                    length = 0;
                 }
-                bool rev = smoothed.get_is_reverse(h);
-                if (rev) {
-                    consensus.append_step(path_cons_graph, consensus.flip(cur_handle_in_cons_graph));
-                } else {
-                    consensus.append_step(path_cons_graph, cur_handle_in_cons_graph);
+            }
+            if (on_novel) {
+                //&& length >= consensus_jump_max) {
+                std::cerr << "adding last novelty " << std::endl;
+                add_path_segment(link, begin, link.end, new_rank);
+            }
+            */
+
+
+            /*
+            if (!seen_consensus) {
+                // we construct the first link path object
+                            link.length = 0;
+                            link.from_cons = curr_consensus;
+                            link.to_cons = curr_consensus;
+                            link.begin = step;
+                            link.end = step;
+                            link.hash = 0;
+                            seen_consensus = true;
+                            last_seen_consensus = curr_consensus;
+            */
+
+            uint64_t new_rank = 0;
+            //for (auto& novel_link : novel_paths) {
+            {
+                auto& novel_link = link;
+                stringstream s;
+                s << "Link_" << smoothed.get_path_name(novel_link.from_cons) << "_" << smoothed.get_path_name(novel_link.to_cons) << "_" << novel_link.rank << "_" << new_rank++;
+                path_handle_t path_cons_graph = consensus.create_path_handle(s.str());
+                handle_t cur_handle_in_cons_graph;
+                // add the current node first, then add the step
+                for (step_handle_t step = novel_link.begin; //smoothed.get_next_step(novel_link.begin);
+                     step != novel_link.end;
+                     step = smoothed.get_next_step(step)) {
+                    handle_t h = smoothed.get_handle_of_step(step);
+                    handle_t next_handle;
+                    nid_t node_id = smoothed.get_id(h);
+                    if (!consensus.has_node(node_id)) {
+                        //assert(false);
+                        // todo should be in by definition...
+                        cur_handle_in_cons_graph = consensus.create_handle(smoothed.get_sequence(smoothed.get_handle(node_id)), node_id);
+                    } else {
+                        cur_handle_in_cons_graph = consensus.get_handle(node_id);
+                    }
+                    bool rev = smoothed.get_is_reverse(h);
+                    if (rev) {
+                        consensus.append_step(path_cons_graph, consensus.flip(cur_handle_in_cons_graph));
+                    } else {
+                        consensus.append_step(path_cons_graph, cur_handle_in_cons_graph);
+                    }
                 }
             }
         }
@@ -540,10 +634,15 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         [&](const step_handle_t& a, const step_handle_t& b) {
             handle_t from = smoothed.get_handle_of_step(a);
             handle_t to = smoothed.get_handle_of_step(b);
-            consensus.create_edge(consensus.get_handle(smoothed.get_id(from),
-                                                       smoothed.get_is_reverse(from)),
-                                  consensus.get_handle(smoothed.get_id(to),
-                                                       smoothed.get_is_reverse(to)));
+            nid_t from_id = smoothed.get_id(from);
+            nid_t to_id = smoothed.get_id(to);
+            if (consensus.has_node(from_id)
+                && consensus.has_node(to_id)) {
+                consensus.create_edge(consensus.get_handle(smoothed.get_id(from),
+                                                           smoothed.get_is_reverse(from)),
+                                      consensus.get_handle(smoothed.get_id(to),
+                                                           smoothed.get_is_reverse(to)));
+            }
         };
 
     for (auto& link : consensus_links) {
@@ -596,6 +695,8 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                     });
                 }
             });
+
+    std::cerr << "at end" << std::endl;
 
     // unchop the graph
     odgi::algorithms::unchop(consensus);
