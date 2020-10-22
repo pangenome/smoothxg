@@ -261,6 +261,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         [&](const std::vector<link_path_t>& links) {
             std::map<uint64_t, uint64_t> hash_counts;
             std::vector<link_path_t> unique_links;
+            uint64_t link_rank = 0;
             for (auto& link : links) {
                 //std::cerr << link << std::endl;
                 auto& c = hash_counts[link.hash];
@@ -364,10 +365,12 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             if (has_perfect_edge) {
                 // nothing to do
             } else if (has_perfect_link) {
-                //mark_seen_nodes(perfect_link, seen_nodes); // no nodes to mark
+                mark_seen_nodes(perfect_link, seen_nodes); // should be no nodes to mark
+                perfect_link.rank = link_rank++;
                 consensus_links.push_back(perfect_link);
             } else {
                 if (most_frequent_link.from_cons != most_frequent_link.to_cons) {
+                    most_frequent_link.rank = link_rank++;
                     consensus_links.push_back(most_frequent_link);
                     mark_seen_nodes(most_frequent_link, seen_nodes);
                 }
@@ -380,6 +383,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                 uint64_t novel_bp = novel_sequence_length(link, seen_nodes);
                 if (link.jump_length >= consensus_jump_max
                     || novel_bp >= consensus_jump_max) {
+                    link.rank = link_rank++;
                     consensus_links.push_back(link);
                     mark_seen_nodes(link, seen_nodes);
                 }
@@ -482,7 +486,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         // make the path name
         if (link.length > 0) {
             stringstream s;
-            s << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons);
+            s << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank;
             path_handle_t path_cons_graph = consensus.create_path_handle(s.str());
             handle_t cur_handle_in_cons_graph;
             // add the current node first, then add the step
