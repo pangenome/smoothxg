@@ -23,6 +23,7 @@ struct link_path_t {
     path_handle_t path;
     bool is_rev; // if we're going forward or reverse on the graph partial order
     uint64_t jump_length; // jump in the partial order
+    uint64_t link_rank;
 };
 
 bool operator<(const link_path_t& a,
