@@ -506,7 +506,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // add link paths and edges not in the consensus paths
     std::vector<path_handle_t> link_paths;
     for (auto& link : consensus_links) {
-        std::cerr << "making " << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank << std::endl;
+        //std::cerr << "making " << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank << std::endl;
         // create link paths and paths
         // make the path name
         if (link.length > 0) {
@@ -637,26 +637,34 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
     // now, for each link path
     // chew back each end until its depth is 1
-    /*
+
     std::vector<uint64_t> node_coverage(consensus.get_node_count()+1);
     consensus.for_each_handle(
         [&](const handle_t& handle) {
             node_coverage[consensus.get_id(handle)] = consensus.get_step_count(handle);
         });
-    */
+
+    std::vector<std::pair<std::string, std::vector<handle_t>>> to_create;
+    std::vector<path_handle_t> to_destroy;
     for (auto& link : link_paths) {
         //while (
         step_handle_t step = consensus.path_begin(link);
+        nid_t id = consensus.get_id(consensus.get_handle_of_step(step));
         while (
             step != consensus.path_back(link)
-            && consensus.get_step_count(consensus.get_handle_of_step(step)) > 1) {
+            && node_coverage[id] > 1) {
+            --node_coverage[id];
             step = consensus.get_next_step(step);
+            id = consensus.get_id(consensus.get_handle_of_step(step));
         }
         step_handle_t begin = step;
         step = consensus.path_back(link);
+        id = consensus.get_id(consensus.get_handle_of_step(step));
         while (step != begin
-               && consensus.get_step_count(consensus.get_handle_of_step(step)) > 1) {
+               && node_coverage[id] > 1) {
+            --node_coverage[id];
             step = consensus.get_previous_step(step);
+            id = consensus.get_id(consensus.get_handle_of_step(step));
         }
         step_handle_t end = consensus.get_next_step(step);
         std::vector<handle_t> new_path;
@@ -666,19 +674,23 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         if (new_path.size() == 0
             || new_path.size() == 1
             && consensus.get_step_count(new_path.front()) > 1) {
-            // destroy the path
-            consensus.destroy_path(link);
+            // only destroy the path
+            to_destroy.push_back(link);
         } else {
             std::string name = consensus.get_path_name(link);
-            consensus.destroy_path(link);
-            link = consensus.create_path_handle(name);
-            for (auto& handle : new_path) {
-                consensus.append_step(link, handle);
-            }
+            to_create.push_back(std::make_pair(name, new_path));
+            to_destroy.push_back(link);
         }
     }
-
-    std::cerr << "at end" << std::endl;
+    for (auto& p : to_create) {
+        path_handle_t path = consensus.create_path_handle(p.first);
+        for (auto& handle : p.second) {
+            consensus.append_step(path, handle);
+        }
+    }
+    for (auto& link : to_destroy) {
+        consensus.destroy_path(link);
+    }
 
     odgi::algorithms::unchop(consensus);
 
