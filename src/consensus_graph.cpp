@@ -635,6 +635,11 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // unchop the graph
     odgi::algorithms::unchop(consensus);
 
+
+    // look for paths that are contained in others
+    // but add less than consensus_jump_max bp of sequence
+    
+
     // now, for each link path
     // chew back each end until its depth is 1
 
@@ -682,7 +687,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         }
     }
     for (auto& p : to_create) {
-        path_handle_t path = consensus.create_path_handle(p.first + "_cut");
+        path_handle_t path = consensus.create_path_handle(p.first); // the trimmed path
         for (auto& handle : p.second) {
             consensus.append_step(path, handle);
         }
