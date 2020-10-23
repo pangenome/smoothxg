@@ -227,15 +227,17 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     path_handle_t curr_to_cons;
 
     auto novel_sequence_length =
-        [&](const link_path_t& link,
-            ska::flat_hash_set<uint64_t> seen_nodes) { // by copy
+        [&](const step_handle_t begin,
+            const step_handle_t end,
+            ska::flat_hash_set<uint64_t> seen_nodes, // by copy
+            const odgi::graph_t& graph) {
             uint64_t novel_bp = 0;
-            for (auto s = link.begin;
-                 s != link.end; s = smoothed.get_next_step(s)) {
-                handle_t h = smoothed.get_handle_of_step(s);
-                uint64_t i = smoothed.get_id(h);
+            for (auto s = begin;
+                 s != end; s = graph.get_next_step(s)) {
+                handle_t h = graph.get_handle_of_step(s);
+                uint64_t i = graph.get_id(h);
                 if (!seen_nodes.count(i)) {
-                    novel_bp += smoothed.get_length(h);
+                    novel_bp += graph.get_length(h);
                     seen_nodes.insert(i);
                 }
             }
@@ -243,12 +245,14 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         };
 
     auto mark_seen_nodes =
-        [&](const link_path_t& link,
-            ska::flat_hash_set<uint64_t>& seen_nodes) { // by ref
-            for (auto s = link.begin;
-                 s != link.end; s = smoothed.get_next_step(s)) {
-                handle_t h = smoothed.get_handle_of_step(s);
-                uint64_t i = smoothed.get_id(h);
+        [&](const step_handle_t begin,
+            const step_handle_t end,
+            ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
+            const odgi::graph_t& graph) {
+            for (auto s = begin;
+                 s != end; s = graph.get_next_step(s)) {
+                handle_t h = graph.get_handle_of_step(s);
+                uint64_t i = graph.get_id(h);
                 if (!seen_nodes.count(i)) {
                     seen_nodes.insert(i);
                 }
@@ -365,14 +369,15 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             if (has_perfect_edge) {
                 // nothing to do
             } else if (has_perfect_link) {
-                mark_seen_nodes(perfect_link, seen_nodes); // should be no nodes to mark
+                // nb: should be no nodes to mark
+                mark_seen_nodes(perfect_link.begin, perfect_link.end, seen_nodes, smoothed);
                 perfect_link.rank = link_rank++;
                 consensus_links.push_back(perfect_link);
             } else {
                 if (most_frequent_link.from_cons != most_frequent_link.to_cons) {
                     most_frequent_link.rank = link_rank++;
                     consensus_links.push_back(most_frequent_link);
-                    mark_seen_nodes(most_frequent_link, seen_nodes);
+                    mark_seen_nodes(most_frequent_link.begin, most_frequent_link.end, seen_nodes, smoothed);
                 }
             }
 
@@ -380,16 +385,15 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                 if (link.hash == best_hash) {
                     continue;
                 }
-                uint64_t novel_bp = novel_sequence_length(link, seen_nodes);
+                uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
                 if (link.jump_length >= consensus_jump_max
                     || novel_bp >= consensus_jump_max) {
                     link.rank = link_rank++;
                     consensus_links.push_back(link);
-                    mark_seen_nodes(link, seen_nodes);
+                    mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);
                 }
             }
             // todo when adding we need to break the paths up
-            // todo link paths need ids to be unique
         };
     
     // collect edges by node
@@ -635,10 +639,60 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // unchop the graph
     odgi::algorithms::unchop(consensus);
 
+    // remove paths that are contained in others
+    // and add less than consensus_jump_max bp of sequence
+    //std::vector<path_handle_t> links_to_keep;
+    std::vector<std::string> link_path_names_to_keep;
+    std::vector<path_handle_t> links_to_remove;
+    std::map<std::pair<nid_t, nid_t>, std::vector<path_handle_t>> links_by_start_end;
+    for (auto& link : link_paths) {
+        nid_t a = consensus.get_id(consensus.get_handle_of_step(consensus.path_begin(link)));
+        nid_t b = consensus.get_id(consensus.get_handle_of_step(consensus.path_back(link)));
+        if (a > b) std::swap(a, b);
+        links_by_start_end[std::make_pair(a, b)].push_back(link);
+    }
+    for (auto& group : links_by_start_end) {
+        //
+        ska::flat_hash_set<uint64_t> seen_nodes;
+        bool saved = false;
+        for (auto& link : group.second) {
+            step_handle_t begin = consensus.path_begin(link);
+            step_handle_t end = consensus.path_back(link);
+            uint64_t novel_bp = novel_sequence_length(begin, end, seen_nodes, consensus);
+            if (!saved || novel_bp >= consensus_jump_max) {
+                saved = true;
+                //links_to_keep.push_back(link);
+                link_path_names_to_keep.push_back(consensus.get_path_name(link));
+            } else {
+                //(novel_bp < consensus_jump_max) {
+                links_to_remove.push_back(link);
+            }
+            mark_seen_nodes(begin, end, seen_nodes, consensus);
+        }
+    }
 
-    // look for paths that are contained in others
-    // but add less than consensus_jump_max bp of sequence
-    
+    for (auto& link : links_to_remove) {
+        consensus.destroy_path(link);
+    }
+
+    // now remove coverage=0 nodes
+    std::vector<handle_t> empty_handles;
+    consensus.for_each_handle(
+        [&](const handle_t& handle) {
+            if (consensus.get_step_count(handle) == 0) {
+                empty_handles.push_back(handle);
+            }
+        });
+    for (auto& handle : empty_handles) {
+        consensus.destroy_handle(handle);
+    }
+
+    odgi::algorithms::unchop(consensus);
+
+    link_paths.clear();
+    for (auto& n : link_path_names_to_keep) {
+        link_paths.push_back(consensus.get_path_handle(n));
+    }
 
     // now, for each link path
     // chew back each end until its depth is 1
@@ -696,6 +750,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         consensus.destroy_path(link);
     }
 
+    // this is complex, isn't optimal, but it seems to work
     odgi::algorithms::unchop(consensus);
 
     return consensus;
