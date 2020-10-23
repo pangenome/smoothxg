@@ -663,9 +663,14 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         for (step = begin; step != end; step = consensus.get_next_step(step)) {
             new_path.push_back(consensus.get_handle_of_step(step));
         }
-        std::string name = consensus.get_path_name(link);
-        consensus.destroy_path(link);
-        if (new_path.size()) {
+        if (new_path.size() == 0
+            || new_path.size() == 1
+            && consensus.get_step_count(new_path.front()) > 1) {
+            // destroy the path
+            consensus.destroy_path(link);
+        } else {
+            std::string name = consensus.get_path_name(link);
+            consensus.destroy_path(link);
             link = consensus.create_path_handle(name);
             for (auto& handle : new_path) {
                 consensus.append_step(link, handle);
