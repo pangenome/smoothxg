@@ -665,13 +665,17 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         }
         std::string name = consensus.get_path_name(link);
         consensus.destroy_path(link);
-        link = consensus.create_path_handle(name);
-        for (auto& handle : new_path) {
-            consensus.append_step(link, handle);
+        if (new_path.size()) {
+            link = consensus.create_path_handle(name);
+            for (auto& handle : new_path) {
+                consensus.append_step(link, handle);
+            }
         }
     }
 
     std::cerr << "at end" << std::endl;
+
+    odgi::algorithms::unchop(consensus);
 
     return consensus;
 }
