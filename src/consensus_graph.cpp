@@ -645,7 +645,6 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         });
 
     std::vector<std::pair<std::string, std::vector<handle_t>>> to_create;
-    std::vector<path_handle_t> to_destroy;
     for (auto& link : link_paths) {
         //while (
         step_handle_t step = consensus.path_begin(link);
@@ -671,24 +670,24 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         for (step = begin; step != end; step = consensus.get_next_step(step)) {
             new_path.push_back(consensus.get_handle_of_step(step));
         }
+        id = consensus.get_id(new_path.front());
         if (new_path.size() == 0
             || new_path.size() == 1
-            && consensus.get_step_count(new_path.front()) > 1) {
+            && node_coverage[id] > 1) {
+            --node_coverage[id];
             // only destroy the path
-            to_destroy.push_back(link);
         } else {
             std::string name = consensus.get_path_name(link);
             to_create.push_back(std::make_pair(name, new_path));
-            to_destroy.push_back(link);
         }
     }
     for (auto& p : to_create) {
-        path_handle_t path = consensus.create_path_handle(p.first);
+        path_handle_t path = consensus.create_path_handle(p.first + "_cut");
         for (auto& handle : p.second) {
             consensus.append_step(path, handle);
         }
     }
-    for (auto& link : to_destroy) {
+    for (auto& link : link_paths) {
         consensus.destroy_path(link);
     }
 
