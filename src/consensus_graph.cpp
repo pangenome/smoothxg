@@ -43,7 +43,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // record first step handle off a consensus path
     // detect consensus switches, writing the distance to the last consensus step, step
     // into an array of tuples
-
+    std::cerr << "[smoothxg::create_consensus_graph] building consensus graph" << std::endl;
     
     std::vector<bool> is_consensus(smoothed.get_path_count()+1, false);
     for (auto& path : consensus_paths) {
@@ -112,7 +112,8 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         };
 
     // consensus path -> consensus path : link_path_t
-    mmmulti::set<link_path_t> link_path_ms(base);
+    std::string base_mmset = base + ".link_path_ms";
+    mmmulti::set<link_path_t> link_path_ms(base_mmset);
     link_path_ms.open_writer();
     
     paryfor::parallel_for<uint64_t>(
@@ -278,12 +279,6 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             for (auto& link : links) {
                 hash_lengths[link.hash] = link.length;
             }
-            for (auto& link : links) {
-                std::cerr << link << " " << get_path_seq(smoothed.get_next_step(link.begin), link.end) << std::endl;
-            }
-            for (auto& c : hash_counts) {
-                std::cerr << c.first << " -> " << c.second << std::endl;
-            }
             uint64_t best_count = 0;
             uint64_t best_hash;
             for (auto& c : hash_counts) {
@@ -292,7 +287,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                     best_count = c.second;
                 }
             }
-            std::cerr << "best hash be " << best_hash << std::endl;
+            //std::cerr << "best hash be " << best_hash << std::endl;
             // save the best link path
             link_path_t most_frequent_link;
             for (auto& link : unique_links) {
@@ -395,7 +390,8 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             }
             // todo when adding we need to break the paths up
         };
-    
+
+    std::cerr << "[smoothxg::create_consensus_graph] finding consensus links" << std::endl;
     // collect edges by node
     // 
     link_path_ms.for_each_value(
@@ -422,38 +418,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     compute_best_link(curr_links);
 
     link_path_ms.close_reader();
-    std::remove(base.c_str());
-
-    // we need to create a copy of the original graph
-    // this sounds memory expensive
-    //odgi::graph_t consensus_graph; // = smoothed;
-    // build an xp index of the smoothed graph
-    // iterate through all blocks
-    // fetch the consensus path of the given block
-    // we can go left or right!
-    // for each path hitting the first or last node of the consensus path:
-    // 1. get the step
-    // 2. get the next step
-    // 3. translate to nucleotide position
-    // 4. use the path_nuc_range_block_index to find the block id which is corresponding to the range
-    // 5. go from block id to consensus path
-    // 6. we can get the first and last handle of the consensus path
-    // 7. find out the number of nucleotides for hitted path from:
-        // a) left cons_path -> left next_cons_path
-        // b) left const_path -> right next_cons_path
-        // c) right const_path -> left next_cons_path
-        // d) right const_path -> right next_const_path
-    // 8. choose the shortest path in nucleotides, note start and end step of that path
-    // 9. collect such tuples for all paths that we can hit in a consensus path of a current block
-    // we might travel to different blocks, so treat them seperately
-    // 10. sort by shortest nucleotide and then create a link path from noted start to end step
-
-    // TODO how to deal with loops?
-    // TODO we will create each link "twice", what to do?
-
-    // create links according to sorted set
-    //std::vector<path_handle_t> all_consensus_paths = consensus_paths;
-    //all_consensus_paths.insert(consensus_paths.end(), link_paths.begin(), link_paths.end());
+    std::remove(base_mmset.c_str());
 
     // create new consensus graph which only has the consensus and link paths in it
     odgi::graph_t consensus;
@@ -506,7 +471,8 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                   }
               }
           };
-    
+
+    std::cerr << "[smoothxg::create_consensus_graph] adding consensus paths" << std::endl;
     // add link paths and edges not in the consensus paths
     std::vector<path_handle_t> link_paths;
     for (auto& link : consensus_links) {
@@ -638,6 +604,8 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
     // unchop the graph
     odgi::algorithms::unchop(consensus);
+
+    std::cerr << "[smoothxg::create_consensus_graph] cleaning up redundant link paths" << std::endl;
 
     // remove paths that are contained in others
     // and add less than consensus_jump_max bp of sequence
