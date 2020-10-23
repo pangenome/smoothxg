@@ -633,8 +633,9 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             });
 
     // unchop the graph
+    std::cerr << "BEFORE UNCHOP" << std::endl;
     odgi::algorithms::unchop(consensus);
-
+    std::cerr << "AFTER UNCHOP" << std::endl;
     // now, for each link path
     // chew back each end until its depth is 1
     /*
@@ -676,64 +677,84 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                 consensus.append_step(link, handle);
             }
         }
-        // delete all handles that have coverage 0
-        std::vector<handle_t> handles_to_destroy;
-        consensus.for_each_handle([&]
-                                (const handle_t& h) {
-            uint64_t steps_on_handle = 0;
-            consensus.for_each_step_on_handle(h, [&](const step_handle_t &step) {
-                // For each handle step
-                steps_on_handle++;
-            });
-            if (steps_on_handle == 0) {
-                handles_to_destroy.push_back(h);
+    }
+
+    // delete all handles that have coverage 0
+    std::vector<handle_t> handles_to_destroy;
+    consensus.for_each_handle([&]
+                                      (const handle_t &h) {
+        uint64_t steps_on_handle = 0;
+        consensus.for_each_step_on_handle(h, [&](const step_handle_t &step) {
+            // For each handle step
+            steps_on_handle++;
+        });
+        if (steps_on_handle == 0) {
+            handles_to_destroy.push_back(h);
+        }
+    });
+    for (auto &handle : handles_to_destroy) {
+        consensus.destroy_handle(handle);
+    }
+
+    std::cerr << "HERE WE ARE NOW" << std::endl;
+    // TODO find out if there are lonely link paths around with no connections to any other node
+    for (auto &link : link_paths) {
+        step_handle_t begin_step = consensus.path_begin(link);
+        std::cerr << "ENTERTAIN US" << std::endl;
+        handle_t begin_handle = consensus.get_handle_of_step(begin_step);
+        uint64_t neighbour_handle_count = 0;
+        std::cerr << "I FEEL STUPID" << std::endl;
+        consensus.follow_edges(begin_handle, true, [&](const handle_t &left_handle) {
+            // Just manually count every edge we get by looking at the handle in that orientation
+            // skip over self pointing edges
+            if (!consensus.get_id(begin_handle) == consensus.get_id(left_handle)) {
+                neighbour_handle_count++;
             }
         });
-        for (auto& handle : handles_to_destroy) {
-            consensus.destroy_handle(handle);
-        }
-        // TODO find out if there are lonely link paths around with no connections to any other node
-        for (auto& link : link_paths) {
-            step_handle_t begin_step = consensus.path_begin(link);
-            handle_t begin_handle = consensus.get_handle_of_step(begin_step);
-            uint64_t neighbour_handle_count = 0;
-            consensus.follow_edges(begin_handle, true, [&](const handle_t &left_handle) {
-                // Just manually count every edge we get by looking at the handle in that orientation
-                // skip over self pointing edges
-                if (!consensus.get_id(begin_handle) == consensus.get_id(left_handle)) {
-                    neighbour_handle_count++;
-                }
-            });
-            consensus.follow_edges(begin_handle, false, [&](const handle_t &right_handle) {
-                // Just manually count every edge we get by looking at the handle in that orientation
-                // skip over self pointing edges
-                if (!consensus.get_id(begin_handle) == consensus.get_id(right_handle)) {
-                    neighbour_handle_count++;
-                }
-            });
-            step_handle_t end_step = consensus.path_end(link);
-            handle_t end_handle = consensus.get_handle_of_step(end_step);
-            consensus.follow_edges(end_handle, true, [&](const handle_t &left_handle) {
-                // Just manually count every edge we get by looking at the handle in that orientation
-                // skip over self pointing edges
-                if (!consensus.get_id(end_handle) == consensus.get_id(left_handle)) {
-                    neighbour_handle_count++;
-                }
-            });
-            consensus.follow_edges(end_handle, false, [&](const handle_t &right_handle) {
-                // Just manually count every edge we get by looking at the handle in that orientation
-                // skip over self pointing edges
-                if (!consensus.get_id(end_handle) == consensus.get_id(right_handle)) {
-                    neighbour_handle_count++;
-                }
-            });
-            if (neighbour_handle_count == 0) {
-                // TODO destroy all handles that are crossed by this path, then the whole path
+        std::cerr << "A MOLATO" << std::endl;
+        consensus.follow_edges(begin_handle, false, [&](const handle_t &right_handle) {
+            // Just manually count every edge we get by looking at the handle in that orientation
+            // skip over self pointing edges
+            if (!consensus.get_id(begin_handle) == consensus.get_id(right_handle)) {
+                neighbour_handle_count++;
             }
-        }
-        // TODO we can delete link paths if there already is a path via several consecutive consensus paths replacing that link path
+        });
+        step_handle_t end_step = consensus.path_end(link);
+        handle_t end_handle = consensus.get_handle_of_step(end_step);
+        std::cerr << "A MOSQUITO" << std::endl;
 
+        consensus.follow_edges(end_handle, true, [&](const handle_t &left_handle) {
+            // Just manually count every edge we get by looking at the handle in that orientation
+            // skip over self pointing edges
+            if (!consensus.get_id(end_handle) == consensus.get_id(left_handle)) {
+                neighbour_handle_count++;
+            }
+        });
+
+        std::cerr << "MY LIBIDO" << std::endl;
+        consensus.follow_edges(end_handle, false, [&](const handle_t &right_handle) {
+            // Just manually count every edge we get by looking at the handle in that orientation
+            // skip over self pointing edges
+            if (!consensus.get_id(end_handle) == consensus.get_id(right_handle)) {
+                neighbour_handle_count++;
+            }
+        });
+        std::vector<handle_t> handles_to_destroy;
+        std::cerr << "BEFORE HANDLE DESTRUCTION" << std::endl;
+        if (neighbour_handle_count == 0) {
+            // TODO destroy all handles that are crossed by this path, then the whole path
+            consensus.for_each_step_in_path(link, [&handles_to_destroy, &consensus](const step_handle_t step) {
+                handles_to_destroy.push_back(consensus.get_handle_of_step(step));
+            });
+            for (auto &handle : handles_to_destroy) {
+                if (consensus.has_node(consensus.get_id(handle))) {
+                    consensus.destroy_handle(handle);
+                }
+            }
+            consensus.destroy_path(link);
+        }
     }
+    // TODO we can delete link paths if there already is a path via several consecutive consensus paths replacing that link path
 
     std::cerr << "at end" << std::endl;
 
