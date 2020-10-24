@@ -602,6 +602,20 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                 }
             });
 
+    consensus.for_each_path_handle(
+        [&](const path_handle_t& path) {
+            consensus.for_each_step_in_path(path, [&] (const step_handle_t step) {
+               if (consensus.has_next_step(step)) {
+                   step_handle_t next_step = consensus.get_next_step(step);
+                   handle_t h = consensus.get_handle_of_step(step);
+                   handle_t next_h = consensus.get_handle_of_step(next_step);
+                   if (!consensus.has_edge(h, next_h)) {
+                       consensus.create_edge(h, next_h);
+                   }
+               }
+            });
+        });
+
     // unchop the graph
     odgi::algorithms::unchop(consensus);
 
@@ -718,7 +732,20 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         consensus.destroy_path(link);
     }
 
-    // this is complex, isn't optimal, but it seems to work
+    consensus.for_each_path_handle(
+        [&](const path_handle_t& path) {
+            consensus.for_each_step_in_path(path, [&] (const step_handle_t step) {
+               if (consensus.has_next_step(step)) {
+                   step_handle_t next_step = consensus.get_next_step(step);
+                   handle_t h = consensus.get_handle_of_step(step);
+                   handle_t next_h = consensus.get_handle_of_step(next_step);
+                   if (!consensus.has_edge(h, next_h)) {
+                       consensus.create_edge(h, next_h);
+                   }
+               }
+            });
+        });
+
     odgi::algorithms::unchop(consensus);
 
     return consensus;
