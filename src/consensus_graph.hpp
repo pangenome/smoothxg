@@ -36,7 +36,7 @@ ostream& operator<<(ostream& o, const link_path_t& a);
 /// flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:
 /// we collect path_step_rank_ranges and the identifier of an interval is the index of a block in the blocks vector
 odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
-                                     const std::vector<path_handle_t>& consensus_paths,
+                                     std::vector<path_handle_t>& consensus_paths,
                                      const uint64_t& consensus_jump_max,
                                      const uint64_t& thread_count,
                                      const std::string& base);

@@ -33,7 +33,7 @@ ostream& operator<<(ostream& o, const link_path_t& a) {
 // we'll then build the xg index on top of that in low memory
 
 odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
-                                     const std::vector<path_handle_t>& consensus_paths,
+                                     std::vector<path_handle_t>& consensus_paths,
                                      const uint64_t& consensus_jump_max,
                                      const uint64_t& thread_count,
                                      const std::string& base) {
@@ -480,10 +480,9 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         // create link paths and paths
         // make the path name
         if (link.length > 0) {
-            uint64_t new_rank = 0;
             auto& novel_link = link;
             stringstream s;
-            s << "Link_" << smoothed.get_path_name(novel_link.from_cons) << "_" << smoothed.get_path_name(novel_link.to_cons) << "_" << novel_link.rank << "_" << new_rank++;
+            s << "Link_" << smoothed.get_path_name(novel_link.from_cons) << "_" << smoothed.get_path_name(novel_link.to_cons) << "_" << novel_link.rank;
             path_handle_t path_cons_graph = consensus.create_path_handle(s.str());
             link_paths.push_back(path_cons_graph);
             handle_t cur_handle_in_cons_graph;
@@ -616,15 +615,31 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             });
         });
 
+    std::vector<std::string> consensus_path_names;
+    for (auto& path : consensus_paths) {
+        consensus_path_names.push_back(consensus.get_path_name(path));
+    }
+
     // unchop the graph
     odgi::algorithms::unchop(consensus);
+
+    ofstream o("pre_reduce.gfa");
+    consensus.to_gfa(o);
+    o.close();
+
+    ska::flat_hash_set<uint64_t> consensus_paths_set;
+    consensus_paths.clear();
+    for (auto& name : consensus_path_names) {
+        path_handle_t path = consensus.get_path_handle(name);
+        consensus_paths.push_back(path);
+        consensus_paths_set.insert(as_integer(path));
+    }
 
     std::cerr << "[smoothxg::create_consensus_graph] cleaning up redundant link paths" << std::endl;
 
     // remove paths that are contained in others
     // and add less than consensus_jump_max bp of sequence
     //std::vector<path_handle_t> links_to_keep;
-    std::vector<std::string> link_path_names_to_keep;
     std::vector<path_handle_t> links_to_remove;
     std::map<std::pair<nid_t, nid_t>, std::vector<path_handle_t>> links_by_start_end;
     for (auto& link : link_paths) {
@@ -633,23 +648,107 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         if (a > b) std::swap(a, b);
         links_by_start_end[std::make_pair(a, b)].push_back(link);
     }
+    std::vector<std::pair<std::string, std::vector<handle_t>>> updated_links;
+
+    auto save_path_fragment =
+        [&](const path_handle_t& link,
+            uint64_t& save_rank,
+            const step_handle_t& first_novel,
+            const step_handle_t& step) {
+            stringstream s;
+            s << consensus.get_path_name(link) << "_" << save_rank++;
+            updated_links.push_back(std::make_pair(s.str(), std::vector<handle_t>()));
+            auto& handles = updated_links.back().second;
+            for (step_handle_t q = first_novel;
+                 q != step; q = consensus.get_next_step(q)) {
+                handles.push_back(consensus.get_handle_of_step(q));
+            }
+        };
+
     for (auto& group : links_by_start_end) {
-        //
-        ska::flat_hash_set<uint64_t> seen_nodes;
-        bool saved = false;
+        ska::flat_hash_set<uint64_t> internal_nodes;
         for (auto& link : group.second) {
             step_handle_t begin = consensus.path_begin(link);
-            step_handle_t end = consensus.path_back(link);
-            uint64_t novel_bp = novel_sequence_length(begin, end, seen_nodes, consensus);
-            if (!saved || novel_bp >= consensus_jump_max) {
-                saved = true;
-                //links_to_keep.push_back(link);
-                link_path_names_to_keep.push_back(consensus.get_path_name(link));
-            } else {
-                //(novel_bp < consensus_jump_max) {
-                links_to_remove.push_back(link);
+            step_handle_t end = consensus.path_end(link);
+            for (step_handle_t step = begin;
+                 step != end;
+                 step = consensus.get_next_step(step)) {
+                handle_t h = consensus.get_handle_of_step(step);
+                internal_nodes.insert(consensus.get_id(h));
             }
-            mark_seen_nodes(begin, end, seen_nodes, consensus);
+        }
+        ska::flat_hash_set<uint64_t> seen_nodes;
+        ska::flat_hash_set<uint64_t> reached_external_nodes;
+        for (auto& link : group.second) {
+            links_to_remove.push_back(link);
+            step_handle_t begin = consensus.path_begin(link);
+            step_handle_t end = consensus.path_end(link);
+            bool in_novel = false;
+            uint64_t novel_bp = 0;
+            step_handle_t first_novel;
+            uint64_t save_rank = 0;
+            bool reaches_external = false;
+            for (step_handle_t step = begin;
+                 step != end;
+                 step = consensus.get_next_step(step)) {
+                handle_t h = consensus.get_handle_of_step(step);
+                // if we reach an external node that hasn't been reached yet
+                // we should save the handle
+                nid_t id = consensus.get_id(h);
+                if (!seen_nodes.count(id)) {
+                    consensus.follow_edges(
+                        h, false, [&](const handle_t& o) {
+                                      nid_t oid = consensus.get_id(o);
+                                      if (!reached_external_nodes.count(oid)) {
+                                          reached_external_nodes.insert(oid);
+                                          consensus.for_each_step_on_handle(
+                                              o,
+                                              [&](const step_handle_t& s) {
+                                                  uint64_t k = as_integer(consensus.get_path_handle_of_step(s));
+                                                  bool is_consensus = consensus_paths_set.count(k);
+                                                  reaches_external |= is_consensus;
+                                              });
+                                      }
+                                  });
+                    consensus.follow_edges(
+                        h, true, [&](const handle_t& o) {
+                                     nid_t oid = consensus.get_id(o);
+                                     if (!reached_external_nodes.count(oid)) {
+                                         reached_external_nodes.insert(oid);
+                                         consensus.for_each_step_on_handle(
+                                              o,
+                                              [&](const step_handle_t& s) {
+                                                  uint64_t k = as_integer(consensus.get_path_handle_of_step(s));
+                                                  bool is_consensus = consensus_paths_set.count(k);
+                                                  reaches_external |= is_consensus;
+                                              });
+                                     }
+                                 });
+                    seen_nodes.insert(id);
+                    if (in_novel) {
+                        novel_bp += consensus.get_length(h);
+                    } else {
+                        first_novel = step;
+                        novel_bp += consensus.get_length(h);
+                        in_novel = true;
+                    }
+                } else {
+                    if (in_novel) {
+                        in_novel = false;
+                        if (reaches_external || novel_bp >= consensus_jump_max) {
+                            save_path_fragment(link, save_rank, first_novel, step);
+                        }
+                        reaches_external = false;
+                        novel_bp = 0;
+                    }
+                }
+            }
+            if (in_novel) {
+                in_novel = false;
+                if (reaches_external || novel_bp >= consensus_jump_max) {
+                    save_path_fragment(link, save_rank, first_novel, end);
+                }
+            }
         }
     }
 
@@ -657,79 +756,33 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         consensus.destroy_path(link);
     }
 
+    //std::vector<std::string> link_path_names_to_keep;
+    for (auto& g : updated_links) {
+        auto& name = g.first;
+        auto& handles = g.second;
+        //link_path_names_to_keep.push_back(name);
+        path_handle_t path = consensus.create_path_handle(name);
+        for (auto& handle : handles) {
+            consensus.append_step(path, handle);
+        }
+    }
+
     // now remove coverage=0 nodes
     std::vector<handle_t> empty_handles;
     consensus.for_each_handle(
         [&](const handle_t& handle) {
-            if (consensus.get_step_count(handle) == 0) {
+            uint64_t c = 0;
+            consensus.for_each_step_on_handle(
+                handle,
+                [&](const step_handle_t& s) {
+                    ++c;
+                });
+            if (c == 0) {
                 empty_handles.push_back(handle);
             }
         });
     for (auto& handle : empty_handles) {
         consensus.destroy_handle(handle);
-    }
-
-    odgi::algorithms::unchop(consensus);
-
-    link_paths.clear();
-    for (auto& n : link_path_names_to_keep) {
-        link_paths.push_back(consensus.get_path_handle(n));
-    }
-
-    // now, for each link path
-    // chew back each end until its depth is 1
-
-    std::vector<uint64_t> node_coverage(consensus.get_node_count()+1);
-    consensus.for_each_handle(
-        [&](const handle_t& handle) {
-            node_coverage[consensus.get_id(handle)] = consensus.get_step_count(handle);
-        });
-
-    std::vector<std::pair<std::string, std::vector<handle_t>>> to_create;
-    for (auto& link : link_paths) {
-        //while (
-        step_handle_t step = consensus.path_begin(link);
-        nid_t id = consensus.get_id(consensus.get_handle_of_step(step));
-        while (
-            step != consensus.path_back(link)
-            && node_coverage[id] > 1) {
-            --node_coverage[id];
-            step = consensus.get_next_step(step);
-            id = consensus.get_id(consensus.get_handle_of_step(step));
-        }
-        step_handle_t begin = step;
-        step = consensus.path_back(link);
-        id = consensus.get_id(consensus.get_handle_of_step(step));
-        while (step != begin
-               && node_coverage[id] > 1) {
-            --node_coverage[id];
-            step = consensus.get_previous_step(step);
-            id = consensus.get_id(consensus.get_handle_of_step(step));
-        }
-        step_handle_t end = consensus.get_next_step(step);
-        std::vector<handle_t> new_path;
-        for (step = begin; step != end; step = consensus.get_next_step(step)) {
-            new_path.push_back(consensus.get_handle_of_step(step));
-        }
-        id = consensus.get_id(new_path.front());
-        if (new_path.size() == 0
-            || new_path.size() == 1
-            && node_coverage[id] > 1) {
-            --node_coverage[id];
-            // only destroy the path
-        } else {
-            std::string name = consensus.get_path_name(link);
-            to_create.push_back(std::make_pair(name, new_path));
-        }
-    }
-    for (auto& p : to_create) {
-        path_handle_t path = consensus.create_path_handle(p.first); // the trimmed path
-        for (auto& handle : p.second) {
-            consensus.append_step(path, handle);
-        }
-    }
-    for (auto& link : link_paths) {
-        consensus.destroy_path(link);
     }
 
     consensus.for_each_path_handle(
