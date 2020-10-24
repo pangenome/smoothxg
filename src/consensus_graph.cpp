@@ -623,9 +623,11 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // unchop the graph
     odgi::algorithms::unchop(consensus);
 
+    /*
     ofstream o("pre_reduce.gfa");
     consensus.to_gfa(o);
     o.close();
+    */
 
     ska::flat_hash_set<uint64_t> consensus_paths_set;
     consensus_paths.clear();
