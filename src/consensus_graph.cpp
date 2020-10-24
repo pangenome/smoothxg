@@ -699,33 +699,37 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                 nid_t id = consensus.get_id(h);
                 if (!seen_nodes.count(id)) {
                     consensus.follow_edges(
-                        h, false, [&](const handle_t& o) {
-                                      nid_t oid = consensus.get_id(o);
-                                      if (!reached_external_nodes.count(oid)) {
-                                          reached_external_nodes.insert(oid);
-                                          consensus.for_each_step_on_handle(
-                                              o,
-                                              [&](const step_handle_t& s) {
-                                                  uint64_t k = as_integer(consensus.get_path_handle_of_step(s));
-                                                  bool is_consensus = consensus_paths_set.count(k);
-                                                  reaches_external |= is_consensus;
-                                              });
+                        h, false,
+                        [&](const handle_t& o) {
+                            nid_t oid = consensus.get_id(o);
+                            if (!reached_external_nodes.count(oid)) {
+                                reached_external_nodes.insert(oid);
+                                consensus.for_each_step_on_handle(
+                                    o,
+                                    [&](const step_handle_t& s) {
+                                        uint64_t k = as_integer(
+                                            consensus.get_path_handle_of_step(s));
+                                        bool is_consensus = consensus_paths_set.count(k);
+                                        reaches_external |= is_consensus;
+                                    });
                                       }
                                   });
                     consensus.follow_edges(
-                        h, true, [&](const handle_t& o) {
-                                     nid_t oid = consensus.get_id(o);
-                                     if (!reached_external_nodes.count(oid)) {
-                                         reached_external_nodes.insert(oid);
-                                         consensus.for_each_step_on_handle(
-                                              o,
-                                              [&](const step_handle_t& s) {
-                                                  uint64_t k = as_integer(consensus.get_path_handle_of_step(s));
-                                                  bool is_consensus = consensus_paths_set.count(k);
-                                                  reaches_external |= is_consensus;
-                                              });
-                                     }
-                                 });
+                        h, true,
+                        [&](const handle_t& o) {
+                            nid_t oid = consensus.get_id(o);
+                            if (!reached_external_nodes.count(oid)) {
+                                reached_external_nodes.insert(oid);
+                                consensus.for_each_step_on_handle(
+                                    o,
+                                    [&](const step_handle_t& s) {
+                                        uint64_t k = as_integer(
+                                            consensus.get_path_handle_of_step(s));
+                                        bool is_consensus = consensus_paths_set.count(k);
+                                        reaches_external |= is_consensus;
+                                    });
+                            }
+                        });
                     seen_nodes.insert(id);
                     if (in_novel) {
                         novel_bp += consensus.get_length(h);
@@ -758,11 +762,11 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         consensus.destroy_path(link);
     }
 
-    //std::vector<std::string> link_path_names_to_keep;
+    std::vector<std::string> link_path_names_to_keep;
     for (auto& g : updated_links) {
         auto& name = g.first;
         auto& handles = g.second;
-        //link_path_names_to_keep.push_back(name);
+        link_path_names_to_keep.push_back(name);
         path_handle_t path = consensus.create_path_handle(name);
         for (auto& handle : handles) {
             consensus.append_step(path, handle);
@@ -800,6 +804,69 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                }
             });
         });
+
+    odgi::algorithms::unchop(consensus);
+
+    link_paths.clear();
+    for (auto& n : link_path_names_to_keep) {
+        link_paths.push_back(consensus.get_path_handle(n));
+    }
+
+    // now, for each link path
+    // chew back each end until its depth is 1
+
+    std::vector<uint64_t> node_coverage(consensus.get_node_count()+1);
+    consensus.for_each_handle(
+        [&](const handle_t& handle) {
+            node_coverage[consensus.get_id(handle)] = consensus.get_step_count(handle);
+        });
+
+    std::vector<std::pair<std::string, std::vector<handle_t>>> to_create;
+    for (auto& link : link_paths) {
+        //while (
+        step_handle_t step = consensus.path_begin(link);
+        nid_t id = consensus.get_id(consensus.get_handle_of_step(step));
+        while (
+            step != consensus.path_back(link)
+            && node_coverage[id] > 1) {
+            --node_coverage[id];
+            step = consensus.get_next_step(step);
+            id = consensus.get_id(consensus.get_handle_of_step(step));
+        }
+        step_handle_t begin = step;
+        step = consensus.path_back(link);
+        id = consensus.get_id(consensus.get_handle_of_step(step));
+        while (step != begin
+               && node_coverage[id] > 1) {
+            --node_coverage[id];
+            step = consensus.get_previous_step(step);
+            id = consensus.get_id(consensus.get_handle_of_step(step));
+        }
+        step_handle_t end = consensus.get_next_step(step);
+        std::vector<handle_t> new_path;
+        for (step = begin; step != end; step = consensus.get_next_step(step)) {
+            new_path.push_back(consensus.get_handle_of_step(step));
+        }
+        id = consensus.get_id(new_path.front());
+        if (new_path.size() == 0
+            || new_path.size() == 1
+            && node_coverage[id] > 1) {
+            --node_coverage[id];
+            // only destroy the path
+        } else {
+            std::string name = consensus.get_path_name(link);
+            to_create.push_back(std::make_pair(name, new_path));
+        }
+    }
+    for (auto& p : to_create) {
+        path_handle_t path = consensus.create_path_handle(p.first); // the trimmed path
+        for (auto& handle : p.second) {
+            consensus.append_step(path, handle);
+        }
+    }
+    for (auto& link : link_paths) {
+        consensus.destroy_path(link);
+    }
 
     odgi::algorithms::unchop(consensus);
 
