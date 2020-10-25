@@ -33,7 +33,7 @@ ostream& operator<<(ostream& o, const link_path_t& a) {
 // we'll then build the xg index on top of that in low memory
 
 odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
-                                     std::vector<path_handle_t>& consensus_paths,
+                                     std::vector<path_handle_t> consensus_paths,
                                      const uint64_t& consensus_jump_max,
                                      const uint64_t& thread_count,
                                      const std::string& base) {
@@ -48,6 +48,13 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     std::vector<bool> is_consensus(smoothed.get_path_count()+1, false);
     for (auto& path : consensus_paths) {
         is_consensus[as_integer(path)] = true;
+    }
+
+    // this preserves the path names, which we'll need to reconstruct the consensus paths
+    // in the graph after we unchop it
+    std::vector<std::string> consensus_path_names;
+    for (auto& path : consensus_paths) {
+        consensus_path_names.push_back(smoothed.get_path_name(path));
     }
 
     std::vector<path_handle_t> non_consensus_paths;
@@ -614,11 +621,6 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                }
             });
         });
-
-    std::vector<std::string> consensus_path_names;
-    for (auto& path : consensus_paths) {
-        consensus_path_names.push_back(consensus.get_path_name(path));
-    }
 
     // unchop the graph
     odgi::algorithms::unchop(consensus);
