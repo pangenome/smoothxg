@@ -1027,22 +1027,26 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     for (auto& path : link_paths) {
         uint64_t path_length = consensus.get_step_count(path);
         // is the head or tail a tip shorter than consensus_jump_max?
+        // if so, remove it
         handle_t h = consensus.get_handle_of_step(consensus.path_begin(path));
         if (is_tip(h) && consensus.get_length(h) < consensus_jump_max) {
             link_tips.push_back(h);
-            --path_length;
         }
         handle_t t = consensus.get_handle_of_step(consensus.path_back(path));
         if (t != h && is_tip(t) && consensus.get_length(t) < consensus_jump_max) {
             link_tips.push_back(t);
-            --path_length;
-        }
-        if (path_length == 0) {
-            paths_to_remove.push_back(path);
         }
     }
-    for (auto& p : paths_to_remove) {
-        consensus.destroy_path(p);
+    for (auto& t : link_tips) {
+        std::vector<step_handle_t> to_destroy;
+        consensus.for_each_step_on_handle(
+            t,
+            [&](const step_handle_t& step) {
+                to_destroy.push_back(step);
+            });
+        for (auto& step : to_destroy) {
+            consensus.rewrite_segment(step, step, {});
+        }
     }
     for (auto& t : link_tips) {
         consensus.destroy_handle(t);
