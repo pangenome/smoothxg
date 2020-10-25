@@ -1009,6 +1009,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
     odgi::algorithms::unchop(consensus);
 
+    /*
     link_paths.clear();
     for (auto& n : link_path_names_to_keep) {
         if (consensus.has_path(n)) {
@@ -1025,9 +1026,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     std::vector<handle_t> link_tips;
     std::vector<path_handle_t> paths_to_remove;
     for (auto& path : link_paths) {
-        uint64_t path_length = consensus.get_step_count(path);
         // is the head or tail a tip shorter than consensus_jump_max?
-        // if so, remove it
         handle_t h = consensus.get_handle_of_step(consensus.path_begin(path));
         if (is_tip(h) && consensus.get_length(h) < consensus_jump_max) {
             link_tips.push_back(h);
@@ -1040,7 +1039,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     for (auto& t : link_tips) {
         std::vector<step_handle_t> to_destroy;
         consensus.for_each_step_on_handle(
-            t,
+            t  ,
             [&](const step_handle_t& step) {
                 to_destroy.push_back(step);
             });
@@ -1048,11 +1047,28 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             consensus.rewrite_segment(step, step, {});
         }
     }
-    for (auto& t : link_tips) {
-        consensus.destroy_handle(t);
+
+    consensus.optimize();
+
+    empty_handles.clear();
+    consensus.for_each_handle(
+        [&](const handle_t& handle) {
+            uint64_t c = 0;
+            consensus.for_each_step_on_handle(
+                handle,
+                [&](const step_handle_t& s) {
+                    ++c;
+                });
+            if (c == 0) {
+                empty_handles.push_back(handle);
+            }
+        });
+    for (auto& handle : empty_handles) {
+        consensus.destroy_handle(handle);
     }
 
     odgi::algorithms::unchop(consensus);
+    */
 
     return consensus;
 }
