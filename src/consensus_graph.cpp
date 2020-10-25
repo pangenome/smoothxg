@@ -1009,7 +1009,6 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
     odgi::algorithms::unchop(consensus);
 
-    /*
     link_paths.clear();
     for (auto& n : link_path_names_to_keep) {
         if (consensus.has_path(n)) {
@@ -1018,21 +1017,22 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     }
 
     // remove tips of link paths shorter than our consensus_jump_max
-    auto is_tip =
+    auto is_degree_1_tip =
         [&](const handle_t& h) {
-            return consensus.get_degree(h, false) == 0
-                || consensus.get_degree(h, true) == 0;
+            uint64_t deg_fwd = consensus.get_degree(h, false);
+            uint64_t deg_rev = consensus.get_degree(h, true);
+            return (deg_fwd == 0 || deg_rev == 0) && (deg_fwd + deg_rev == 1);
         };
     std::vector<handle_t> link_tips;
     std::vector<path_handle_t> paths_to_remove;
     for (auto& path : link_paths) {
         // is the head or tail a tip shorter than consensus_jump_max?
         handle_t h = consensus.get_handle_of_step(consensus.path_begin(path));
-        if (is_tip(h) && consensus.get_length(h) < consensus_jump_max) {
+        if (is_degree_1_tip(h) && consensus.get_length(h) < consensus_jump_max) {
             link_tips.push_back(h);
         }
         handle_t t = consensus.get_handle_of_step(consensus.path_back(path));
-        if (t != h && is_tip(t) && consensus.get_length(t) < consensus_jump_max) {
+        if (t != h && is_degree_1_tip(t) && consensus.get_length(t) < consensus_jump_max) {
             link_tips.push_back(t);
         }
     }
@@ -1068,7 +1068,6 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     }
 
     odgi::algorithms::unchop(consensus);
-    */
 
     return consensus;
 }
