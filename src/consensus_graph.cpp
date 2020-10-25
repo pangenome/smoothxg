@@ -643,15 +643,27 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
     // remove paths that are contained in others
     // and add less than consensus_jump_max bp of sequence
-    //std::vector<path_handle_t> links_to_keep;
     std::vector<path_handle_t> links_to_remove;
-    std::map<std::pair<nid_t, nid_t>, std::vector<path_handle_t>> links_by_start_end;
+    struct link_range_t {
+        nid_t start;
+        nid_t end;
+        path_handle_t path;
+    };
+    std::vector<link_range_t> links_by_start_end;
     for (auto& link : link_paths) {
         nid_t a = consensus.get_id(consensus.get_handle_of_step(consensus.path_begin(link)));
         nid_t b = consensus.get_id(consensus.get_handle_of_step(consensus.path_back(link)));
         if (a > b) std::swap(a, b);
-        links_by_start_end[std::make_pair(a, b)].push_back(link);
+        links_by_start_end.push_back({a, b, link});
     }
+    // sort them so as to get longer paths first
+    std::sort(links_by_start_end.begin(),
+              links_by_start_end.end(),
+              [](const link_range_t& a,
+                 const link_range_t& b) {
+                  return a.start < b.end
+                                   || a.start == b.end && a.end > b.end;
+              });
     std::vector<std::pair<std::string, std::vector<handle_t>>> updated_links;
 
     auto save_path_fragment =
@@ -669,96 +681,107 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             }
         };
 
-    for (auto& group : links_by_start_end) {
-        ska::flat_hash_set<uint64_t> internal_nodes;
-        for (auto& link : group.second) {
-            step_handle_t begin = consensus.path_begin(link);
-            step_handle_t end = consensus.path_end(link);
-            for (step_handle_t step = begin;
-                 step != end;
-                 step = consensus.get_next_step(step)) {
-                handle_t h = consensus.get_handle_of_step(step);
-                internal_nodes.insert(consensus.get_id(h));
+    auto novelify =
+        [&](const std::vector<path_handle_t>& group) {
+            ska::flat_hash_set<uint64_t> internal_nodes;
+            for (auto& link : group) {
+                step_handle_t begin = consensus.path_begin(link);
+                step_handle_t end = consensus.path_end(link);
+                for (step_handle_t step = begin;
+                     step != end;
+                     step = consensus.get_next_step(step)) {
+                    handle_t h = consensus.get_handle_of_step(step);
+                    internal_nodes.insert(consensus.get_id(h));
+                }
             }
-        }
-        ska::flat_hash_set<uint64_t> seen_nodes;
-        ska::flat_hash_set<uint64_t> reached_external_nodes;
-        for (auto& link : group.second) {
-            links_to_remove.push_back(link);
-            step_handle_t begin = consensus.path_begin(link);
-            step_handle_t end = consensus.path_end(link);
-            bool in_novel = false;
-            uint64_t novel_bp = 0;
-            step_handle_t first_novel;
-            uint64_t save_rank = 0;
-            bool reaches_external = false;
-            for (step_handle_t step = begin;
-                 step != end;
-                 step = consensus.get_next_step(step)) {
-                handle_t h = consensus.get_handle_of_step(step);
-                // if we reach an external node that hasn't been reached yet
-                // we should save the handle
-                nid_t id = consensus.get_id(h);
-                if (!seen_nodes.count(id)) {
-                    consensus.follow_edges(
-                        h, false,
-                        [&](const handle_t& o) {
-                            nid_t oid = consensus.get_id(o);
-                            if (!reached_external_nodes.count(oid)) {
-                                reached_external_nodes.insert(oid);
-                                consensus.for_each_step_on_handle(
-                                    o,
-                                    [&](const step_handle_t& s) {
-                                        uint64_t k = as_integer(
-                                            consensus.get_path_handle_of_step(s));
-                                        bool is_consensus = consensus_paths_set.count(k);
-                                        reaches_external |= is_consensus;
-                                    });
-                                      }
-                                  });
-                    consensus.follow_edges(
-                        h, true,
-                        [&](const handle_t& o) {
-                            nid_t oid = consensus.get_id(o);
-                            if (!reached_external_nodes.count(oid)) {
-                                reached_external_nodes.insert(oid);
-                                consensus.for_each_step_on_handle(
-                                    o,
-                                    [&](const step_handle_t& s) {
-                                        uint64_t k = as_integer(
-                                            consensus.get_path_handle_of_step(s));
-                                        bool is_consensus = consensus_paths_set.count(k);
-                                        reaches_external |= is_consensus;
-                                    });
-                            }
-                        });
-                    seen_nodes.insert(id);
-                    if (in_novel) {
-                        novel_bp += consensus.get_length(h);
-                    } else {
-                        first_novel = step;
-                        novel_bp += consensus.get_length(h);
-                        in_novel = true;
-                    }
-                } else {
-                    if (in_novel) {
-                        in_novel = false;
-                        if (reaches_external || novel_bp >= consensus_jump_max) {
-                            save_path_fragment(link, save_rank, first_novel, step);
+            ska::flat_hash_set<uint64_t> seen_nodes;
+            ska::flat_hash_set<uint64_t> reached_external_nodes;
+            for (auto& link : group) {
+                links_to_remove.push_back(link);
+                step_handle_t begin = consensus.path_begin(link);
+                step_handle_t end = consensus.path_end(link);
+                bool in_novel = false;
+                uint64_t novel_bp = 0;
+                step_handle_t first_novel;
+                uint64_t save_rank = 0;
+                bool reaches_external = false;
+                for (step_handle_t step = begin;
+                     step != end;
+                     step = consensus.get_next_step(step)) {
+                    handle_t h = consensus.get_handle_of_step(step);
+                    // if we reach an external node that hasn't been reached yet
+                    // we should save the handle
+                    nid_t id = consensus.get_id(h);
+                    if (!seen_nodes.count(id)) {
+                        consensus.follow_edges(
+                            h, false,
+                            [&](const handle_t& o) {
+                                nid_t oid = consensus.get_id(o);
+                                if (!reached_external_nodes.count(oid)) {
+                                    reached_external_nodes.insert(oid);
+                                    consensus.for_each_step_on_handle(
+                                        o,
+                                        [&](const step_handle_t& s) {
+                                            uint64_t k = as_integer(
+                                                consensus.get_path_handle_of_step(s));
+                                            bool is_consensus = consensus_paths_set.count(k);
+                                            reaches_external |= is_consensus;
+                                        });
+                                }
+                            });
+                        consensus.follow_edges(
+                            h, true,
+                            [&](const handle_t& o) {
+                                nid_t oid = consensus.get_id(o);
+                                if (!reached_external_nodes.count(oid)) {
+                                    reached_external_nodes.insert(oid);
+                                    consensus.for_each_step_on_handle(
+                                        o,
+                                        [&](const step_handle_t& s) {
+                                            uint64_t k = as_integer(
+                                                consensus.get_path_handle_of_step(s));
+                                            bool is_consensus = consensus_paths_set.count(k);
+                                            reaches_external |= is_consensus;
+                                        });
+                                }
+                            });
+                        seen_nodes.insert(id);
+                        if (in_novel) {
+                            novel_bp += consensus.get_length(h);
+                        } else {
+                            first_novel = step;
+                            novel_bp += consensus.get_length(h);
+                            in_novel = true;
                         }
-                        reaches_external = false;
-                        novel_bp = 0;
+                    } else {
+                        if (in_novel) {
+                            in_novel = false;
+                            if (reaches_external || novel_bp >= consensus_jump_max) {
+                                save_path_fragment(link, save_rank, first_novel, step);
+                            }
+                            reaches_external = false;
+                            novel_bp = 0;
+                        }
+                    }
+                }
+                if (in_novel) {
+                    in_novel = false;
+                    if (reaches_external || novel_bp >= consensus_jump_max) {
+                        save_path_fragment(link, save_rank, first_novel, end);
                     }
                 }
             }
-            if (in_novel) {
-                in_novel = false;
-                if (reaches_external || novel_bp >= consensus_jump_max) {
-                    save_path_fragment(link, save_rank, first_novel, end);
-                }
-            }
-        }
+        };
+
+    std::vector<path_handle_t> ordered_links;
+    for (auto& p : links_by_start_end) {
+        ordered_links.push_back(p.path);
     }
+
+    // working through the links
+    // progressively collect sequences greater than our consensus_jump_max
+    // removing redundant link path components, writing new link paths
+    novelify(ordered_links);
 
     for (auto& link : links_to_remove) {
         consensus.destroy_path(link);
@@ -774,6 +797,14 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             consensus.append_step(path, handle);
         }
     }
+
+    // do it again for all links at once
+    /*
+    link_paths.clear();
+    for (auto& n : link_path_names_to_keep) {
+        link_paths.push_back(consensus.get_path_handle(n));
+    }
+    */
 
     // now remove coverage=0 nodes
     std::vector<handle_t> empty_handles;
@@ -793,6 +824,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         consensus.destroy_handle(handle);
     }
 
+    // force edges in paths
     consensus.for_each_path_handle(
         [&](const path_handle_t& path) {
             consensus.for_each_step_in_path(path, [&] (const step_handle_t step) {
