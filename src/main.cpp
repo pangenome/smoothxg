@@ -226,6 +226,11 @@ int main(int argc, char** argv) {
         maf_header += "# smoothxg\n";
         maf_header += "# input=" + filename + " sequences=" + std::to_string(graph.get_path_count()) + "\n";
 
+        // Merge mode
+        maf_header += "# merge_blocks=";
+        maf_header += (args::get(merge_blocks) ? "true" : "false");
+        maf_header += " min_fraction_contiguous_paths=" + std::to_string(min_fraction_contiguous_paths) + "\n";
+
         // POA
         maf_header += "# POA=";
         maf_header += (args::get(use_spoa) ? "SPOA" : "abPOA");

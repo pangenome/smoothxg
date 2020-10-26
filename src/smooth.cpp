@@ -639,7 +639,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                             if (merged_maf_blocks.field_blocks.empty()){
                                 merged = true;
                             } else {
-                                // The block to merge must have no new paths respect to the merged groupW
+                                // The block to merge must have no new paths respect to the merged group
                                 merged = true;
 
                                 uint64_t num_contiguous_seq = 0;
