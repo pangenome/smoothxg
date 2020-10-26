@@ -667,18 +667,22 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                     }
                                 }
 
-                                double fraction_contiguous_path = (double) num_contiguous_seq / (double)(num_seq_in_block - (add_consensus ? 1 : 0));
+                                if (merged){
+                                    double fraction_contiguous_path = (double) num_contiguous_seq /
+                                            (double)(num_seq_in_block - (add_consensus ? 1 : 0) + merged_maf_blocks.rows.size() - num_contiguous_seq);
 
-                                /*std::cerr << "block_id: " << block_id << std::endl;
-                                std::cerr << "\tnum_contiguous_seq: " << num_contiguous_seq << std::endl;
-                                std::cerr << "\tdenominator: " << (num_seq_in_block - (add_consensus ? 1 : 0)) << std::endl;
-                                std::cerr << "\tfraction_contiguous_path: " << fraction_contiguous_path << std::endl;
-                                std::cerr << "\tmerged: " << merged << std::endl;
-                                std::cerr << "\tfraction_contiguous_path >= min_fraction_contiguous_paths: " <<
-                                    (fraction_contiguous_path >= min_fraction_contiguous_paths) << std::endl << std::endl;*/
+                                    /*std::cerr << "block_id: " << block_id << std::endl;
+                                    std::cerr << "\tnum_contiguous_seq: " << num_contiguous_seq << std::endl;
+                                    std::cerr << "\tdenominator: " <<
+                                        (double)(num_seq_in_block - (add_consensus ? 1 : 0) + merged_maf_blocks.rows.size() - num_contiguous_seq) << std::endl;
+                                    std::cerr << "\tfraction_contiguous_path: " << fraction_contiguous_path << std::endl;
+                                    std::cerr << "\tmerged: " << merged << std::endl;
+                                    std::cerr << "\tfraction_contiguous_path >= min_fraction_contiguous_paths: " <<
+                                        (fraction_contiguous_path >= min_fraction_contiguous_paths) << std::endl << std::endl;*/
 
-                                if (merged && fraction_contiguous_path < min_fraction_contiguous_paths){
-                                    merged = false;
+                                    if (fraction_contiguous_path < min_fraction_contiguous_paths){
+                                        merged = false;
+                                    }
                                 }
                             }
                         }
@@ -816,7 +820,12 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                         if (!merged && !prep_new_merge_group) {
                             if (produce_maf){
-                                out_maf << "a blocks=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;
+                                out_maf << "a blocks=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false");
+                                if (fraction_below_threshold) {
+                                    out_maf << " below_thresh=true";
+                                }
+
+                                out_maf << std::endl;
                                 write_maf_rows(out_maf, mafs[block_id]);
                             }
 
