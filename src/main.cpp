@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "FILE", "write the consensus graph in this file", {'s', "write-consensus-graph"});
     args::ValueFlag<uint64_t> _consensus_jump_max(parser, "N", "preserve all divergences from the consensus paths greater than this length [default: 100]", {'C', "consensus-jump-max"});
-    args::Flag do_not_merge_blocks(parser, "bool","do not merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "not-merge-blocks"});
+    args::Flag merge_blocks(parser, "bool","merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "merge-blocks"});
 
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
@@ -73,9 +73,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (args::get(do_not_merge_blocks) && (!write_msa_in_maf_format && !args::get(add_consensus))) {
+    if (args::get(merge_blocks) && (!write_msa_in_maf_format && !args::get(add_consensus))) {
         std::cerr << "[smoothxg::main] error: Please specify -m/--write-msa-in-maf-format and/or -a/--add-consensus "
-                     "to use the -M/--not-merge-blocks option." << std::endl;
+                     "to use the -M/--merge-blocks option." << std::endl;
         return 1;
     }
 
@@ -272,7 +272,7 @@ int main(int argc, char** argv) {
                                               poa_q,
                                               poa_c,
                                               local_alignment,
-                                              args::get(write_msa_in_maf_format), maf_header, !args::get(do_not_merge_blocks),
+                                              args::get(write_msa_in_maf_format), maf_header, args::get(merge_blocks),
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "",
                                               consensus_paths);
