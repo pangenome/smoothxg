@@ -641,6 +641,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 // The block to merge must have no new paths respect to the merged groupW
                                 merged = true;
 
+                                uint64_t num_contiguous_seq = 0;
+
                                 for (uint64_t i = 0; i < num_seq_in_block; i++) {
                                     // Do not check the consensus (always forward)
                                     if (!add_consensus || i < num_seq_in_block - 1) {
@@ -659,8 +661,24 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                                 prep_new_merge_group = !is_last_block;
                                                 break;
                                             }
+
+                                            num_contiguous_seq += 1;
                                         }
                                     }
+                                }
+
+                                double fraction_contiguous_path = (double) num_contiguous_seq / (double)(num_seq_in_block - (add_consensus ? 1 : 0));
+
+                                /*std::cerr << "block_id: " << block_id << std::endl;
+                                std::cerr << "\tnum_contiguous_seq: " << num_contiguous_seq << std::endl;
+                                std::cerr << "\tdenominator: " << (num_seq_in_block - (add_consensus ? 1 : 0)) << std::endl;
+                                std::cerr << "\tfraction_contiguous_path: " << fraction_contiguous_path << std::endl;
+                                std::cerr << "\tmerged: " << merged << std::endl;
+                                std::cerr << "\tfraction_contiguous_path >= min_fraction_contiguous_paths: " <<
+                                    (fraction_contiguous_path >= min_fraction_contiguous_paths) << std::endl << std::endl;*/
+
+                                if (merged && fraction_contiguous_path < min_fraction_contiguous_paths){
+                                    merged = false;
                                 }
                             }
                         }

@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
         omp_set_num_threads(1);
     }
 
-    double min_fraction_contiguous_paths = _min_fraction_contiguous_paths ? max(min(args::get(_min_fraction_contiguous_paths), 1.0), 0.01) : 1.0;
+    double min_fraction_contiguous_paths = _min_fraction_contiguous_paths ? min(args::get(_min_fraction_contiguous_paths), 1.0) : 1.0;
 
     uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
     uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 5000;
@@ -259,7 +259,7 @@ int main(int argc, char** argv) {
                                               poa_c,
                                               local_alignment,
                                               args::get(write_msa_in_maf_format), maf_header,
-                                              args::get(merge_blocks), _min_fraction_contiguous_paths,
+                                              args::get(merge_blocks), min_fraction_contiguous_paths,
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
 
