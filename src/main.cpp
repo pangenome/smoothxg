@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
     args::Flag merge_blocks(parser, "bool","merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "merge-blocks"});
-    args::ValueFlag<double> _min_fraction_contiguous_paths(parser, "bool","minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",{'F', "min-fraction-contiguous-paths"});
+    args::ValueFlag<double> _contiguous_path_jaccard(parser, "bool","minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",{'J', "contiguous-path-jaccard"});
 
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
@@ -76,9 +76,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (!args::get(merge_blocks) && _min_fraction_contiguous_paths) {
+    if (!args::get(merge_blocks) && _contiguous_path_jaccard) {
         std::cerr << "[smoothxg::main] error: Please specify -M/--merge-blocks option to use the "
-                     "-F/--min-fraction-contiguous-paths option." << std::endl;
+                     "-J/--contiguous-path-jaccard option." << std::endl;
         return 1;
     }
 
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
         omp_set_num_threads(1);
     }
 
-    double min_fraction_contiguous_paths = _min_fraction_contiguous_paths ? min(args::get(_min_fraction_contiguous_paths), 1.0) : 1.0;
+    double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 
     uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
     uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 5000;
@@ -229,7 +229,7 @@ int main(int argc, char** argv) {
         // Merge mode
         maf_header += "# merge_blocks=";
         maf_header += (args::get(merge_blocks) ? "true" : "false");
-        maf_header += " min_fraction_contiguous_paths=" + std::to_string(min_fraction_contiguous_paths) + "\n";
+        maf_header += " contiguous_path_jaccard=" + std::to_string(contiguous_path_jaccard) + "\n";
 
         // POA
         maf_header += "# POA=";
@@ -264,7 +264,7 @@ int main(int argc, char** argv) {
                                               poa_c,
                                               local_alignment,
                                               args::get(write_msa_in_maf_format), maf_header,
-                                              args::get(merge_blocks), min_fraction_contiguous_paths,
+                                              args::get(merge_blocks), contiguous_path_jaccard,
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "");
 

@@ -577,7 +577,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_q, int poa_c,
                               bool local_alignment,
                               std::string &path_output_maf, std::string &maf_header,
-                              bool merge_blocks, double min_fraction_contiguous_paths,
+                              bool merge_blocks, double contiguous_path_jaccard,
                               bool use_abpoa,
                               const std::string &consensus_base_name) {
 
@@ -669,19 +669,10 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 }
 
                                 if (merged){
-                                    double fraction_contiguous_path = (double) num_contiguous_seq /
+                                    double current_contiguous_path_jaccard = (double) num_contiguous_seq /
                                             (double)(num_seq_in_block - (add_consensus ? 1 : 0) + merged_maf_blocks.rows.size() - num_contiguous_seq);
 
-                                    /*std::cerr << "block_id: " << block_id << std::endl;
-                                    std::cerr << "\tnum_contiguous_seq: " << num_contiguous_seq << std::endl;
-                                    std::cerr << "\tdenominator: " <<
-                                        (double)(num_seq_in_block - (add_consensus ? 1 : 0) + merged_maf_blocks.rows.size() - num_contiguous_seq) << std::endl;
-                                    std::cerr << "\tfraction_contiguous_path: " << fraction_contiguous_path << std::endl;
-                                    std::cerr << "\tmerged: " << merged << std::endl;
-                                    std::cerr << "\tfraction_contiguous_path >= min_fraction_contiguous_paths: " <<
-                                        (fraction_contiguous_path >= min_fraction_contiguous_paths) << std::endl << std::endl;*/
-
-                                    if (fraction_contiguous_path < min_fraction_contiguous_paths){
+                                    if (current_contiguous_path_jaccard < contiguous_path_jaccard){
                                         merged = false;
                                         prep_new_merge_group = !is_last_block;
                                         fraction_below_threshold = true;
