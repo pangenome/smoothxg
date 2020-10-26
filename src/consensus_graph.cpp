@@ -824,17 +824,23 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         consensus.destroy_handle(handle);
     }
 
+    odgi::algorithms::unchop(consensus);
+
     // remove edges that are connecting the same path with a gap less than consensus_jump_max
-    std::vector<edge_t> edges_to_keep;
+    ska::flat_hash_set<edge_t> edges_to_remove;
+    ska::flat_hash_set<edge_t> edges_to_keep;
     consensus.for_each_path_handle(
         [&](const path_handle_t& path) {
+            //std::cerr << "on path " << consensus.get_path_name(path) << std::endl;
             // make a simple positional index
-            std::map<std::pair<uint64_t, uint64_t>, uint64_t> step_to_pos;
+            std::map<std::pair<uint64_t, uint64_t>, int64_t> step_to_pos;
             // check if edges between nodes in the path are jumping more than our scale factor
-            uint64_t pos = 0;
+            int64_t pos = 0;
             consensus.for_each_step_in_path(
                 path,
                 [&](const step_handle_t& s) {
+                    auto h = consensus.get_handle_of_step(s);
+                    //std::cerr << "step " << consensus.get_id(h) << ":" << consensus.get_is_reverse(h) << " @ " << pos << " " << as_integers(s)[0] << ":" << as_integers(s)[1] << std::endl;
                     step_to_pos[std::make_pair(as_integers(s)[0],as_integers(s)[1])] = pos;
                     pos += consensus.get_length(consensus.get_handle_of_step(s));
                 });
@@ -846,7 +852,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                 [&](const step_handle_t& s) {
                     handle_t h = consensus.get_handle_of_step(s);
                     auto key = std::make_pair(as_integers(s)[0],as_integers(s)[1]);
-                    int64_t pos = step_to_pos[key];
+                    int64_t pos = step_to_pos[key] + consensus.get_length(h);
                     // look at all the edges of h
                     // if an edge connects two nodes where one pair of steps is
                     // more distant than consensus_jump_max
@@ -857,65 +863,54 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                         = [&](const step_handle_t& step) {
                               return path == consensus.get_path_handle_of_step(step);
                           };
-                    consensus.follow_edges(
-                        h, true,
-                        [&](const handle_t& n) {
-                              // for all steps on the other handle
-                              bool ok = false;
-                              consensus.for_each_step_on_handle(
-                                  h,
-                                  [&](const step_handle_t& q) {
-                                      if (in_path(q)) {
-                                          // if the distance is right
-                                          auto key = std::make_pair(as_integers(q)[0],
-                                                                    as_integers(q)[1]);
-                                          int64_t o_pos = step_to_pos[key]
-                                              + consensus.get_length(consensus.get_handle_of_step(q));
-                                          if (std::abs(o_pos - pos) >= consensus_jump_max) {
-                                              ok = true;
-                                          }
-                                      } else {
-                                          ok = true;
-                                      }
-                                  });
-                              if (ok) {
-                                  edges_to_keep.push_back(std::make_pair(n, h));
-                              }
-                        });
-                    pos += consensus.get_length(h);
-                    consensus.follow_edges(
-                        h, false,
-                        [&](const handle_t& n) {
-                              // for all steps on the other handle
-                              bool ok = false;
-                              consensus.for_each_step_on_handle(
-                                  h,
-                                  [&](const step_handle_t& q) {
-                                      if (in_path(q)) {
-                                          // if the distance is right
-                                          auto key = std::make_pair(as_integers(q)[0],
-                                                                    as_integers(q)[1]);
-                                          int64_t o_pos = step_to_pos[key];
-                                          if (std::abs(o_pos - pos) >= consensus_jump_max) {
-                                              ok = true;
-                                          }
-                                      } else {
-                                          ok = true;
-                                      }
-                                  });
-                              if (ok) {
-                                  edges_to_keep.push_back(std::make_pair(h, n));
-                              }
-                        });
+                    if (consensus.get_degree(h, false) > 1) {
+                        consensus.follow_edges(
+                            h, false,
+                            [&](const handle_t& n) {
+                                uint64_t c = 0;
+                                consensus.for_each_step_on_handle(
+                                    n, [&c](const step_handle_t& q) { ++c; });
+                                edge_t e = std::make_pair(h, n);
+                                if (edges_to_keep.count(e)) {
+                                    // ok
+                                } else if (c > 1) {
+                                    edges_to_keep.insert(e);
+                                } else {
+                                    // for all steps on the other handle
+                                    bool ok = false;
+                                    consensus.for_each_step_on_handle(
+                                        n,
+                                        [&](const step_handle_t& q) {
+                                            if (in_path(q)) {
+                                                // if the distance is right
+                                                auto key = std::make_pair(as_integers(q)[0],
+                                                                          as_integers(q)[1]);
+                                                int64_t o_pos = step_to_pos[key];
+                                                if (o_pos == pos
+                                                    || o_pos - pos >= consensus_jump_max) {
+                                                    ok = true;
+                                                }
+                                            } else {
+                                                ok = true;
+                                            }
+                                        });
+                                    edge_t e = std::make_pair(h, n);
+                                    if (!ok && !edges_to_keep.count(e)) {
+                                        edges_to_remove.insert(e);
+                                    } else {
+                                        edges_to_remove.erase(e);
+                                        edges_to_keep.insert(e);
+                                    }
+                                }
+                            });
+                    }
                 });
         });
 
-    // remove all edges
-    std::vector<edge_t> all_edges;
-    consensus.for_each_edge([&](const edge_t& edge) {
-                                all_edges.push_back(edge);
-                            });
-    for (auto& e : all_edges) {
+    // remove edges that we selected for removal
+    // specifically, these represent indels in one consensus or link
+    // shorter than our consensus jump bound
+    for (auto& e : edges_to_remove) {
         consensus.destroy_edge(e);
     }
 
@@ -933,11 +928,6 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                }
             });
         });
-
-    // put back edges to keep
-    for (auto& e : edges_to_keep) {
-        consensus.create_edge(e);
-    }
 
     odgi::algorithms::unchop(consensus);
 
