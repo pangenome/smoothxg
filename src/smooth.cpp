@@ -633,6 +633,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                     bool prep_new_merge_group = false;
                     bool merged = false;
+                    bool fraction_below_threshold = false;
                     if (merge_blocks){
                         if (!contains_loops) {
                             if (merged_maf_blocks.field_blocks.empty()){
@@ -682,6 +683,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                     if (fraction_contiguous_path < min_fraction_contiguous_paths){
                                         merged = false;
+                                        fraction_below_threshold = true;
                                     }
                                 }
                             }
