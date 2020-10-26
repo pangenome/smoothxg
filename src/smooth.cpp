@@ -683,6 +683,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                     if (fraction_contiguous_path < min_fraction_contiguous_paths){
                                         merged = false;
+                                        prep_new_merge_group = !is_last_block;
                                         fraction_below_threshold = true;
                                     }
                                 }
@@ -722,6 +723,10 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 out_maf << "a blocks=" << block_id_range << " loops=false";
                                 if (merged_maf_blocks_size > 1) {
                                     out_maf << " merged=true";
+
+                                    if (fraction_below_threshold) {
+                                        out_maf << " below_thresh=true";
+                                    }
                                 }
                                 out_maf << std::endl;
 
@@ -822,12 +827,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                         if (!merged && !prep_new_merge_group) {
                             if (produce_maf){
-                                out_maf << "a blocks=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false");
-                                if (fraction_below_threshold) {
-                                    out_maf << " below_thresh=true";
-                                }
-
-                                out_maf << std::endl;
+                                out_maf << "a blocks=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;
                                 write_maf_rows(out_maf, mafs[block_id]);
                             }
 
