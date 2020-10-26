@@ -277,12 +277,6 @@ int main(int argc, char** argv) {
                                               args::get(add_consensus) ? "Consensus_" : "",
                                               consensus_paths);
 
-    std::cerr << "[smoothxg::main] sorting smoothed graph" << std::endl;
-    smoothxg::cleanup(smoothed, term_updates, !args::get(no_toposort));
-
-    std::cerr << "[smoothxg::main] writing smoothed graph" << std::endl;
-    smoothed.to_gfa(std::cout);
-
     uint64_t consensus_jump_max = _consensus_jump_max ? args::get(_consensus_jump_max) : 100;
 
     // do we need to build the consensus graph?
@@ -295,6 +289,12 @@ int main(int argc, char** argv) {
         consensus_graph.to_gfa(o);
         o.close();
     }
+
+    std::cerr << "[smoothxg::main] sorting smoothed graph" << std::endl;
+    smoothxg::cleanup(smoothed, term_updates, !args::get(no_toposort));
+
+    std::cerr << "[smoothxg::main] writing smoothed graph" << std::endl;
+    smoothed.to_gfa(std::cout);
 
     return 0;
 }
