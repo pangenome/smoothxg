@@ -33,7 +33,7 @@ ostream& operator<<(ostream& o, const link_path_t& a);
 
 /// build a consensus graph consisting of consensus paths and link paths between them
 odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
-                                     std::vector<path_handle_t> consensus_paths,
+                                     const std::vector<std::string>& consensus_path_names,
                                      const uint64_t& consensus_jump_max,
                                      const uint64_t& thread_count,
                                      const std::string& base);

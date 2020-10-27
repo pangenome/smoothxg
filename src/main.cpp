@@ -274,7 +274,7 @@ int main(int argc, char** argv) {
                 " autocorr_stride=" + std::to_string(autocorr_stride) + "\n";
     }
 
-    std::vector<path_handle_t> consensus_paths;
+    std::vector<std::string> consensus_path_names;
     auto smoothed = smoothxg::smooth_and_lace(graph,
                                               blocks,
                                               poa_m,
@@ -288,26 +288,26 @@ int main(int argc, char** argv) {
                                               args::get(merge_blocks), contiguous_path_jaccard,
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "",
-                                              consensus_paths);
+                                              consensus_path_names);
 
     uint64_t consensus_jump_max = _consensus_jump_max ? args::get(_consensus_jump_max) : 100;
-
-    // do we need to build the consensus graph?
-    if (write_consensus_graph) {
-        odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(
-            smoothed, consensus_paths, consensus_jump_max, n_threads,
-            args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
-        smoothxg::cleanup(consensus_graph, term_updates, !args::get(no_toposort));
-        ofstream o(args::get(write_consensus_graph));
-        consensus_graph.to_gfa(o);
-        o.close();
-    }
 
     std::cerr << "[smoothxg::main] sorting smoothed graph" << std::endl;
     smoothxg::cleanup(smoothed, term_updates, !args::get(no_toposort));
 
     std::cerr << "[smoothxg::main] writing smoothed graph" << std::endl;
     smoothed.to_gfa(std::cout);
+
+    // do we need to build the consensus graph?
+    if (write_consensus_graph) {
+        odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(
+            smoothed, consensus_path_names, consensus_jump_max, n_threads,
+            args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
+        smoothxg::cleanup(consensus_graph, term_updates, !args::get(no_toposort));
+        ofstream o(args::get(write_consensus_graph));
+        consensus_graph.to_gfa(o);
+        o.close();
+    }
 
     return 0;
 }

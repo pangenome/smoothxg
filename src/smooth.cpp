@@ -580,7 +580,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               bool merge_blocks, double contiguous_path_jaccard,
                               bool use_abpoa,
                               const std::string &consensus_base_name,
-                              std::vector<path_handle_t>& consensus_paths) {
+                              std::vector<std::string>& consensus_path_names) {
 
     bool produce_maf = !path_output_maf.empty();
     bool add_consensus = !consensus_base_name.empty();
@@ -1175,7 +1175,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                   << std::endl;
 
         // all raw consensus paths
-        consensus_paths.resize(blocks.size());
+        std::vector<path_handle_t> consensus_paths(blocks.size());
         //consensus_paths_by_block 
         for (auto &pos_range : consensus_mapping) {
             auto &block = block_graphs[pos_range.target_graph_id];
@@ -1245,6 +1245,11 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             merged_consensus_paths.end());
 
         // todo: validate the consensus paths as well
+
+        consensus_path_names.reserve(consensus_paths.size());
+        for (auto& path : consensus_paths) {
+            consensus_path_names.push_back(smoothed.get_path_name(path));
+        }
     }
 
     std::stringstream embed_banner;
