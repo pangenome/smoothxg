@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> write_consensus_graph(parser, "FILE", "write the consensus graph in this file", {'s', "write-consensus-graph"});
     args::ValueFlag<uint64_t> _consensus_jump_max(parser, "N", "preserve all divergences from the consensus paths greater than this length [default: 100]", {'C', "consensus-jump-max"});
     args::Flag merge_blocks(parser, "bool", "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "merge-blocks"});
-    args::ValueFlag<double> _contiguous_path_jaccard(parser, "bool","minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",{'J', "contiguous-path-jaccard"});
+    args::ValueFlag<double> _contiguous_path_jaccard(parser, "float","minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",{'J', "contiguous-path-jaccard"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "block-weight-max"});
