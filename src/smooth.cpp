@@ -576,7 +576,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
                               bool local_alignment,
-                              std::string &path_output_maf, std::string &maf_header, bool merge_blocks,
+                              std::string &path_output_maf, std::string &maf_header,
+                              bool merge_blocks, double contiguous_path_jaccard,
                               bool use_abpoa,
                               const std::string &consensus_base_name,
                               std::vector<path_handle_t>& consensus_paths) {
@@ -633,13 +634,16 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                     bool prep_new_merge_group = false;
                     bool merged = false;
+                    bool fraction_below_threshold = false;
                     if (merge_blocks){
                         if (!contains_loops) {
                             if (merged_maf_blocks.field_blocks.empty()){
                                 merged = true;
                             } else {
-                                // The block to merge must have no new paths respect to the merged groupW
+                                // The block to merge must have no new paths respect to the merged group
                                 merged = true;
+
+                                uint64_t num_contiguous_seq = 0;
 
                                 for (uint64_t i = 0; i < num_seq_in_block; i++) {
                                     // Do not check the consensus (always forward)
@@ -659,7 +663,20 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                                 prep_new_merge_group = !is_last_block;
                                                 break;
                                             }
+
+                                            num_contiguous_seq += 1;
                                         }
+                                    }
+                                }
+
+                                if (merged){
+                                    double current_contiguous_path_jaccard = (double) num_contiguous_seq /
+                                            (double)(num_seq_in_block - (add_consensus ? 1 : 0) + merged_maf_blocks.rows.size() - num_contiguous_seq);
+
+                                    if (current_contiguous_path_jaccard < contiguous_path_jaccard){
+                                        merged = false;
+                                        prep_new_merge_group = !is_last_block;
+                                        fraction_below_threshold = true;
                                     }
                                 }
                             }
@@ -698,6 +715,10 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 out_maf << "a blocks=" << block_id_range << " loops=false";
                                 if (merged_maf_blocks_size > 1) {
                                     out_maf << " merged=true";
+
+                                    if (fraction_below_threshold) {
+                                        out_maf << " below_thresh=true";
+                                    }
                                 }
                                 out_maf << std::endl;
 
