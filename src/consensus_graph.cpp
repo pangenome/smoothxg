@@ -4,10 +4,10 @@ namespace smoothxg {
 
 bool operator<(const link_path_t& a,
                const link_path_t& b) {
-    auto& a_0 = as_integer(a.from_cons);
-    auto& a_1 = as_integer(a.to_cons);
-    auto& b_0 = as_integer(b.from_cons);
-    auto& b_1 = as_integer(b.to_cons);
+    auto& a_0 = as_integer(a.from_cons_path);
+    auto& a_1 = as_integer(a.to_cons_path);
+    auto& b_0 = as_integer(b.from_cons_path);
+    auto& b_1 = as_integer(b.to_cons_path);
     return (a_0 < b_0) 
         || (a_0 == b_0
             && (a_1 < b_1
@@ -19,8 +19,10 @@ bool operator<(const link_path_t& a,
 
 ostream& operator<<(ostream& o, const link_path_t& a) {
     o << "("
-      << as_integer(a.from_cons) << " "
-      << as_integer(a.to_cons) << " "
+      << a.from_cons_name << " "
+      << a.to_cons_name << " "
+      << as_integer(a.from_cons_path) << " "
+      << as_integer(a.to_cons_path) << " "
       << a.length << " "
       << a.hash << " "
       << as_integer(a.path) << " "
@@ -44,6 +46,12 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         consensus_paths.push_back(smoothed.get_path_handle(name));
     }
 
+    std::vector<std::string*> cons_path_ptr(smoothed.get_path_count()+1, nullptr);
+    // should be compact ... should check
+    uint64_t idx = 0;
+    for (auto& path : consensus_paths) {
+        cons_path_ptr[as_integer(path)] = (std::string*)&consensus_path_names[idx++];
+    }
     // walk each path
     // record distance since last step on a consensus path
     // record first step handle off a consensus path
@@ -153,8 +161,10 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                         if (!seen_consensus) {
                             // we construct the first link path object
                             link.length = 0;
-                            link.from_cons = curr_consensus;
-                            link.to_cons = curr_consensus;
+                            link.from_cons_name = cons_path_ptr[as_integer(curr_consensus)];
+                            link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
+                            link.from_cons_path = curr_consensus;
+                            link.to_cons_path = curr_consensus;
                             link.begin = step;
                             link.end = step;
                             link.hash = 0;
@@ -177,14 +187,15 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                             uint64_t jump_length = std::abs(start_in_vector(curr_handle)
                                                             - end_in_vector(last_handle));
                             
-                            if (link.from_cons == curr_consensus
+                            if (link.from_cons_path == curr_consensus
                                 && jump_length < consensus_jump_max) {
                                 link.begin = step;
                                 link.end = step;
                                 link.length = 0;
                             } else { // or it's different
                                 // this is when we write a link candidate record
-                                link.to_cons = curr_consensus;
+                                link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
+                                link.to_cons_path = curr_consensus;
                                 //link.begin = smoothed.get_next_step(link.begin);
                                 link.end = step;
                                 //std::cerr << "writing to mmset" << std::endl;
@@ -200,16 +211,19 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                                   << ":"
                                   << seq;
                                 link.hash = hash_seq(h.str());
-                                if (as_integer(link.from_cons) > as_integer(link.to_cons)) {
-                                    std::swap(link.from_cons, link.to_cons);
+                                if (as_integer(link.from_cons_path) > as_integer(link.to_cons_path)) {
+                                    std::swap(link.from_cons_path, link.to_cons_path);
+                                    std::swap(link.from_cons_name, link.to_cons_name);
                                 }
                                 link.jump_length = jump_length;
                                 link_path_ms.append(link);
 
                                 // reset link
                                 link.length = 0;
-                                link.from_cons = curr_consensus;
-                                link.to_cons = curr_consensus;
+                                link.from_cons_name = cons_path_ptr[as_integer(curr_consensus)];
+                                link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
+                                link.from_cons_path = curr_consensus;
+                                link.to_cons_path = curr_consensus;
                                 link.begin = step;
                                 link.end = step;
                                 link.hash = 0;
@@ -230,8 +244,8 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     std::vector<link_path_t> consensus_links;
     std::vector<link_path_t> curr_links;
 
-    path_handle_t curr_from_cons;
-    path_handle_t curr_to_cons;
+    path_handle_t curr_from_cons_path;
+    path_handle_t curr_to_cons_path;
 
     auto novel_sequence_length =
         [&](const step_handle_t begin,
@@ -307,22 +321,22 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
             handle_t from_end_fwd
                 = smoothed.get_handle_of_step(
                     smoothed.path_back(
-                        most_frequent_link.from_cons));
+                        most_frequent_link.from_cons_path));
             handle_t to_begin_fwd
                 = smoothed.get_handle_of_step(
                     smoothed.path_begin(
-                        most_frequent_link.to_cons));
+                        most_frequent_link.to_cons_path));
             handle_t from_end_rev = smoothed.flip(to_begin_fwd);
             handle_t to_begin_rev = smoothed.flip(from_end_fwd);
 
             handle_t from_begin_fwd
                 = smoothed.get_handle_of_step(
                     smoothed.path_begin(
-                        most_frequent_link.from_cons));
+                        most_frequent_link.from_cons_path));
             handle_t to_end_fwd
                 = smoothed.get_handle_of_step(
                     smoothed.path_back(
-                        most_frequent_link.to_cons));
+                        most_frequent_link.to_cons_path));
             handle_t from_begin_rev = smoothed.flip(from_begin_fwd);
             handle_t to_end_rev = smoothed.flip(to_end_fwd);
 
@@ -375,7 +389,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                 perfect_link.rank = link_rank++;
                 consensus_links.push_back(perfect_link);
             } else {
-                if (most_frequent_link.from_cons != most_frequent_link.to_cons) {
+                if (most_frequent_link.from_cons_path != most_frequent_link.to_cons_path) {
                     most_frequent_link.rank = link_rank++;
                     consensus_links.push_back(most_frequent_link);
                     mark_seen_nodes(most_frequent_link.begin, most_frequent_link.end, seen_nodes, smoothed);
@@ -404,17 +418,17 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         [&](const link_path_t& v) {
             //std::cerr << "on " << v << " with count " << c << std::endl;
             if (curr_links.empty()) {
-                curr_from_cons = v.from_cons;
-                curr_to_cons = v.to_cons;
+                curr_from_cons_path = v.from_cons_path;
+                curr_to_cons_path = v.to_cons_path;
                 curr_links.push_back(v);
-            } else if (curr_from_cons != v.from_cons
-                       || curr_to_cons != v.to_cons) {
+            } else if (curr_from_cons_path != v.from_cons_path
+                       || curr_to_cons_path != v.to_cons_path) {
                 // compute the best link in the set of curr_links
                 compute_best_link(curr_links);
                 // reset the links
                 curr_links.clear();
-                curr_from_cons = v.from_cons;
-                curr_to_cons = v.to_cons;
+                curr_from_cons_path = v.from_cons_path;
+                curr_to_cons_path = v.to_cons_path;
                 curr_links.push_back(v);
             } else {
                 curr_links.push_back(v);
@@ -461,7 +475,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
               uint64_t& new_rank) {
               // how long was the last path? should we include it?
               stringstream s;
-              s << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank << "_" << new_rank++;
+              s << "Link_" << *link.from_cons_name << "_" << *link.to_cons_name << "_" << link.rank << "_" << new_rank++;
               path_handle_t path_cons_graph = consensus.create_path_handle(s.str());
               for (step_handle_t step = begin;
                    step != end;
@@ -480,7 +494,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
     std::cerr << "[smoothxg::create_consensus_graph] adding consensus paths" << std::endl;
     // add link paths and edges not in the consensus paths
-    std::vector<path_handle_t> link_paths;
+    std::vector<std::string> link_path_names;
     for (auto& link : consensus_links) {
         //std::cerr << "making " << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank << std::endl;
         // create link paths and paths
@@ -488,9 +502,11 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         if (link.length > 0) {
             auto& novel_link = link;
             stringstream s;
-            s << "Link_" << smoothed.get_path_name(novel_link.from_cons) << "_" << smoothed.get_path_name(novel_link.to_cons) << "_" << novel_link.rank;
+            s << "Link_" << *novel_link.from_cons_name << "_" << *novel_link.to_cons_name << "_" << novel_link.rank;
+            assert(!consensus.has_path(s.str()));
             path_handle_t path_cons_graph = consensus.create_path_handle(s.str());
-            link_paths.push_back(path_cons_graph);
+            link_path_names.push_back(s.str());
+            //link_paths.push_back(path_cons_graph);
             handle_t cur_handle_in_cons_graph;
             // add the current node first, then add the step
             for (step_handle_t step = novel_link.begin; //smoothed.get_next_step(novel_link.begin);
@@ -629,6 +645,10 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     consensus.to_gfa(o);
     o.close();
     */
+    std::vector<path_handle_t> link_paths;
+    for (auto& n : link_path_names) {
+        link_paths.push_back(consensus.get_path_handle(n));
+    }
 
     ska::flat_hash_set<uint64_t> consensus_paths_set;
     consensus_paths.clear();
@@ -643,11 +663,6 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // remove paths that are contained in others
     // and add less than consensus_jump_max bp of sequence
     std::vector<path_handle_t> links_to_remove;
-    struct link_range_t {
-        nid_t start;
-        nid_t end;
-        path_handle_t path;
-    };
     std::vector<link_range_t> links_by_start_end;
     for (auto& link : link_paths) {
         nid_t a = consensus.get_id(consensus.get_handle_of_step(consensus.path_begin(link)));
@@ -656,15 +671,21 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         links_by_start_end.push_back({a, b, link});
     }
     // sort them so as to get longer paths first
-    std::sort(links_by_start_end.begin(),
-              links_by_start_end.end(),
-              [](const link_range_t& a,
-                 const link_range_t& b) {
-                  return a.start < b.end
-                                   || a.start == b.end && a.end > b.end;
-              });
-    std::vector<std::pair<std::string, std::vector<handle_t>>> updated_links;
+    ips4o::parallel::sort(
+        links_by_start_end.begin(),
+        links_by_start_end.end(),
+        [](const link_range_t& a,
+           const link_range_t& b) {
+            return a.start < b.end
+                             || a.start == b.end && a.end > b.end;
+        });
 
+    std::vector<path_handle_t> ordered_links;
+    for (auto& p : links_by_start_end) {
+        ordered_links.push_back(p.path);
+    }
+
+    std::vector<std::pair<std::string, std::vector<handle_t>>> updated_links;
     auto save_path_fragment =
         [&](const path_handle_t& link,
             uint64_t& save_rank,
@@ -771,11 +792,6 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
                 }
             }
         };
-
-    std::vector<path_handle_t> ordered_links;
-    for (auto& p : links_by_start_end) {
-        ordered_links.push_back(p.path);
-    }
 
     // working through the links
     // progressively collect sequences greater than our consensus_jump_max

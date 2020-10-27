@@ -14,8 +14,10 @@
 namespace smoothxg {
 
 struct link_path_t {
-    path_handle_t from_cons;
-    path_handle_t to_cons;
+    std::string* from_cons_name;
+    std::string* to_cons_name;
+    path_handle_t from_cons_path;
+    path_handle_t to_cons_path;
     uint64_t length; // nucleotides
     uint64_t hash;
     step_handle_t begin; // first step off consensus path
@@ -24,6 +26,12 @@ struct link_path_t {
     bool is_rev; // if we're going forward or reverse on the graph partial order
     uint64_t jump_length; // jump in the partial order
     uint64_t rank;
+};
+
+struct link_range_t {
+    nid_t start;
+    nid_t end;
+    path_handle_t path;
 };
 
 bool operator<(const link_path_t& a,
