@@ -33,8 +33,8 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
-    args::ValueFlag<std::string> write_consensus_graph(parser, "FILE", "write the consensus graph in this file", {'s', "write-consensus-graph"});
-    args::ValueFlag<uint64_t> _consensus_jump_max(parser, "N", "preserve all divergences from the consensus paths greater than this length [default: 100]", {'C', "consensus-jump-max"});
+    args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
+    args::ValueFlag<std::string> _consensus_jump_max(parser, "jump_max[,jump_max]*", "preserve all divergences from the consensus paths greater than this length, with multiples allowed [default: 100]", {'C', "consensus-jump-max"});
     args::Flag merge_blocks(parser, "bool", "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "merge-blocks"});
     args::ValueFlag<double> _contiguous_path_jaccard(parser, "float","minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",{'J', "contiguous-path-jaccard"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
@@ -290,23 +290,43 @@ int main(int argc, char** argv) {
                                               args::get(add_consensus) ? "Consensus_" : "",
                                               consensus_path_names);
 
-    uint64_t consensus_jump_max = _consensus_jump_max ? args::get(_consensus_jump_max) : 100;
-
     std::cerr << "[smoothxg::main] sorting smoothed graph" << std::endl;
     smoothxg::cleanup(smoothed, term_updates, !args::get(no_toposort));
+
+    {
+        uint64_t smoothed_nodes = 0;
+        uint64_t smoothed_length = 0;
+        smoothed.for_each_handle(
+            [&](const handle_t& h) {
+                ++smoothed_nodes;
+                smoothed_length += smoothed.get_length(h);
+            });
+        std::cerr << "[smoothxg::main] smoothed graph length " << smoothed_length << "bp " << "in " << smoothed_nodes << " nodes" << std::endl;
+    }
 
     std::cerr << "[smoothxg::main] writing smoothed graph" << std::endl;
     smoothed.to_gfa(std::cout);
 
     // do we need to build the consensus graph?
     if (write_consensus_graph) {
-        odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(
-            smoothed, consensus_path_names, consensus_jump_max, n_threads,
-            args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
-        smoothxg::cleanup(consensus_graph, term_updates, !args::get(no_toposort));
-        ofstream o(args::get(write_consensus_graph));
-        consensus_graph.to_gfa(o);
-        o.close();
+        // get the base name
+        std::string consensus_base = args::get(write_consensus_graph);
+        std::vector<uint64_t> jump_maxes;
+        if (_consensus_jump_max) {
+            for (auto& s : smoothxg::split(args::get(_consensus_jump_max),',')) {
+                jump_maxes.push_back(std::stoi(s));
+            }
+        } else {
+            jump_maxes.push_back(100);
+        }
+        for (auto jump_max : jump_maxes) {
+            odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(
+                smoothed, consensus_path_names, jump_max, n_threads,
+                args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
+            ofstream o(consensus_base + ".C" + std::to_string(jump_max) + ".gfa");
+            consensus_graph.to_gfa(o);
+            o.close();
+        }
     }
 
     return 0;

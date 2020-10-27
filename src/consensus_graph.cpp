@@ -49,7 +49,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     // record first step handle off a consensus path
     // detect consensus switches, writing the distance to the last consensus step, step
     // into an array of tuples
-    std::cerr << "[smoothxg::create_consensus_graph] building consensus graph" << std::endl;
+    std::cerr << "[smoothxg::create_consensus_graph] deriving consensus graph with consensus-jump-max=" << consensus_jump_max << std::endl;
     
     std::vector<bool> is_consensus(smoothed.get_path_count()+1, false);
     for (auto& path : consensus_paths) {
@@ -825,6 +825,8 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
 
     odgi::algorithms::unchop(consensus);
 
+    std::cerr << "[smoothxg::create_consensus_graph] removing edges connecting the path with a gap less than consensus-jump-max=" << consensus_jump_max << std::endl;
+
     // remove edges that are connecting the same path with a gap less than consensus_jump_max
     ska::flat_hash_set<edge_t> edges_to_remove;
     ska::flat_hash_set<edge_t> edges_to_keep;
@@ -929,6 +931,8 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         });
 
     odgi::algorithms::unchop(consensus);
+
+    std::cerr << "[smoothxg::create_consensus_graph] trimming back link paths" << std::endl;
 
     link_paths.clear();
     for (auto& n : link_path_names_to_keep) {
@@ -1057,6 +1061,15 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
     }
 
     odgi::algorithms::unchop(consensus);
+
+    uint64_t consensus_nodes = 0;
+    uint64_t consensus_length = 0;
+    consensus.for_each_handle(
+        [&](const handle_t& h) {
+            ++consensus_nodes;
+            consensus_length += consensus.get_length(h);
+        });
+    std::cerr << "[smoothxg::create_consensus_graph] final graph length " << consensus_length << "bp " << "in " << consensus_nodes << " nodes" << std::endl;
 
     return consensus;
 }
