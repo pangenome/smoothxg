@@ -87,6 +87,7 @@ ExternalProject_Get_property(odgi INSTALL_DIR)
 set(odgi_INCLUDE "${INSTALL_DIR}/include")
 set(odgi_LIB "${INSTALL_DIR}/lib")
 set(dynamic_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/DYNAMIC/include)
+set(bbhash_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/BBHash)
 set(hopscotch_map_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/hopscotch-map/include)
 set(sparsepp_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/sparsepp/sparsepp)
 set(flathashmap_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/flat_hash_map)
@@ -308,7 +309,8 @@ set(smoothxg_INCLUDES
   "${xoshiro_INCLUDE}"
   "${sautocorr_INCLUDE}"
   "${abPOA_INCLUDE}"
-  "${abPOA_src_INCLUDE}")
+  "${abPOA_src_INCLUDE}"
+  "${bbhash_INCLUDE}")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
