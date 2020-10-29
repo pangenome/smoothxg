@@ -26,6 +26,8 @@ struct path_range_t {
     step_handle_t begin;
     step_handle_t end;
     uint64_t length;
+    uint64_t nuc_begin;
+    uint64_t nuc_end;
 };
 
 struct block_t {

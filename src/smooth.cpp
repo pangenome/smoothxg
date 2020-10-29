@@ -579,7 +579,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               std::string &path_output_maf, std::string &maf_header,
                               bool merge_blocks, double contiguous_path_jaccard,
                               bool use_abpoa,
-                              const std::string &consensus_base_name) {
+                              const std::string &consensus_base_name,
+                              std::vector<std::string>& consensus_path_names) {
 
     bool produce_maf = !path_output_maf.empty();
     bool add_consensus = !consensus_base_name.empty();
@@ -1173,11 +1174,15 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         std::cerr << "[smoothxg::smooth_and_lace] embedding consensus"
                   << std::endl;
 
+        // all raw consensus paths
+        std::vector<path_handle_t> consensus_paths(blocks.size());
+        //consensus_paths_by_block 
         for (auto &pos_range : consensus_mapping) {
             auto &block = block_graphs[pos_range.target_graph_id];
             path_handle_t smoothed_path = smoothed.create_path_handle(
                 block.get_path_name(pos_range.target_path)
             );
+            consensus_paths[pos_range.target_graph_id] = smoothed_path;
 
             auto &id_trans = id_mapping[pos_range.target_graph_id];
             block.for_each_step_in_path(
@@ -1198,13 +1203,18 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               [](const path_position_range_t &a, const path_position_range_t &b) {
                                   return (a.target_graph_id < b.target_graph_id);
                               });*/
+        ska::flat_hash_set<uint64_t> consensus_path_is_merged;
+        std::vector<path_handle_t> merged_consensus_paths;
         for (auto& merged_block_id_interval : merged_block_id_intervals){
             path_handle_t consensus_path = smoothed.create_path_handle(
                     consensus_base_name +
                     std::to_string(merged_block_id_interval.first) + "-" + std::to_string(merged_block_id_interval.second)
             );
+            merged_consensus_paths.push_back(consensus_path);
 
             for (uint64_t block_id = merged_block_id_interval.first; block_id <= merged_block_id_interval.second; block_id++) {
+                //consensus_path_is_merged[block_id] = true;
+                consensus_path_is_merged.insert(as_integer(consensus_paths[block_id]));
                 auto &block = block_graphs[block_id];
                 auto &id_trans = id_mapping[block_id];
                 block.for_each_step_in_path(consensus_mapping[block_id].target_path, [&](const step_handle_t &step) {
@@ -1214,8 +1224,32 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 });
             }
         }
+        // now for each consensus path that's not been merged, and for each merged consensus path...
+        // record our path handles for later use in consensus graph generation
+
+        consensus_paths.erase(
+                std::remove_if(
+                    consensus_paths.begin(), consensus_paths.end(),
+                    [&consensus_path_is_merged,&smoothed](const path_handle_t& path) {
+                        return consensus_path_is_merged.count(as_integer(path)) > 0;
+                    }),
+                consensus_paths.end());
+
+        consensus_paths.reserve(
+            consensus_paths.size()
+            + std::distance(merged_consensus_paths.begin(),
+                            merged_consensus_paths.end()));
+        consensus_paths.insert(
+            consensus_paths.end(),
+            merged_consensus_paths.begin(),
+            merged_consensus_paths.end());
 
         // todo: validate the consensus paths as well
+
+        consensus_path_names.reserve(consensus_paths.size());
+        for (auto& path : consensus_paths) {
+            consensus_path_names.push_back(smoothed.get_path_name(path));
+        }
     }
 
     std::stringstream embed_banner;
