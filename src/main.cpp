@@ -290,9 +290,6 @@ int main(int argc, char** argv) {
                                               args::get(add_consensus) ? "Consensus_" : "",
                                               consensus_path_names);
 
-    std::cerr << "[smoothxg::main] sorting smoothed graph" << std::endl;
-    smoothxg::cleanup(smoothed, term_updates, !args::get(no_toposort));
-
     {
         uint64_t smoothed_nodes = 0;
         uint64_t smoothed_length = 0;
