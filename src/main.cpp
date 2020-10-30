@@ -320,7 +320,7 @@ int main(int argc, char** argv) {
             odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(
                 smoothed, consensus_path_names, jump_max, n_threads,
                 args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
-            ofstream o(consensus_base + ".C" + std::to_string(jump_max) + ".gfa");
+            ofstream o(consensus_base + "@" + std::to_string(jump_max) + ".gfa");
             consensus_graph.to_gfa(o);
             o.close();
         }
