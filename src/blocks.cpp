@@ -47,7 +47,7 @@ smoothable_blocks(
                     });
             }
             // sort them
-            ips4o::parallel::sort(
+            std::sort(
                 traversals.begin(), traversals.end(),
                 [&](const step_handle_t& a, const step_handle_t& b) {
                     return path_rank(a) < path_rank(b) || path_rank(a) == path_rank(b) && step_rank(a) < step_rank(b);
@@ -143,7 +143,8 @@ smoothable_blocks(
             //std::cerr << "max_path_length " << block.max_path_length << std::endl;
 
             // order the path ranges from longest/shortest to shortest/longest
-            ips4o::parallel::sort(
+            // this gets called lots of times... probably best to make it std::sort or not parallel
+            std::sort(
                 block.path_ranges.begin(), block.path_ranges.end(),
                 order_paths_from_longest
                 ?
