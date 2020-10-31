@@ -19,10 +19,7 @@ void prep(
     // how many threads should we use
     uint64_t num_threads = odgi::get_thread_count();
 
-    // chop it
-    odgi::algorithms::chop(graph, max_node_length, num_threads, true);
-
-    // then sort it using a short sorting pipeline equivalent to `odgi sort -p Ygs`
+    // sort it using a short sorting pipeline equivalent to `odgi sort -p Ygs`
 
     // first path-guided SGD
 
@@ -106,6 +103,9 @@ void prep(
                                  &graph, true, false, true),
                              true);
     }
+
+    // chop it (preserves order)
+    odgi::algorithms::chop(graph, max_node_length, num_threads, true);
 
     std::ofstream f(gfa_out);
     graph.to_gfa(f);
