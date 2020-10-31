@@ -24,7 +24,7 @@ struct maf_partial_row_t {
 
 struct maf_t {
     std::vector<uint64_t> field_blocks;
-    std::map<std::string, maf_partial_row_t> rows;
+    std::map<std::string, std::vector<maf_partial_row_t>> rows;
     std::vector<std::pair<std::string, maf_partial_row_t>> consensus_rows;
 };
 
