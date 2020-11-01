@@ -34,13 +34,61 @@ void _clear_maf_block(uint64_t block_id, std::vector<std::vector<maf_row_t>> &ma
     clear_vector(mafs[block_id]);
 }
 
+// if we want a vectorized layout representation of the block
+void write_tsv_for_block(const xg::XG &graph,
+                         const block_t &block,
+                         const uint64_t &block_id,
+                         const std::vector<std::string>& seqs,
+                         const std::vector<std::string>& names) {
+    const VectorizableHandleGraph &vec_graph =
+        dynamic_cast<const VectorizableHandleGraph &>(graph);
+    std::string v = "smoothxg_block_" + std::to_string(block_id) + ".tsv";
+    std::ofstream vs(v.c_str());
+    vs << "path.name\tstep.rank\tpos\tnode.id\tnode.pos\tvisit"
+       << std::endl;
+    for (auto &path_range : block.path_ranges) {
+        std::string path_name = graph.get_path_name(
+            graph.get_path_handle_of_step(path_range.begin));
+        uint64_t rank = 0;
+        uint64_t pos = 0;
+        std::map<uint64_t, uint64_t> visits;
+        for (step_handle_t step = path_range.begin; step != path_range.end;
+             step = graph.get_next_step(step)) {
+            handle_t h = graph.get_handle_of_step(step);
+            uint64_t id = graph.get_id(h);
+            int64_t node_pos = vec_graph.node_vector_offset(id);
+            auto &visit = visits[id];
+            vs << path_name << "\t" << rank++ << "\t" << pos << "\t" << id
+               << "\t" << node_pos << "\t" << visit << std::endl;
+            ++visit;
+            pos += graph.get_length(graph.get_handle_of_step(step));
+        }
+    }
+    vs.close();
+}
+
+void write_fasta_for_block(const xg::XG &graph,
+                           const block_t &block,
+                           const uint64_t &block_id,
+                           const std::vector<std::string>& seqs,
+                           const std::vector<std::string>& names) {
+    std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
+    std::ofstream fasta(s.c_str());
+    for (uint64_t i = 0; i < seqs.size(); ++i) {
+        fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
+              << seqs[i] << std::endl;
+    }
+    fasta.close();
+}
+
 odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
                            bool local_alignment,
                            std::vector<maf_row_t> *maf, bool keep_sequence,
                            bool banded_alignment,
-                           const std::string &consensus_name) {
+                           const std::string &consensus_name,
+                           bool save_block_fastas) {
 
     // collect sequences
     std::vector<std::string> seqs;
@@ -59,42 +107,11 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
         names.push_back(namess.str());
     }
 
-#ifdef SMOOTH_WRITE_BLOCKS_FASTA
-    {
-        std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
-        std::ofstream fasta(s.c_str());
-        for (uint64_t i = 0; i < seqs.size(); ++i) {
-            fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
-                  << seqs[i] << std::endl;
-        }
-        fasta.close();
-        const VectorizableHandleGraph &vec_graph =
-            dynamic_cast<const VectorizableHandleGraph &>(graph);
-        std::string v = "smoothxg_block_" + std::to_string(block_id) + ".tsv";
-        std::ofstream vs(v.c_str());
-        vs << "path.name\tstep.rank\tpos\tnode.id\tnode.pos\tvisit"
-           << std::endl;
-        for (auto &path_range : block.path_ranges) {
-            std::string path_name = graph.get_path_name(
-                graph.get_path_handle_of_step(path_range.begin));
-            uint64_t rank = 0;
-            uint64_t pos = 0;
-            std::map<uint64_t, uint64_t> visits;
-            for (step_handle_t step = path_range.begin; step != path_range.end;
-                 step = graph.get_next_step(step)) {
-                handle_t h = graph.get_handle_of_step(step);
-                uint64_t id = graph.get_id(h);
-                int64_t node_pos = vec_graph.node_vector_offset(id);
-                auto &visit = visits[id];
-                vs << path_name << "\t" << rank++ << "\t" << pos << "\t" << id
-                   << "\t" << node_pos << "\t" << visit << std::endl;
-                ++visit;
-                pos += graph.get_length(graph.get_handle_of_step(step));
-            }
-        }
-        vs.close();
+    //#ifdef SMOOTH_WRITE_BLOCKS_FASTA
+    if (save_block_fastas) {
+        write_fasta_for_block(graph, block, block_id, seqs, names);
     }
-#endif
+//#endif
 
     // set up POA
     // done...
@@ -340,7 +357,8 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                           bool local_alignment,
                           std::vector<maf_row_t> *maf, bool keep_sequence,
-                          const std::string &consensus_name) {
+                          const std::string &consensus_name,
+                          bool save_block_fastas) {
 
     std::uint8_t spoa_algorithm = local_alignment ? 0 : 1;
     std::unique_ptr<spoa::AlignmentEngine> alignment_engine
@@ -364,6 +382,10 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                       graph.get_path_handle_of_step(path_range.begin))
                << "_" << graph.get_position_of_step(path_range.begin);
         names.push_back(namess.str());
+    }
+
+    if (save_block_fastas) {
+        write_fasta_for_block(graph, block, block_id, seqs, names);
     }
 
     /*
@@ -590,7 +612,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               bool merge_blocks, double contiguous_path_jaccard,
                               bool use_abpoa,
                               const std::string &consensus_base_name,
-                              std::vector<std::string>& consensus_path_names) {
+                              std::vector<std::string>& consensus_path_names,
+                              bool write_fasta_blocks) {
 
     bool produce_maf = !path_output_maf.empty();
     bool add_consensus = !consensus_base_name.empty();
@@ -900,7 +923,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                            (produce_maf || (add_consensus && merge_blocks)) ? &mafs[block_id] : nullptr,
                                            produce_maf,
                                            true, // banded alignment
-                                           consensus_name);
+                                           consensus_name,
+                                           write_fasta_blocks);
             } else {
                 block_graph = smooth_spoa(graph,
                                           block,
@@ -914,7 +938,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                           local_alignment,
                                           (produce_maf || (add_consensus && merge_blocks)) ? &mafs[block_id] : nullptr,
                                           produce_maf,
-                                          consensus_name);
+                                          consensus_name,
+                                          write_fasta_blocks);
             }
 
             if (produce_maf || (add_consensus && merge_blocks)){

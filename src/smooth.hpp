@@ -32,13 +32,20 @@ struct path_position_range_t {
     uint64_t target_graph_id;  // the block graph id
 };
 
+void write_tsv_for_block(const xg::XG &graph,
+                         const block_t &block,
+                         const uint64_t &block_id,
+                         const std::vector<std::string>& seqs,
+                         const std::vector<std::string>& names);
+
 odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
                            bool local_alignment,
                            std::string *maf,
                            bool banded_alignment,
-                           const std::string &consensus_name = "");
+                           const std::string &consensus_name = "",
+                           bool save_block_fastas = false);
 
 odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           const uint64_t &block_id,
@@ -46,7 +53,8 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                           bool local_alignment,
                           std::string *maf,
-                          const std::string &consensus_name = "");
+                          const std::string &consensus_name = "",
+                          bool save_block_fastas = false);
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               const std::vector<block_t> &blocks,
@@ -58,7 +66,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               bool merge_blocks, double contiguous_path_jaccard,
                               bool use_abpoa,
                               const std::string &consensus_name,
-                              std::vector<std::string>& consensus_path_names);
+                              std::vector<std::string>& consensus_path_names,
+                              bool write_fasta_blocks);
 
 void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
                const std::vector<std::string> &sequence_names,
