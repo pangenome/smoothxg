@@ -226,7 +226,7 @@ public:
     //void from_path_handle_graph(const PathHandleGraph& other);
     
     // What version of an XG is this designed to read?
-    const static uint32_t CURRENT_VERSION = 14;
+    const static uint32_t CURRENT_VERSION = 16;
     
     /// Get the magic number used to prefix serialized streams.
     uint32_t get_magic_number(void) const;
@@ -409,12 +409,10 @@ public:
     pos_t graph_pos_at_path_position(const std::string& name, size_t path_pos) const;
     char pos_char(nid_t id, bool is_rev, size_t off) const;
     std::string pos_substr(nid_t id, bool is_rev, size_t off, size_t len) const;
-    edge_t edge_from_encoding(const nid_t& from, const nid_t& to, int type) const;
     size_t edge_index(const edge_t& edge) const;
     size_t get_g_iv_size(void) const;
 
-    char start_marker = '#';
-    char end_marker = '$';
+    char path_name_csa_delim = '$';
 
 private:
 
@@ -424,20 +422,27 @@ private:
     ////////////////////////////////////////////////////////////////////////////
 
     /// locally traversable graph storage
-    /// 
+    ///
     /// Encoding designed for efficient compression, cache locality, and relativistic traversal of the graph.
     ///
-    /// node := { header, edges_to, edges_from }
-    /// header := { node_id, node_start, node_length, edges_to_count, edges_from_count }
+    /// node := { header, left_side_edges, right_side_edges }
+    /// header := { node_id, node_start, node_length, edges_left_count, edges_right_count }
     /// node_id := integer
     /// node_start := integer (offset in s_iv)
     /// node_length := integer
-    /// edges_to_count := integer
-    /// edges_from_count := integer
-    /// edges_to := { edge_to, ... }
-    /// edges_from := { edge_from, ... }
-    /// edge_to := { offset_to_previous_node, edge_type }
-    /// edge_to := { offset_to_next_node, edge_type }
+    /// edges_left_count := integer
+    /// edges_right_count := integer
+    /// left_side_edges := { edge, ... }
+    /// right_side_edges := { edge, ... }
+    /// edge := { relative_offset | target_is_rev } (bit-packed)
+    ///  - targets are considered reverse if you should end up on their reverse strand by traversing
+    ///   left out of left side edges or traversing right out of right side edges (starting on the forward
+    ///   strand).
+    ///  - relative offset is converted to positive numbers with this mapping
+    ///   0  -1  1  -2  2 ...
+    ///   0   1  2   3  4 ...
+    ///   TODO: most edges will be separated in increments of at least the header length,
+    ///   this could be exploited to have a more efficient encoding
     sdsl::int_vector<> g_iv;
     /// delimit node records to allow lookup of nodes in g_civ by rank
     sdsl::bit_vector g_bv;
@@ -448,47 +453,40 @@ private:
     const static int G_NODE_ID_OFFSET = 0;
     const static int G_NODE_SEQ_START_OFFSET = 1;
     const static int G_NODE_LENGTH_OFFSET = 2;
-    const static int G_NODE_TO_COUNT_OFFSET = 3;
-    const static int G_NODE_FROM_COUNT_OFFSET = 4;
+    const static int G_NODE_LEFT_COUNT_OFFSET = 3;
+    const static int G_NODE_RIGHT_COUNT_OFFSET = 4;
     const static int G_NODE_HEADER_LENGTH = 5;
-
-    const static int G_EDGE_OFFSET_OFFSET = 0;
-    const static int G_EDGE_TYPE_OFFSET = 1;
-    const static int G_EDGE_LENGTH = 2;
     
-    // And the edge types (so we don't confuse our magic numbers)
-    const static int EDGE_TYPE_MIN = 1;
-    const static int EDGE_TYPE_END_START = 1;
-    const static int EDGE_TYPE_END_END = 2;
-    const static int EDGE_TYPE_START_START = 3;
-    const static int EDGE_TYPE_START_END = 4;
-    const static int EDGE_TYPE_MAX = 4;
-
-    /// Compute the type of an edge given its handles.
-    /// Edge type encoding:
-    /// 1: end to start
-    /// 2: end to end
-    /// 3: start to start
-    /// 4: start to end
-    int edge_type(const handle_t& from, const handle_t& to) const;
+    // Is the edge target in reverse orientation?
+    static bool edge_orientation(const uint64_t& raw_edge);
+    // What is the relative offset between the current node and the edge target in g_iv?
+    static int64_t edge_relative_offset(const uint64_t& raw_edge);
     
-    /// This is a utility function for the edge exploration. It says whether we
-    /// want to visit an edge depending on its type, whether we're the to or
-    /// from node, whether we want to look left or right, and whether we're
-    /// forward or reverse on the node.
-    bool edge_filter(int type, bool is_to, bool want_left, bool is_reverse) const;
+    static uint64_t encode_edge(const size_t& offest_from, const size_t& offest_to,
+                                const bool& to_rev);
     
-    // This loops over the given number of edge records for the given g node,
-    // starting at the given start g vector position. For all the edges that are
-    // wanted by edge_filter given the is_to, want_left, and is_reverse flags,
-    // the iteratee is called. Returns true if the iteratee never returns false,
-    // or false (and stops iteration) as soon as the iteratee returns false.
-    bool do_edges(const size_t& g, const size_t& start, const size_t& count,
-                  bool is_to, bool want_left, bool is_reverse, const std::function<bool(const handle_t&)>& iteratee) const;
+    // Historical edge offsets and constants for converting from old graphs
+    const static int OLD_G_NODE_TO_COUNT_OFFSET = 3;
+    const static int OLD_G_NODE_FROM_COUNT_OFFSET = 4;
+    const static int OLD_G_EDGE_OFFSET_OFFSET = 0;
+    const static int OLD_G_EDGE_TYPE_OFFSET = 1;
+    const static int OLD_G_EDGE_LENGTH = 2;
+    const static int OLD_EDGE_TYPE_MIN = 1;
+    const static int OLD_EDGE_TYPE_END_START = 1;
+    const static int OLD_EDGE_TYPE_END_END = 2;
+    const static int OLD_EDGE_TYPE_START_START = 3;
+    const static int OLD_EDGE_TYPE_START_END = 4;
+    const static int OLD_EDGE_TYPE_MAX = 4;
+    void orientation_from_old_edge_type(int type, bool& from_rev, bool& to_rev) const;
+    // Translate vectors in old encoding to the new one
+    void reencode_old_g_vector(const sdsl::int_vector<>& old_g_iv,
+                               const sdsl::rank_support_v<1>& old_g_bv_rank);
     
     // Use memmapped indexing to construct the node-to-path indexes once
     // XGPath's have been created (used during construction)
     void index_node_to_path(const std::string& basename);
+    
+    void print_graph() const;
     
     ////////////////////////////////////////////////////////////////////////////
     // Here are the bits we need to keep around to talk about the sequence
@@ -566,6 +564,8 @@ public:
     bool is_circular = false;
     void load(std::istream& in);
     void load_from_old_version(std::istream& in, uint32_t file_version, const XG& graph);
+    void sync_offsets(const sdsl::rank_support_v<1>& old_g_bv_rank,
+                      const sdsl::bit_vector::select_1_type& g_bv_select);
     size_t serialize(std::ostream& out,
                      sdsl::structure_tree_node* v = NULL,
                      std::string name = "") const;
