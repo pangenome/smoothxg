@@ -494,6 +494,8 @@ void _put_block_in_group(
     uint64_t alignment_size_merged_maf_blocks =
             merged_maf_blocks.field_blocks.empty() ? 0 : merged_maf_blocks.rows.begin()->second.begin() ->aligned_seq.length();
 
+    bool new_block_on_the_left;
+
     uint64_t num_seq_not_cons = num_seq_in_block - (add_consensus ? 1 : 0);
     for (uint64_t i = 0; i < num_seq_not_cons; i++){
         auto maf_row = mafs[block_id][i];
@@ -506,20 +508,49 @@ void _put_block_in_group(
             ));
         } else {
             for (auto &merged_maf_prow : merged_maf_blocks.rows[maf_row.path_name]) {
-                if (maf_row.is_reversed == merged_maf_prow.is_reversed){
-                    if (merged_maf_prow.is_reversed && ((merged_maf_prow.record_start - maf_row.seq_size) == maf_row.record_start)){
-                        merged_maf_prow.record_start -= maf_row.seq_size;
-                        merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq;
-                        merged_maf_prow.seq_size += maf_row.seq_size;
+                if (merged_maf_prow.aligned_seq.length() == alignment_size_merged_maf_blocks && maf_row.is_reversed == merged_maf_prow.is_reversed){
+                    if (merged_maf_prow.is_reversed){
+                        if ((merged_maf_prow.path_length - merged_maf_prow.record_start) == (maf_row.path_length - (maf_row.record_start + maf_row.seq_size))) {
+                            // merged_maf_row_end == maf_row_begin, new row on the left
+                            new_block_on_the_left = false;
 
-                        merged_row = true;
-                        break;
-                    } else if (!merged_maf_prow.is_reversed && ((merged_maf_prow.record_start + merged_maf_prow.seq_size) == maf_row.record_start)) {
-                        merged_maf_prow.aligned_seq += maf_row.aligned_seq;
-                        merged_maf_prow.seq_size += maf_row.seq_size;
+                            merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq;
+                            merged_maf_prow.seq_size += maf_row.seq_size;
 
-                        merged_row = true;
-                        break;
+                            merged_row = true;
+                            break;
+                        } else if ((maf_row.path_length - maf_row.record_start) == (merged_maf_prow.path_length - (merged_maf_prow.record_start + merged_maf_prow.seq_size))) {
+                            // maf_row_end == merged_maf_row_begin, new row on the right
+                            new_block_on_the_left = true;
+
+                            merged_maf_prow.record_start -= maf_row.seq_size;
+                            merged_maf_prow.aligned_seq += maf_row.aligned_seq;
+                            merged_maf_prow.seq_size += maf_row.seq_size;
+
+                            merged_row = true;
+                            break;
+                        }
+                    } else {
+                        if ((merged_maf_prow.record_start + merged_maf_prow.seq_size) == maf_row.record_start) {
+                            // merged_maf_row_end == maf_row_begin, new row on the right
+                            new_block_on_the_left = false;
+
+                            merged_maf_prow.aligned_seq += maf_row.aligned_seq;
+                            merged_maf_prow.seq_size += maf_row.seq_size;
+
+                            merged_row = true;
+                            break;
+                        } else if ((maf_row.record_start + maf_row.seq_size) == merged_maf_prow.record_start) {
+                            // maf_row_end == merged_maf_row_begin, new row on the left
+                            new_block_on_the_left = true;
+
+                            merged_maf_prow.record_start -= maf_row.seq_size;
+                            merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq ;
+                            merged_maf_prow.seq_size += maf_row.seq_size;
+
+                            merged_row = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -536,7 +567,7 @@ void _put_block_in_group(
                             maf_row.seq_size,
                             maf_row.is_reversed,
                             maf_row.path_length,
-                            maf_row.is_reversed ? maf_row.aligned_seq + gaps : gaps + maf_row.aligned_seq
+                            new_block_on_the_left ? maf_row.aligned_seq + gaps : gaps + maf_row.aligned_seq
                     });
 
             clear_string(gaps);
@@ -547,19 +578,31 @@ void _put_block_in_group(
     if (add_consensus){
         auto maf_row = mafs[block_id][num_seq_not_cons];
 
-        merged_maf_blocks.consensus_rows.push_back(std::pair<std::string, maf_partial_row_t>(
-                maf_row.path_name,
-                {
-                        maf_row.record_start,
-                        maf_row.seq_size,
-                        maf_row.is_reversed,
-                        maf_row.path_length,
-                        maf_row.aligned_seq
-                }
-        ));
+        if (new_block_on_the_left){
+            merged_maf_blocks.consensus_rows.insert(merged_maf_blocks.consensus_rows.begin(), std::pair<std::string, maf_partial_row_t>(
+                    maf_row.path_name,
+                    {
+                            maf_row.record_start,
+                            maf_row.seq_size,
+                            maf_row.is_reversed,
+                            maf_row.path_length,
+                            maf_row.aligned_seq
+                    }
+            ));
+        }else {
+            merged_maf_blocks.consensus_rows.push_back(std::pair<std::string, maf_partial_row_t>(
+                    maf_row.path_name,
+                    {
+                            maf_row.record_start,
+                            maf_row.seq_size,
+                            maf_row.is_reversed,
+                            maf_row.path_length,
+                            maf_row.aligned_seq
+                    }
+            ));
+        }
     }
 
-    // ToDo: to do and generalize
     // Put gaps for paths not present in the last merged block (block_id) respect to the merged group
 
     // I take the length from a one of the path present in the last merged block
@@ -569,12 +612,12 @@ void _put_block_in_group(
     alignment_size_merged_maf_blocks += num_gaps_to_add;
 
     for (auto &rows : merged_maf_blocks.rows){
-        for (auto& maf_prow : rows.second){
-            if (maf_prow.aligned_seq.length() < alignment_size_merged_maf_blocks){
-                if (maf_prow.is_reversed){
-                    maf_prow.aligned_seq = gaps + maf_prow.aligned_seq;
+        for (auto& merged_maf_prow : rows.second){
+            if (merged_maf_prow.aligned_seq.length() < alignment_size_merged_maf_blocks){
+                if (merged_maf_prow.is_reversed){
+                    merged_maf_prow.aligned_seq = gaps + merged_maf_prow.aligned_seq;
                 }else{
-                    maf_prow.aligned_seq += gaps;
+                    merged_maf_prow.aligned_seq += gaps;
                 }
             }
         }
@@ -582,7 +625,12 @@ void _put_block_in_group(
 
     clear_string(gaps);
 
-    merged_maf_blocks.field_blocks.push_back(block_id);
+    if (new_block_on_the_left){
+        merged_maf_blocks.field_blocks.insert(merged_maf_blocks.field_blocks.begin(), block_id);
+    } else {
+        merged_maf_blocks.field_blocks.push_back(block_id);
+    }
+
 }
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
@@ -660,10 +708,12 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                             uint64_t num_contiguous_seq = 0;
 
+                            int8_t new_block_on_the_left = -1; // 0) the new block go on the right; the new block go on the left
                             for (uint64_t i = 0; i < num_seq_in_block; i++) {
                                 // Do not check the consensus (always forward)
                                 if (!add_consensus || i < num_seq_in_block - 1) {
                                     auto &maf_row = mafs[block_id][i];
+                                    std::cerr << block_id << " " << maf_row.path_name << " -  " << maf_row.record_start << " (" << (uint16_t) new_block_on_the_left << ")" << std::endl;
 
                                     // To merge a block, it has to contains new sequences...
                                     if (merged_maf_blocks.rows.count(maf_row.path_name) == 1){
@@ -671,15 +721,71 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                         bool found_contiguous_row = false;
                                         for (auto& merged_maf_prow : merged_maf_blocks.rows[maf_row.path_name]){
-                                            // ToDo: to manage the 4 possible cases
-                                            if ((maf_row.is_reversed == merged_maf_prow.is_reversed) &&
-                                                (
-                                                    (maf_row.is_reversed && ((merged_maf_prow.record_start - merged_maf_prow.seq_size) == maf_row.record_start)) ||
-                                                    (!maf_row.is_reversed && ((merged_maf_prow.record_start + merged_maf_prow.seq_size) == maf_row.record_start))
-                                                )
-                                            ) {
-                                                found_contiguous_row = true;
-                                                num_contiguous_seq += 1;
+                                            std::cerr << "\t" << merged_maf_prow.record_start << " -  " << merged_maf_prow.seq_size << std::endl;
+
+                                            if (maf_row.is_reversed == merged_maf_prow.is_reversed){
+                                                if (maf_row.is_reversed){
+                                                    if ((merged_maf_prow.path_length - merged_maf_prow.record_start) == (maf_row.path_length - (maf_row.record_start + maf_row.seq_size))) {
+                                                        // merged_maf_row_end == maf_row_begin, new row on the right
+
+                                                        if (new_block_on_the_left == -1 || new_block_on_the_left == 1){
+                                                            // the row is the first one, or the merge continues on the left
+
+                                                            new_block_on_the_left = 1;
+
+                                                            found_contiguous_row = true;
+                                                            num_contiguous_seq += 1;
+                                                            std::cerr << "LEFT-" << std::endl;
+
+                                                            break;
+                                                        }
+                                                    } else if ((maf_row.path_length - maf_row.record_start) == (merged_maf_prow.path_length - (merged_maf_prow.record_start + merged_maf_prow.seq_size))) {
+                                                        // maf_row_end == merged_maf_row_begin, new row on the left
+
+                                                        if (new_block_on_the_left == -1 || new_block_on_the_left == 0){
+                                                            // the row is the first one, or the merge continues on the right
+
+                                                            new_block_on_the_left = 0;
+
+                                                            found_contiguous_row = true;
+                                                            num_contiguous_seq += 1;
+                                                            std::cerr << "RIGHT-" << std::endl;
+
+                                                            break;
+                                                        }
+                                                    }
+                                                } else {
+                                                    if ((merged_maf_prow.record_start + merged_maf_prow.seq_size) == maf_row.record_start){
+                                                        // merged_maf_row_end == maf_row_begin, new row on the right
+
+                                                        if (new_block_on_the_left == -1 || new_block_on_the_left == 0){
+                                                            // the row is the first one, or the merge continues on the right
+
+                                                            new_block_on_the_left = 0;
+
+                                                            found_contiguous_row = true;
+                                                            num_contiguous_seq += 1;
+                                                            std::cerr << "RIGHT+" << std::endl;
+
+                                                            break;
+                                                        }
+                                                    } else if ((maf_row.record_start + maf_row.seq_size) == merged_maf_prow.record_start) {
+                                                        // maf_row_end == merged_maf_row_begin, new row on the left
+
+                                                        if (new_block_on_the_left == -1 || new_block_on_the_left == 1){
+                                                            // the row is the first one, or the merge continues on the left
+
+                                                            new_block_on_the_left = 1;
+
+                                                            found_contiguous_row = true;
+                                                            num_contiguous_seq += 1;
+                                                            std::cerr << "LEFT+" << std::endl;
+
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            } else {
                                                 break;
                                             }
                                         }
