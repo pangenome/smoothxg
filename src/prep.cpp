@@ -54,6 +54,7 @@ void prep(
               return max_path_step_count;
           };
 
+    std::cerr << "[smoothxg::prep] building path index" << std::endl;
     xp::XP path_index;
     path_index.from_handle_graph(graph);
 
@@ -69,6 +70,7 @@ void prep(
     uint64_t path_sgd_iter_max_learning_rate = 0; // don't use this max iter stuff
     std::string snapshot_prefix = "";
 
+    std::cerr << "[smoothxg::prep] sorting graph" << std::endl;
     auto order
         = odgi::algorithms::path_linear_sgd_order(
             graph,
@@ -104,9 +106,11 @@ void prep(
                              true);
     }
 
+    std::cerr << "[smoothxg::prep] chopping graph to " << max_node_length << std::endl;
     // chop it (preserves order)
     odgi::algorithms::chop(graph, max_node_length, num_threads, true);
 
+    std::cerr << "[smoothxg::prep] writing graph " << gfa_out << std::endl;
     std::ofstream f(gfa_out);
     graph.to_gfa(f);
 
