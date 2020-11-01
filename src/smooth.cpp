@@ -513,6 +513,7 @@ void _put_block_in_group(
                             // merged_maf_row_end == maf_row_begin, new row on the left
                             new_block_on_the_left = false;
 
+                            merged_maf_prow.record_start -= maf_row.seq_size;
                             merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq;
                             merged_maf_prow.seq_size += maf_row.seq_size;
 
@@ -522,7 +523,6 @@ void _put_block_in_group(
                             // maf_row_end == merged_maf_row_begin, new row on the right
                             new_block_on_the_left = true;
 
-                            merged_maf_prow.record_start -= maf_row.seq_size;
                             merged_maf_prow.aligned_seq += maf_row.aligned_seq;
                             merged_maf_prow.seq_size += maf_row.seq_size;
 
@@ -614,9 +614,17 @@ void _put_block_in_group(
         for (auto& merged_maf_prow : rows.second){
             if (merged_maf_prow.aligned_seq.length() < alignment_size_merged_maf_blocks){
                 if (merged_maf_prow.is_reversed){
-                    merged_maf_prow.aligned_seq = gaps + merged_maf_prow.aligned_seq;
+                    if (new_block_on_the_left){
+                        merged_maf_prow.aligned_seq += gaps;
+                    } else {
+                        merged_maf_prow.aligned_seq = gaps + merged_maf_prow.aligned_seq;
+                    }
                 }else{
-                    merged_maf_prow.aligned_seq += gaps;
+                    if (new_block_on_the_left){
+                        merged_maf_prow.aligned_seq = gaps + merged_maf_prow.aligned_seq;
+                    } else {
+                        merged_maf_prow.aligned_seq += gaps;
+                    }
                 }
             }
         }
@@ -699,7 +707,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 // Do not check the consensus (always forward)
                                 if (!add_consensus || i < num_seq_in_block - 1) {
                                     auto &maf_row = mafs[block_id][i];
-                                    std::cerr << block_id << " " << maf_row.path_name << " -  " << maf_row.record_start << " (" << (uint16_t) new_block_on_the_left << ")" << std::endl;
 
                                     // To merge a block, it has to contains new sequences...
                                     if (merged_maf_blocks.rows.count(maf_row.path_name) == 1){
@@ -707,8 +714,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                         bool found_contiguous_row = false;
                                         for (auto& merged_maf_prow : merged_maf_blocks.rows[maf_row.path_name]){
-                                            std::cerr << "\t" << merged_maf_prow.record_start << " -  " << merged_maf_prow.seq_size << std::endl;
-
                                             if (maf_row.is_reversed == merged_maf_prow.is_reversed){
                                                 if (maf_row.is_reversed){
                                                     if ((merged_maf_prow.path_length - merged_maf_prow.record_start) == (maf_row.path_length - (maf_row.record_start + maf_row.seq_size))) {
@@ -721,7 +726,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                                             found_contiguous_row = true;
                                                             num_contiguous_seq += 1;
-                                                            std::cerr << "LEFT-" << std::endl;
 
                                                             break;
                                                         }
@@ -735,7 +739,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                                             found_contiguous_row = true;
                                                             num_contiguous_seq += 1;
-                                                            std::cerr << "RIGHT-" << std::endl;
 
                                                             break;
                                                         }
@@ -751,7 +754,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                                             found_contiguous_row = true;
                                                             num_contiguous_seq += 1;
-                                                            std::cerr << "RIGHT+" << std::endl;
 
                                                             break;
                                                         }
@@ -765,7 +767,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                                             found_contiguous_row = true;
                                                             num_contiguous_seq += 1;
-                                                            std::cerr << "LEFT+" << std::endl;
 
                                                             break;
                                                         }
@@ -785,7 +786,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 }
                             }
 
-                            std::cerr << "blockId " << block_id << " is mergeable: " << (merged ? "yes" : "no") << std::endl;
+                            //std::cerr << "blockId " << block_id << " is mergeable: " << (merged ? "yes" : "no") << std::endl;
                             if (merged){
                                 uint64_t num_merged_seq = 0;
                                 for (auto& x : merged_maf_blocks.rows){ num_merged_seq += x.second.size(); }
@@ -800,7 +801,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                     fraction_below_threshold = true;
                                 }
 
-                                std::cerr << "blockId " << block_id << " will be merged: " << (merged ? "yes" : "no") << std::endl << std::endl;
+                                //std::cerr << "blockId " << block_id << " will be merged: " << (merged ? "yes" : "no") << std::endl << std::endl;
                             }
                         }
                     }
