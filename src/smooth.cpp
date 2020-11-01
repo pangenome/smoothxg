@@ -315,15 +315,15 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
     abpoa_free_para(abpt);
 
     // normalize the representation, allowing for nodes > 1bp
-    auto graph_copy = output_graph;
+    //auto graph_copy = output_graph;
     if (!odgi::algorithms::unchop(output_graph)) {
         std::cerr << "[smoothxg::smooth_abpoa] error: unchop failure, saving before/after graph to disk" << std::endl;
         std::ofstream a("smoothxg_unchop_failure_before.gfa");
         graph_copy.to_gfa(a);
         a.close();
-        std::ofstream b("smoothxg_unchop_failure_after.gfa");
-        output_graph.to_gfa(b);
-        b.close();
+        //std::ofstream b("smoothxg_unchop_failure_after.gfa");
+        //output_graph.to_gfa(b);
+        //b.close();
         exit(1);
     }
 
