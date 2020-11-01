@@ -226,7 +226,7 @@ public:
     //void from_path_handle_graph(const PathHandleGraph& other);
     
     // What version of an XG is this designed to read?
-    const static uint32_t CURRENT_VERSION = 15;
+    const static uint32_t CURRENT_VERSION = 16;
     
     /// Get the magic number used to prefix serialized streams.
     uint32_t get_magic_number(void) const;
@@ -412,8 +412,7 @@ public:
     size_t edge_index(const edge_t& edge) const;
     size_t get_g_iv_size(void) const;
 
-    char start_marker = '#';
-    char end_marker = '$';
+    char path_name_csa_delim = '$';
 
 private:
 

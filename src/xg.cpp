@@ -143,10 +143,11 @@ void XG::deserialize_members(std::istream& in) {
         case 12:
         case 13:
         case 14:
+        case 15:
             std::cerr << "warning:[XG] Loading an out-of-date XG format. "
                       << "For better performance over repeated loads, consider recreating this XG index." << std::endl;
             // Fall through
-        case 15:
+        case 16:
             {
                 sdsl::read_member(seq_length, in);
                 sdsl::read_member(node_count, in);
@@ -1040,7 +1041,17 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         }
 #endif
         size_t unique_member_count = 0;
-        path_names += start_marker + curr_path_name + end_marker;
+        // check that curr_path_name doesn't have our delimiter
+        // if it does, make a warning and replace with _
+        if (curr_path_name.find(path_name_csa_delim) != std::string::npos) {
+            std::cerr << "[xg::XG] warning, path name " << curr_path_name
+                      << " contains delimiter used by xg's CSA, changing to ";
+            std::replace(curr_path_name.begin(),
+                         curr_path_name.end(),
+                         path_name_csa_delim, '_');
+            std::cerr << curr_path_name << std::endl;
+        }
+        path_names += path_name_csa_delim + curr_path_name;
         XGPath* path = new XGPath(curr_path_name, curr_path_steps,
                                   curr_is_circular,
                                   *this);
@@ -1078,6 +1089,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     if (has_path) {
         build_accumulated_path();
     }
+    path_names += path_name_csa_delim; // final delimiter for search symmetry
     curr_path_steps.clear();
     curr_is_circular = false;
 #ifdef VERBOSE_DEBUG
@@ -1092,7 +1104,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     // now record path name starts
     for (size_t i = 0; i < path_names.size(); ++i) {
         pn_iv[i] = path_names[i];
-        if (path_names[i] == start_marker) {
+        if (path_names[i] == path_name_csa_delim) {
             pn_bv[i] = 1; // register name start
         }
     }
@@ -2076,7 +2088,7 @@ bool XG::has_path(const std::string& path_name) const {
 
 path_handle_t XG::get_path_handle(const std::string& path_name) const {
     // find the name in the csa
-    std::string query = start_marker + path_name + end_marker;
+    std::string query = path_name_csa_delim + path_name + path_name_csa_delim;
     auto occs = locate(pn_csa, query);
     if (occs.size() > 1) {
         cerr << "error [xg]: multiple hits for " << query << endl;
@@ -2092,9 +2104,8 @@ path_handle_t XG::get_path_handle(const std::string& path_name) const {
     
 std::string XG::get_path_name(const path_handle_t& path_handle) const {
     uint64_t rank = as_integer(path_handle);
-    size_t start = pn_bv_select(rank)+1; // step past '#'
-    size_t end = rank == path_count ? pn_iv.size() : pn_bv_select(rank+1);
-    end -= 1;  // step before '$'
+    size_t start = pn_bv_select(rank)+1; // step past '$'
+    size_t end = pn_bv_select(rank+1);
     string name; name.resize(end-start);
     for (size_t i = start; i < end; ++i) {
         name[i-start] = pn_iv[i];
