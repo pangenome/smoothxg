@@ -485,7 +485,6 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     return output_graph;
 }
 
-// ToDo: to improve and generalize
 void _put_block_in_group(
         maf_t &merged_maf_blocks, uint64_t block_id, uint64_t num_seq_in_block,
         bool add_consensus,
@@ -683,19 +682,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                     bool is_last_block = (block_id == num_blocks - 1);
 
-                    bool contains_loops = false;
-                    std::unordered_set<path_handle_t> seen_paths;
-                    for (auto &path_range : blocks[block_id].path_ranges){
-                        path_handle_t path = graph.get_path_handle_of_step(path_range.begin);
-                        if (seen_paths.count(path)) {
-                            contains_loops = true;
-                            break;
-                        } else {
-                            seen_paths.insert(path);
-                        }
-                    }
-                    seen_paths.clear();
-
                     bool prep_new_merge_group = false;
                     bool merged = false;
                     bool fraction_below_threshold = false;
@@ -848,19 +834,14 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                             }
 
                             if (produce_maf){
-                                //ToDo write << " loops=" << (contains_loops ? "true" : "false")
-                                out_maf << "a blocks=" << block_id_range << " loops=false";
-                                if (merged_maf_blocks_size > 1) {
-                                    out_maf << " merged=true";
-
-                                    if (fraction_below_threshold) {
-                                        out_maf << " below_thresh=true";
-                                    }
-                                }
-                                out_maf << std::endl;
+                                bool contains_loops = false;
 
                                 std::vector<maf_row_t> rows;
                                 for (auto& maf_prows : merged_maf_blocks.rows) {
+                                    if (!contains_loops && maf_prows.second.size() > 1) {
+                                        contains_loops = true;
+                                    }
+
                                     for (auto &maf_prow : maf_prows.second){
                                         rows.push_back(
                                                 {
@@ -931,6 +912,17 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                                     clear_string(merged_consensus_aligned_seq);
                                 }
+
+                                out_maf << "a blocks=" << block_id_range << " loops=" << (contains_loops ? "true" : "false");
+                                if (merged_maf_blocks_size > 1) {
+                                    out_maf << " merged=true";
+
+                                    if (fraction_below_threshold) {
+                                        out_maf << " below_thresh=true";
+                                    }
+                                }
+                                out_maf << std::endl;
+
                                 write_maf_rows(out_maf, rows);
 
                                 for(auto& row : rows){
@@ -961,6 +953,19 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                         if (!merged && !prep_new_merge_group) {
                             if (produce_maf){
+                                bool contains_loops = false;
+                                std::unordered_set<path_handle_t> seen_paths;
+                                for (auto &path_range : blocks[block_id].path_ranges){
+                                    path_handle_t path = graph.get_path_handle_of_step(path_range.begin);
+                                    if (seen_paths.count(path)) {
+                                        contains_loops = true;
+                                        break;
+                                    } else {
+                                        seen_paths.insert(path);
+                                    }
+                                }
+                                seen_paths.clear();
+
                                 out_maf << "a blocks=" + std::to_string(block_id) << " loops=" << (contains_loops ? "true" : "false") << std::endl;
                                 write_maf_rows(out_maf, mafs[block_id]);
                             }
