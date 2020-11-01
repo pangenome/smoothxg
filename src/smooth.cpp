@@ -1360,7 +1360,12 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             );
             merged_consensus_paths.push_back(consensus_path);
 
-            for (uint64_t block_id = merged_block_id_interval.first; block_id <= merged_block_id_interval.second; block_id++) {
+            int8_t step = 1;
+            if (merged_block_id_interval.first > merged_block_id_interval.second) {
+                step = -1;
+            }
+
+            for (uint64_t block_id = merged_block_id_interval.first; block_id != (merged_block_id_interval.second + step); block_id += step) {
                 //consensus_path_is_merged[block_id] = true;
                 consensus_path_is_merged.insert(as_integer(consensus_paths[block_id]));
                 auto &block = block_graphs[block_id];
