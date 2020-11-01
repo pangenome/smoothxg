@@ -12,9 +12,9 @@
 #include "gfakluge.hpp"
 
 //#define VERBOSE_DEBUG
-//#define debug_algorithms
-//#define debug_component_index
 //#define debug_path_index
+//#define DEBUG_CONSTRUCTION
+//#define debug_print_graph
 
 namespace xg {
 
@@ -142,17 +142,17 @@ void XG::deserialize_members(std::istream& in) {
         case 11:
         case 12:
         case 13:
-            std::cerr << "warning:[XG] Loading an out-of-date XG format."
+        case 14:
+            std::cerr << "warning:[XG] Loading an out-of-date XG format. "
                       << "For better performance over repeated loads, consider recreating this XG index." << std::endl;
             // Fall through
-        case 14:
+        case 15:
             {
                 sdsl::read_member(seq_length, in);
                 sdsl::read_member(node_count, in);
                 sdsl::read_member(edge_count, in);
                 sdsl::read_member(path_count, in);
                 size_t entity_count = node_count + edge_count;
-                //cerr << sequence_length << ", " << node_count << ", " << edge_count << endl;
                 sdsl::read_member(min_id, in);
                 sdsl::read_member(max_id, in);
                 
@@ -163,10 +163,32 @@ void XG::deserialize_members(std::istream& in) {
                 }
                 r_iv.load(in);
                 
-                g_iv.load(in);
-                g_bv.load(in);
-                g_bv_rank.load(in, &g_bv);
-                g_bv_select.load(in, &g_bv);
+                // if we've rejiggered the offsets in the g vector we need to
+                // hold onto the rank vector to translate offsets throughout
+                // the deserialization
+                sdsl::rank_support_v<1> old_g_bv_rank;
+                sdsl::bit_vector old_g_bv;
+                
+                if (file_version <= 14) {
+                    // we need to reencode the old g vector with the new edges
+                    sdsl::int_vector<> old_giv;
+                    old_giv.load(in);
+                    old_g_bv.load(in);
+                    old_g_bv_rank.load(in, &old_g_bv);
+                    {
+                        // we don't actually need the select vector, load and discard it
+                        sdsl::bit_vector::select_1_type old_g_bv_select;
+                        old_g_bv_select.load(in, &old_g_bv);
+                    }
+                    reencode_old_g_vector(old_giv, old_g_bv_rank);
+                }
+                else {
+                    // we can load the up-to-date g vector encoding
+                    g_iv.load(in);
+                    g_bv.load(in);
+                    g_bv_rank.load(in, &g_bv);
+                    g_bv_select.load(in, &g_bv);
+                }
 
                 s_iv.load(in);
                 s_bv.load(in);
@@ -230,6 +252,13 @@ void XG::deserialize_members(std::istream& in) {
                     else {
                         path->load(in);
                     }
+                    if (file_version > 12 && file_version <= 14) {
+                        // the paths consist of handles, but we've changed
+                        // the offsets of items in the g vector, so we need
+                        // to resync
+                        path->sync_offsets(old_g_bv_rank, g_bv_select);
+                    }
+                    
                     paths.push_back(path);
                 }
                 
@@ -308,6 +337,10 @@ void XG::deserialize_members(std::istream& in) {
         std::cerr << "error [xg]: Unexpected error parsing XG data. Is it in version " << file_version << " XG format?" << std::endl;
         throw e;
     }
+#ifdef debug_print_graph
+    cerr << "printing deserialized graph" << endl;
+    print_graph();
+#endif
 }
 
 void XGPath::load(std::istream& in) {
@@ -317,6 +350,34 @@ void XGPath::load(std::istream& in) {
     offsets_rank.load(in, &offsets);
     offsets_select.load(in, &offsets);
     sdsl::read_member(is_circular, in);    
+}
+
+void XGPath::sync_offsets(const sdsl::rank_support_v<1>& old_g_bv_rank,
+                          const sdsl::bit_vector::select_1_type& g_bv_select) {
+    
+    // make a temporary vector to hold uncompressed handles
+    sdsl::int_vector<> handles_iv;
+    sdsl::util::assign(handles_iv, sdsl::int_vector<>(handles.size()));
+    
+    // sync the offsets and compute the minimum handle
+    uint64_t new_min_handle = numeric_limits<uint64_t>::max();
+    for (size_t i = 0; i < handles.size(); ++i) {
+        handle_t old_handle = handle(i);
+        size_t old_offset = number_bool_packing::unpack_number(old_handle);
+        size_t new_offset = g_bv_select(old_g_bv_rank(old_offset) + 1);
+        handle_t new_handle = number_bool_packing::pack(new_offset,
+                                                        number_bool_packing::unpack_bit(old_handle));
+        handles_iv[i] = as_integer(new_handle);
+        new_min_handle = min<uint64_t>(new_min_handle, as_integer(new_handle));
+    }
+    // apply the min handle offset
+    min_handle = as_handle(new_min_handle);
+    for (size_t i = 0; i < handles_iv.size(); ++i) {
+        handles_iv[i] -= new_min_handle;
+    }
+    
+    // compress the new handle vector and replace the old one
+    sdsl::util::assign(handles, sdsl::enc_vector<>(handles_iv));
 }
 
 void XGPath::load_from_old_version(std::istream& in, uint32_t file_version, const XG& graph) {
@@ -493,9 +554,7 @@ XGPath::XGPath(const std::string& path_name,
     sdsl::bit_vector offsets_bv;
     sdsl::util::assign(offsets_bv, sdsl::bit_vector(path_length));
 
-    //cerr << "path " << path_name << " has " << path.size() << endl;
     for (size_t i = 0; i < path.size(); ++i) {
-        //cerr << i << endl;
         auto& handle = path[i];
         // record position of node
         offsets_bv[path_off] = 1;
@@ -749,26 +808,26 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     cerr << "computing graph sequence length and node count" << endl;
 #endif
     for_each_sequence([&](const std::string& seq, const nid_t& id) {
-            // min id starts at 0
-            min_id = std::min(min_id, id);
-            max_id = std::max(max_id, id);
-            if (seq.empty()) {
-                // XG can't store empty nodes, because of its one-1-per-node combinde sequence lookup bit vector.
-                // If the 1s collide, bad things happen.
-                // Print a useful report for a user (instead of a crash for an uncaught exception) and abort everything.
-                std::cerr << "error[XG::from_enumerators]: Graph contains empty node " << id << " which cannot be stored in an XG" << std::endl;
-                exit(1);
-            }
-            seq_length += seq.size();
-            ++node_count;
-        });
+        // min id starts at 0
+        min_id = std::min(min_id, id);
+        max_id = std::max(max_id, id);
+        if (seq.empty()) {
+            // XG can't store empty nodes, because of its one-1-per-node combinde sequence lookup bit vector.
+            // If the 1s collide, bad things happen.
+            // Print a useful report for a user (instead of a crash for an uncaught exception) and abort everything.
+            std::cerr << "error[XG::from_enumerators]: Graph contains empty node " << id << " which cannot be stored in an XG" << std::endl;
+            exit(1);
+        }
+        seq_length += seq.size();
+        ++node_count;
+    });
 #ifdef VERBOSE_DEBUG
     cerr << "counting edges" << endl;
 #endif
     // edge count
     for_each_edge([&](const nid_t& from_id, const bool& from_rev, const nid_t& to_id, const bool& to_rev) {
-            ++edge_count;
-        });
+        ++edge_count;
+    });
     // path count
     std::string pname;
 #ifdef VERBOSE_DEBUG
@@ -803,23 +862,23 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     size_t r = 1;    
     // first make i_iv and r_iv
     for_each_sequence([&](const std::string& seq, const nid_t& id) {
-            i_iv[r-1] = id;
-            // store ids to rank mapping
-            r_iv[id-min_id] = r;
-            ++r;
-        });
+        i_iv[r-1] = id;
+        // store ids to rank mapping
+        r_iv[id-min_id] = r;
+        ++r;
+    });
     sdsl::util::bit_compress(i_iv);
     sdsl::util::bit_compress(r_iv);
 
     // then make s_bv and s_iv
     size_t j = 0;
     for_each_sequence([&](const std::string& seq, const nid_t& id) {
-            //size_t i = r_iv[id-min_id]-1;
-            s_bv[j] = 1; // record node start
-            for (auto c : seq) {
-                s_iv[j++] = dna3bit(c); // store sequence
-            }
-        });
+        //size_t i = r_iv[id-min_id]-1;
+        s_bv[j] = 1; // record node start
+        for (auto c : seq) {
+            s_iv[j++] = dna3bit(c); // store sequence
+        }
+    });
     s_bv[seq_length] = 1;
 
     // to label the paths we'll need to compress and index our vectors
@@ -847,26 +906,43 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     
     // first, we need to collect the edges for each node
     // we use the mmmultimap here to reduce in-memory costs to a minimum
-    std::string edge_f_t_idx = basename + ".from_to.mm";
-    std::string edge_t_f_idx = basename + ".to_from.mm";
-    auto edge_from_to_mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(edge_f_t_idx);
-    auto edge_to_from_mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(edge_t_f_idx);
-    edge_from_to_mm->open_writer();
-    edge_to_from_mm->open_writer();
+    std::string edge_left_side_idx = basename + ".left.mm";
+    std::string edge_right_side_idx = basename + ".right.mm";
+    auto edge_left_side_mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(edge_left_side_idx);
+    auto edge_right_side_mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(edge_right_side_idx);
+    edge_left_side_mm->open_writer();
+    edge_right_side_mm->open_writer();
+    size_t num_reversing_self_edges = 0;
     for_each_edge([&](const nid_t& from_id, const bool& from_rev, const nid_t& to_id, const bool& to_rev) {
-            handle_t from_handle = temp_get_handle(from_id, from_rev);
-            handle_t to_handle = temp_get_handle(to_id, to_rev);
-            edge_from_to_mm->append(as_integer(from_handle), as_integer(to_handle));
-            edge_to_from_mm->append(as_integer(to_handle), as_integer(from_handle));
-        });
+        if (from_rev) {
+            edge_left_side_mm->append(as_integer(temp_get_handle(from_id, false)),
+                                      as_integer(temp_get_handle(to_id, !to_rev)));
+        }
+        else {
+            edge_right_side_mm->append(as_integer(temp_get_handle(from_id, false)),
+                                       as_integer(temp_get_handle(to_id, to_rev)));
+        }
+        if (from_id != to_id || from_rev == to_rev) {
+            // we're not double-counting a reversing self loop
+            if (!to_rev) {
+                edge_left_side_mm->append(as_integer(temp_get_handle(to_id, false)),
+                                          as_integer(temp_get_handle(from_id, from_rev)));
+            }
+            else {
+                edge_right_side_mm->append(as_integer(temp_get_handle(to_id, false)),
+                                           as_integer(temp_get_handle(from_id, !from_rev)));
+            }
+        }
+        else {
+            ++num_reversing_self_edges;
+        }
+    });
     handle_t max_handle = number_bool_packing::pack(r_iv.size(), true);
-    edge_from_to_mm->index(get_thread_count(), as_integer(max_handle));
-    edge_to_from_mm->index(get_thread_count(), as_integer(max_handle));
+    edge_left_side_mm->index(get_thread_count(), as_integer(max_handle));
+    edge_right_side_mm->index(get_thread_count(), as_integer(max_handle));
 
-    // calculate g_iv size
-    size_t g_iv_size =
-        node_count * G_NODE_HEADER_LENGTH // record headers
-        + edge_count * 2 * G_EDGE_LENGTH; // edges (stored twice)
+    // calculate g_iv size (header + edges stored twice, except reversing self edges)
+    size_t g_iv_size = node_count * G_NODE_HEADER_LENGTH + (edge_count * 2 - num_reversing_self_edges);
     sdsl::util::assign(g_iv, sdsl::int_vector<>(g_iv_size));
     sdsl::util::assign(g_bv, sdsl::bit_vector(g_iv_size));
 
@@ -881,43 +957,25 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         if (i % 1000 == 0) cerr << i << " of " << node_count << " ~ " << (float)i/(float)node_count * 100 << "%" << "\r";
 #endif
         handle_t handle = temp_get_handle(id, false);
-        //std::cerr << "id " << id << std::endl;
         g_bv[g] = 1; // mark record start for later query
         g_iv[g++] = id;
         g_iv[g++] = node_vector_offset(id);
         g_iv[g++] = temp_node_size(id);
-        size_t to_edge_count = 0;
-        size_t from_edge_count = 0;
-        size_t to_edge_count_idx = g++;
-        size_t from_edge_count_idx = g++;
-        // write the edges in id-based format
-        // we will next convert these into relative format
-        for (auto orientation : { false, true }) {
-            handle_t to = temp_get_handle(id, orientation);
-            //std::cerr << "looking at to handle " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
-            edge_to_from_mm->for_unique_values_of(as_integer(to), [&](const uint64_t& _from) {
-                    handle_t from = as_handle(_from);
-                    //std::cerr << "edge to " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from)
-                    //<< " -> " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
-                    g_iv[g++] = temp_get_id(from);
-                    g_iv[g++] = edge_type(from, to);
-                    ++to_edge_count;
-                });
-        }
-        g_iv[to_edge_count_idx] = to_edge_count;
-        for (auto orientation : { false, true }) {
-            handle_t from = temp_get_handle(id, orientation);
-            //std::cerr << "looking at from handle " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from) << std::endl;
-            edge_from_to_mm->for_unique_values_of(as_integer(from), [&](const uint64_t& _to) {
-                    handle_t to = as_handle(_to);
-                    //std::cerr << "edge from " << number_bool_packing::unpack_number(from) << ":" << number_bool_packing::unpack_bit(from)
-                    //<< " -> " << number_bool_packing::unpack_number(to) << ":" << number_bool_packing::unpack_bit(to) << std::endl;
-                    g_iv[g++] = temp_get_id(to);
-                    g_iv[g++] = edge_type(from, to);
-                    ++from_edge_count;
-                });
-        }
-        g_iv[from_edge_count_idx] = from_edge_count;
+        size_t left_edge_count = 0;
+        size_t right_edge_count = 0;
+        size_t left_edge_count_idx = g++;
+        size_t right_edge_count_idx = g++;
+        handle_t edge_head = temp_get_handle(id, false);
+        edge_left_side_mm->for_unique_values_of(as_integer(edge_head), [&](const uint64_t& edge_tail) {
+            g_iv[g++] = edge_tail;
+            ++left_edge_count;
+        });
+        edge_right_side_mm->for_unique_values_of(as_integer(edge_head), [&](const uint64_t& edge_tail) {
+            g_iv[g++] = edge_tail;
+            ++right_edge_count;
+        });
+        g_iv[left_edge_count_idx] = left_edge_count;
+        g_iv[right_edge_count_idx] = right_edge_count;
     }
 
 #ifdef VERBOSE_DEBUG
@@ -925,10 +983,10 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
 #endif
 
     // cleanup our mmmultimap
-    edge_from_to_mm.reset();
-    edge_to_from_mm.reset();
-    std::remove(edge_f_t_idx.c_str());
-    std::remove(edge_t_f_idx.c_str());
+    edge_left_side_mm.reset();
+    edge_right_side_mm.reset();
+    std::remove(edge_left_side_idx.c_str());
+    std::remove(edge_right_side_idx.c_str());
 
     // set up rank and select supports on g_bv so we can locate nodes in g_iv
     sdsl::util::assign(g_bv_rank, sdsl::rank_support_v<1>(&g_bv));
@@ -944,17 +1002,13 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         // find the start of the node's record in g_iv
         int64_t g = g_bv_select(id_to_rank(id));
         // get to the edges to
-        int edges_to_count = g_iv[g+G_NODE_TO_COUNT_OFFSET];
-        int edges_from_count = g_iv[g+G_NODE_FROM_COUNT_OFFSET];
-        int64_t t = g + G_NODE_HEADER_LENGTH;
-        int64_t f = g + G_NODE_HEADER_LENGTH + G_EDGE_LENGTH * edges_to_count;
-        for (int64_t j = t; j < f; ) {
-            g_iv[j] = g_bv_select(id_to_rank(g_iv[j])) - g;
-            j += 2;
-        }
-        for (int64_t j = f; j < f + G_EDGE_LENGTH * edges_from_count; ) {
-            g_iv[j] = g_bv_select(id_to_rank(g_iv[j])) - g;
-            j += 2;
+        size_t edge_count = g_iv[g+G_NODE_LEFT_COUNT_OFFSET] + g_iv[g+G_NODE_RIGHT_COUNT_OFFSET];
+        size_t begin = g + G_NODE_HEADER_LENGTH;
+        for (int64_t j = begin, end = begin + edge_count; j < end; ++j) {
+            uint64_t edge_tail = g_iv[j];
+            bool tail_rev = edge_tail & 1;
+            size_t tail_offset = g_bv_select(edge_tail >> 1);
+            g_iv[j] = encode_edge(g, tail_offset, tail_rev);
         }
     }
     sdsl::util::clear(i_iv);
@@ -1045,11 +1099,19 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     sdsl::util::assign(pn_bv_rank, sdsl::rank_support_v<1>(&pn_bv));
     sdsl::util::assign(pn_bv_select, sdsl::bit_vector::select_1_type(&pn_bv));
     
-    // is this file removed by construct?
-    string path_name_file = basename + ".pathnames.iv";
-    sdsl::store_to_file((const char*)path_names.c_str(), path_name_file);
-    sdsl::construct(pn_csa, path_name_file, 1);
-    std::remove(path_name_file.c_str());
+    // By default, SDSL uses the working directory for temporary files. Getting around it is
+    // somewhat complicated.
+    sdsl::cache_config config;
+    config.dir = temp_file::get_dir();
+    {
+        sdsl::int_vector_buffer<8> text(sdsl::cache_file_name(sdsl::conf::KEY_TEXT, config), std::ios::out);
+        for (char c : path_names) {
+            text.push_back(c);
+        }
+        text.push_back(0); // CSA construction needs an endmarker.
+    }
+    sdsl::register_cache_file(sdsl::conf::KEY_TEXT, config);
+    sdsl::construct(pn_csa, sdsl::cache_file_name(sdsl::conf::KEY_TEXT, config), config, 1);
 
 #ifdef VERBOSE_DEBUG
     cerr << "computing node to path membership" << endl;
@@ -1195,7 +1257,6 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
         curr_path_steps.clear();
     }
 
-//#define DEBUG_CONSTRUCTION
 #ifdef DEBUG_CONSTRUCTION
     cerr << "|g_iv| = " << size_in_mega_bytes(g_iv) << endl;
     cerr << "|g_bv| = " << size_in_mega_bytes(g_bv) << endl;
@@ -1230,10 +1291,10 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     for (size_t i = 0; i < paths.size(); i++) {
         // Go through paths by number, so we can determine rank
         XGPath* path = paths[i];
-        path_ids_mb_size += size_in_mega_bytes(path->ids);
-        path_dir_mb_size += size_in_mega_bytes(path->directions);
-        path_pos_mb_size += size_in_mega_bytes(path->positions);
-        path_ranks_mb_size += size_in_mega_bytes(path->ranks);
+//        path_ids_mb_size += size_in_mega_bytes(path->ids);
+//        path_dir_mb_size += size_in_mega_bytes(path->directions);
+//        path_pos_mb_size += size_in_mega_bytes(path->positions);
+//        path_ranks_mb_size += size_in_mega_bytes(path->ranks);
         path_offsets_mb_size += size_in_mega_bytes(path->offsets);
     }
     cerr << "path ids size " << path_ids_mb_size << endl;
@@ -1244,66 +1305,89 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
 
 #endif
 
-    bool print_graph = false;
-    if (print_graph) {
-        cerr << "printing graph" << endl;
-        // we have to print the relativistic graph manually because the default sdsl printer assumes unsigned integers are stored in it
-        for (size_t i = 0; i < g_iv.size(); ++i) {
-            cerr << (int64_t)g_iv[i] << " ";
-        } cerr << endl;
-        for (int64_t i = 0; i < node_count; ++i) {
-            int64_t id = rank_to_id(i+1);
-            // find the start of the node's record in g_iv
-            int64_t g = g_bv_select(id_to_rank(id));
-            // get to the edges to
-            int edges_to_count = g_iv[g+G_NODE_TO_COUNT_OFFSET];
-            int edges_from_count = g_iv[g+G_NODE_FROM_COUNT_OFFSET];
-            int sequence_size = g_iv[g+G_NODE_LENGTH_OFFSET];
-            size_t seq_start = g_iv[g+G_NODE_SEQ_START_OFFSET];
-            cerr << id << " ";
-            for (int64_t j = seq_start; j < seq_start+sequence_size; ++j) {
-                cerr << revdna3bit(s_iv[j]);
-            } cerr << " : ";
-            int64_t t = g + G_NODE_HEADER_LENGTH;
-            int64_t f = g + G_NODE_HEADER_LENGTH + G_EDGE_LENGTH * edges_to_count;
-            cerr << " from ";
-            for (int64_t j = t; j < f; ) {
-                cerr << rank_to_id(g_bv_rank(g+g_iv[j])+1) << " ";
-                j += 2;
-            }
-            cerr << " to ";
-            for (int64_t j = f; j < f + G_EDGE_LENGTH * edges_from_count; ) {
-                cerr << rank_to_id(g_bv_rank(g+g_iv[j])+1) << " ";
-                j += 2;
-            }
-            cerr << endl;
-        }
-        cerr << s_iv << endl;
-        for (size_t i = 0; i < s_iv.size(); ++i) {
-            cerr << revdna3bit(s_iv[i]);
-        } cerr << endl;
-        cerr << s_bv << endl;
-        cerr << "paths (" << paths.size() << ")" << endl;
-        for (size_t i = 0; i < paths.size(); i++) {
-            // Go through paths by number, so we can determine rank
-            XGPath* path = paths[i];
-            cerr << get_path_name(as_path_handle(i + 1)) << endl;
-            // manually print IDs because simplified wavelet tree doesn't support ostream for some reason
-            for (size_t j = 0; j + 1 < path->handles.size(); j++) {
-                cerr << get_id(path->handle(j)) << " ";
-            }
-            if (path->handles.size() > 0) {
-                cerr << get_id(path->handle(path->handles.size() - 1));
-            }
-            cerr << endl;
-            cerr << path->offsets << endl;
-        }
-        cerr << np_bv << endl;
-        cerr << np_iv << endl;
-        cerr << nx_iv << endl;
-        
-    }
+#ifdef debug_print_graph
+    print_graph();
+#endif
 
+}
+
+void XG::print_graph() const {
+    cerr << "printing graph" << endl;
+    // we have to print the relativistic graph manually because the default sdsl printer assumes unsigned integers are stored in it
+    for (size_t i = 0; i < g_iv.size(); ++i) {
+        cerr << (int64_t)g_iv[i] << " ";
+    } cerr << endl;
+    for (int64_t i = 0; i < node_count; ++i) {
+        int64_t id = rank_to_id(i+1);
+        // find the start of the node's record in g_iv
+        int64_t g = g_bv_select(id_to_rank(id));
+        // get to the edges to
+        int edges_left_count = g_iv[g+G_NODE_LEFT_COUNT_OFFSET];
+        int edges_right_count = g_iv[g+G_NODE_RIGHT_COUNT_OFFSET];
+        int sequence_size = g_iv[g+G_NODE_LENGTH_OFFSET];
+        size_t seq_start = g_iv[g+G_NODE_SEQ_START_OFFSET];
+        cerr << id << " ";
+        for (int64_t j = seq_start; j < seq_start+sequence_size; ++j) {
+            cerr << revdna3bit(s_iv[j]);
+        } cerr << " : ";
+        int64_t l = g + G_NODE_HEADER_LENGTH;
+        int64_t r = g + G_NODE_HEADER_LENGTH + edges_left_count;
+        cerr << " left ";
+        for (int64_t j = l; j < r; ++j) {
+            cerr << rank_to_id(g_bv_rank(g+edge_relative_offset(g_iv[j]))+1) << " ";
+        }
+        cerr << " right ";
+        for (int64_t j = r; j < r + edges_right_count; ++j) {
+            cerr << rank_to_id(g_bv_rank(g+edge_relative_offset(g_iv[j]))+1) << " ";
+        }
+        cerr << endl;
+    }
+    cerr << s_iv << endl;
+    for (size_t i = 0; i < s_iv.size(); ++i) {
+        cerr << revdna3bit(s_iv[i]);
+    } cerr << endl;
+    cerr << s_bv << endl;
+    cerr << "paths (" << paths.size() << ")" << endl;
+    for (size_t i = 0; i < paths.size(); i++) {
+        // Go through paths by number, so we can determine rank
+        XGPath* path = paths[i];
+        cerr << get_path_name(as_path_handle(i + 1)) << endl;
+        // manually print IDs because simplified wavelet tree doesn't support ostream for some reason
+        for (size_t j = 0; j + 1 < path->handles.size(); j++) {
+            cerr << get_id(path->handle(j)) << " ";
+        }
+        if (path->handles.size() > 0) {
+            cerr << get_id(path->handle(path->handles.size() - 1));
+        }
+        cerr << endl;
+        cerr << path->offsets << endl;
+    }
+    cerr << np_bv << endl;
+    cerr << np_iv << endl;
+    cerr << nx_iv << endl;
+}
+
+bool XG::edge_orientation(const uint64_t& raw_edge) {
+    return raw_edge & 1;
+}
+
+int64_t XG::edge_relative_offset(const uint64_t& raw_edge) {
+    return raw_edge & 2 ? -int64_t(raw_edge >> 2) - 1 : raw_edge >> 2;
+}
+
+uint64_t XG::encode_edge(const size_t& offest_from, const size_t& offset_to,
+                         const bool& to_rev) {
+    // first bit encodes reverse, the remaining bits encode a signed difference in
+    // offsets in a small unsigned integer by alternating positive and negative values
+    uint64_t edge;
+    if (offset_to >= offest_from) {
+        edge = (offset_to - offest_from) << 2;
+    }
+    else {
+        edge = ((offest_from - offset_to) << 2) - 2;
+    }
+    edge |= (uint64_t) to_rev;
+    return edge;
 }
 
 void XG::index_node_to_path(const std::string& basename) {
@@ -1532,27 +1616,172 @@ std::string XG::pos_substr(nid_t id, bool is_rev, size_t off, size_t len) const 
     }
 }
 
-edge_t XG::edge_from_encoding(const nid_t& from, const nid_t& to, int type) const {
-    bool from_rev = false;
-    bool to_rev = false;
+void XG::orientation_from_old_edge_type(int type, bool& from_rev, bool& to_rev) const {
     switch (type) {
-    case EDGE_TYPE_END_START:
-        break;
-    case EDGE_TYPE_END_END:
-        to_rev = true;
-        break;
-    case EDGE_TYPE_START_START:
-        from_rev = true;
-        break;
-    case EDGE_TYPE_START_END:
-        from_rev = true;
-        to_rev = true;
-        break;
-    default:
-        throw std::runtime_error("Invalid edge type " + std::to_string(type) + " encountered");
-        break;
+        case OLD_EDGE_TYPE_END_START:
+            from_rev = false;
+            to_rev = false;
+            break;
+        case OLD_EDGE_TYPE_END_END:
+            from_rev = false;
+            to_rev = true;
+            break;
+        case OLD_EDGE_TYPE_START_START:
+            from_rev = true;
+            to_rev = false;
+            break;
+        case OLD_EDGE_TYPE_START_END:
+            from_rev = true;
+            to_rev = true;
+            break;
+        default:
+            throw std::runtime_error("Invalid edge type " + std::to_string(type) + " encountered");
+            break;
     }
-    return make_pair(get_handle(from, from_rev), get_handle(to, to_rev));
+}
+
+void XG::reencode_old_g_vector(const sdsl::int_vector<>& old_g_iv, const sdsl::rank_support_v<1>& old_g_bv_rank) {
+    
+    size_t total_num_edges = (old_g_iv.size() - G_NODE_HEADER_LENGTH * node_count) / OLD_G_EDGE_LENGTH;
+    
+    // compute the new size and allocate the
+    size_t g_iv_size = G_NODE_HEADER_LENGTH * node_count + total_num_edges;
+    sdsl::util::assign(g_iv, sdsl::int_vector<>(g_iv_size));
+    sdsl::util::assign(g_bv, sdsl::bit_vector(g_iv_size));
+    
+#ifdef VERBOSE_DEBUG
+    cerr << "converting g vector for graph with " << node_count << " nodes and " << total_num_edges << " edges" << endl;
+#endif
+    
+    for (size_t old_g_idx = 0, new_g_idx = 0; new_g_idx < g_iv.size(); ) {
+#ifdef VERBOSE_DEBUG
+        cerr << "transfering node info for node " << old_g_iv[old_g_idx + G_NODE_ID_OFFSET] << " from old index " << old_g_idx << " to new index " << new_g_idx << endl;
+#endif
+        
+        // record the new start position in the g vector
+        g_bv[new_g_idx] = 1;
+        // copy over the fields that are unchanged between old and new
+        g_iv[new_g_idx + G_NODE_ID_OFFSET] = old_g_iv[old_g_idx + G_NODE_ID_OFFSET];
+        g_iv[new_g_idx + G_NODE_SEQ_START_OFFSET] = old_g_iv[old_g_idx + G_NODE_SEQ_START_OFFSET];
+        g_iv[new_g_idx + G_NODE_LENGTH_OFFSET] = old_g_iv[old_g_idx + G_NODE_LENGTH_OFFSET];
+        // ignore the left/right edge counts on this pass
+        size_t num_edges = (old_g_iv[old_g_idx + OLD_G_NODE_FROM_COUNT_OFFSET]
+                            + old_g_iv[old_g_idx + OLD_G_NODE_TO_COUNT_OFFSET]);
+        
+        new_g_idx += G_NODE_HEADER_LENGTH + num_edges;
+        old_g_idx += G_NODE_HEADER_LENGTH + num_edges * OLD_G_EDGE_LENGTH;
+    }
+        
+    // set up the new rank/selects
+    sdsl::util::assign(g_bv_rank, sdsl::rank_support_v<1>(&g_bv));
+    sdsl::util::assign(g_bv_select, sdsl::bit_vector::select_1_type(&g_bv));
+    
+    // now add the edges in using the rank/select operations to translate between offset
+    for (size_t old_g_idx = 0, new_g_idx = 0; new_g_idx < g_iv.size(); ) {
+        
+        size_t num_from = old_g_iv[old_g_idx + OLD_G_NODE_FROM_COUNT_OFFSET];
+        size_t num_to = old_g_iv[old_g_idx + OLD_G_NODE_TO_COUNT_OFFSET];
+        size_t num_edges = num_to + num_from;
+        
+#ifdef VERBOSE_DEBUG
+        cerr << "updating edges for old index " << old_g_idx << " to new index " << new_g_idx << " with " << num_from << " 'from' edges and " << num_to << " 'to' edges" << endl;
+#endif
+        
+        // recount the edges as either left/right instead of to/from
+        size_t num_left = 0, num_right = 0;
+        size_t begin = old_g_idx + G_NODE_HEADER_LENGTH;
+        size_t end = begin + num_to * OLD_G_EDGE_LENGTH;
+        for (size_t i = begin; i < end; i += OLD_G_EDGE_LENGTH) {
+            bool from_rev, to_rev;
+            orientation_from_old_edge_type(old_g_iv[i + OLD_G_EDGE_TYPE_OFFSET], from_rev, to_rev);
+            if (to_rev) {
+                ++num_right;
+            }
+            else {
+                ++num_left;
+            }
+        }
+        begin = end;
+        end = begin + num_from * OLD_G_EDGE_LENGTH;
+        for (size_t i = begin; i < end; i += OLD_G_EDGE_LENGTH) {
+            bool from_rev, to_rev;
+            orientation_from_old_edge_type(old_g_iv[i + OLD_G_EDGE_TYPE_OFFSET], from_rev, to_rev);
+            if (from_rev) {
+                ++num_left;
+            }
+            else {
+                ++num_right;
+            }
+        }
+        
+#ifdef VERBOSE_DEBUG
+        cerr << "translates to " << num_left << " left edges and " << num_right << " right edges" << endl;
+#endif
+        
+        // record the left/right counts
+        g_iv[new_g_idx + G_NODE_LEFT_COUNT_OFFSET] = num_left;
+        g_iv[new_g_idx + G_NODE_RIGHT_COUNT_OFFSET] = num_right;
+        
+        // convert the to/from edges into left/right edges
+        size_t next_left_idx = new_g_idx + G_NODE_HEADER_LENGTH;
+        size_t next_right_idx = next_left_idx + num_left;
+        
+        // first the to edges
+        begin = old_g_idx + G_NODE_HEADER_LENGTH;
+        end = begin + num_to * OLD_G_EDGE_LENGTH;
+        for (size_t i = begin; i < end; i += OLD_G_EDGE_LENGTH) {
+            bool from_rev, to_rev;
+            orientation_from_old_edge_type(old_g_iv[i + OLD_G_EDGE_TYPE_OFFSET], from_rev, to_rev);
+            
+            // apply the relative offset in the old vector
+            size_t old_g_nbr_idx = old_g_idx + old_g_iv[i + OLD_G_EDGE_OFFSET_OFFSET];
+            // translate that offset into the new vector using rank/select
+            size_t new_g_nbr_idx = g_bv_select(old_g_bv_rank(old_g_nbr_idx) + 1);
+            
+#ifdef VERBOSE_DEBUG
+            cerr << "\told 'to' edge with type " << old_g_iv[i + OLD_G_EDGE_TYPE_OFFSET] << " and neighbor at " << old_g_nbr_idx << " now has neighbor " << new_g_nbr_idx << " with to_rev=" << to_rev << " and from_rev=" << from_rev << endl;
+#endif
+            
+            if (!to_rev) {
+                g_iv[next_left_idx] = encode_edge(new_g_idx, new_g_nbr_idx, from_rev);
+                ++next_left_idx;
+            }
+            else {
+                g_iv[next_right_idx] = encode_edge(new_g_idx, new_g_nbr_idx, !from_rev);
+                ++next_right_idx;
+            }
+        }
+        // now the from edges (TODO: repetitive)
+        begin = end;
+        end = begin + num_from * OLD_G_EDGE_LENGTH;
+        for (size_t i = begin; i < end; i += OLD_G_EDGE_LENGTH) {
+            bool from_rev, to_rev;
+            orientation_from_old_edge_type(old_g_iv[i + OLD_G_EDGE_TYPE_OFFSET], from_rev, to_rev);
+            
+            // apply the relative offset in the old vector
+            size_t old_g_nbr_idx = old_g_idx + old_g_iv[i + OLD_G_EDGE_OFFSET_OFFSET];
+            // translate that offset into the new vector using rank/select
+            size_t new_g_nbr_idx = g_bv_select(old_g_bv_rank(old_g_nbr_idx) + 1);
+            
+#ifdef VERBOSE_DEBUG
+            cerr << "\told 'from' edge with type " << old_g_iv[i + OLD_G_EDGE_TYPE_OFFSET] << " and neighbor at " << old_g_nbr_idx << " now has neighbor " << new_g_nbr_idx << " with to_rev=" << to_rev << " and from_rev=" << from_rev << endl;
+#endif
+            
+            if (from_rev) {
+                g_iv[next_left_idx] = encode_edge(new_g_idx, new_g_nbr_idx, !to_rev);
+                ++next_left_idx;
+            }
+            else {
+                g_iv[next_right_idx] = encode_edge(new_g_idx, new_g_nbr_idx, to_rev);
+                ++next_right_idx;
+            }
+        }
+        
+        new_g_idx += G_NODE_HEADER_LENGTH + num_edges;
+        old_g_idx += G_NODE_HEADER_LENGTH + num_edges * OLD_G_EDGE_LENGTH;
+    }
+        
+    sdsl::util::bit_compress(g_iv);
 }
 
 size_t XG::edge_index(const edge_t& edge) const {
@@ -1567,17 +1796,12 @@ size_t XG::edge_index(const edge_t& edge) const {
     // Note that resulting indexes will not be anywhere near dense.
     
     edge_t canonical = edge_handle(edge.first, edge.second);
-    if (canonical != edge) {
-        // They gave us the edge backward!
-        // Look at it forward instead.
-        return edge_index(canonical);
-    }
     
     // Get the g index corresponding to the first node's record. We know it
     // owns at least as much g vector space as it has edges.
     // Turns out the g index is just what we packed in the handle's number; no
     // need to do a select here.
-    size_t g_start = handlegraph::number_bool_packing::unpack_number(edge.first);
+    size_t g_start = handlegraph::number_bool_packing::unpack_number(canonical.first);
     
     // Get the 0-based rank so that we know how many node records come before this one.
     size_t prev_nodes = g_bv_rank(g_start);
@@ -1588,28 +1812,28 @@ size_t XG::edge_index(const edge_t& edge) const {
     // edge has two records, and we can't tell how many of those were the
     // canonical records for their edges, but we can at least restrict our
     // non-density in edge index space to a factor of 2 expansion.
-    size_t node_start_idx = (g_start - (G_NODE_HEADER_LENGTH * prev_nodes)) / G_EDGE_LENGTH;
+    size_t node_start_idx = g_start - (G_NODE_HEADER_LENGTH * prev_nodes);
    
     // Start as the first edge for this node
     size_t idx = node_start_idx;
    
-    if (get_is_reverse(edge.first)) {
+    if (get_is_reverse(canonical.first)) {
         // If we have the first node in locally reverse orientation, add its degree
         // on the locally forward right (or as-presented left) to the index.
         // This avoids collisions between edges attached to different ends of
         // the node.
-        idx += get_degree(edge.first, true); 
+        idx += get_degree(canonical.first, true);
     }
     
     // Then scan all the edges attached to this end of the node until we find
     // the one we are looking for, and add that count to the index.
     bool not_seen = true;
     
-    follow_edges(edge.first, false, [&](const handle_t& next) {
+    follow_edges(canonical.first, false, [&](const handle_t& next) {
             // For each edge on the correct side of the node
             
             // Set flag false if we found it
-            not_seen = (next != edge.second);
+            not_seen = (next != canonical.second);
             
             if (not_seen) {
                 // If we didn't find it, increment the index
@@ -1761,104 +1985,34 @@ string XG::get_subsequence(const handle_t& handle, size_t index, size_t size) co
     return subsequence;
 }
 
-int XG::edge_type(const handle_t& from, const handle_t& to) const {
-    if (get_is_reverse(from) && get_is_reverse(to)) {
-        return EDGE_TYPE_START_END;
-    } else if (get_is_reverse(from)) {
-        return EDGE_TYPE_START_START;
-    } else if (get_is_reverse(to)) {
-        return EDGE_TYPE_END_END;
-    } else {
-        return EDGE_TYPE_END_START;
-    }
-}
-
-bool XG::edge_filter(int type, bool is_to, bool want_left, bool is_reverse) const {
-    // Return true if we want an edge of the given type, where we are the from
-    // or to node (according to is_to), when we are looking off the right or
-    // left side of the node (according to want_left), and when the node is
-    // forward or reverse (accoridng to is_reverse).
-    
-    // First compute what we want looking off the right of a node in the forward direction.
-    bool wanted = (!is_to && (type == EDGE_TYPE_END_START || type == EDGE_TYPE_END_END)) || 
-        (is_to && (type == EDGE_TYPE_END_END || type == EDGE_TYPE_START_END));
-    
-    // We computed whether we wanted it assuming we were looking off the right. The complement is what we want looking off the left.
-    wanted = wanted != want_left;
-    
-    // We computed whether we wanted ot assuming we were in the forward orientation. The complement is what we want in the reverse orientation.
-    wanted = wanted != is_reverse;
-    
-    return wanted;
-}
-
-bool XG::do_edges(const size_t& g, const size_t& start, const size_t& count, bool is_to,
-bool want_left, bool is_reverse, const function<bool(const handle_t&)>& iteratee) const {
-    
-    // OK go over all those edges
-    for (size_t i = 0; i < count; i++) {
-        // What edge type is the edge?
-        int type = g_iv[start + i * G_EDGE_LENGTH + G_EDGE_TYPE_OFFSET];
-        
-        // Make sure we got a valid edge type and we haven't wandered off into non-edge data.
-        assert(type >= EDGE_TYPE_MIN);
-        assert(type <= EDGE_TYPE_MAX);
-        
-        if (edge_filter(type, is_to, want_left, is_reverse)) {
-            
-            // What's the offset to the other node?
-            int64_t offset = g_iv[start + i * G_EDGE_LENGTH + G_EDGE_OFFSET_OFFSET];
-            
-            // Make sure we haven't gone off the rails into non-edge data.
-            assert((int64_t) g + offset >= 0);
-            assert(g + offset < g_iv.size());
-            
-            // Should we invert?
-            // We only invert if we cross an end to end edge. Or a start to start edge
-            bool new_reverse = is_reverse != (type == EDGE_TYPE_END_END || type == EDGE_TYPE_START_START);
-            
-            // Compose the handle for where we are going
-            handle_t next_handle = handlegraph::number_bool_packing::pack(g + offset, new_reverse);
-            
-            // We want this edge
-            
-            if (!iteratee(next_handle)) {
-                // Stop iterating
-                return false;
-            }
-        }
-        else {
-            // TODO: delete this after using it to debug
-            int64_t offset = g_iv[start + i * G_EDGE_LENGTH + G_EDGE_OFFSET_OFFSET];
-            bool new_reverse = is_reverse != (type == EDGE_TYPE_END_END || type == EDGE_TYPE_START_START);
-            handle_t next_handle = handlegraph::number_bool_packing::pack(g + offset, new_reverse);
-        }
-    }
-    // Iteratee didn't stop us.
-    return true;
-}
-
 bool XG::follow_edges_impl(const handle_t& handle, bool go_left, const function<bool(const handle_t&)>& iteratee) const {
-
-    // Unpack the handle
+    
+    // unpack the handle
     size_t g = handlegraph::number_bool_packing::unpack_number(handle);
     bool is_reverse = handlegraph::number_bool_packing::unpack_bit(handle);
-
-    // How many edges are there of each type?
-    size_t edges_to_count = g_iv[g + G_NODE_TO_COUNT_OFFSET];
-    size_t edges_from_count = g_iv[g + G_NODE_FROM_COUNT_OFFSET];
     
-    // Where does each edge run start?
-    size_t to_start = g + G_NODE_HEADER_LENGTH;
-    size_t from_start = g + G_NODE_HEADER_LENGTH + G_EDGE_LENGTH * edges_to_count;
-    
-    // We will look for all the edges on the appropriate side, which means we have to check the from and to edges
-    if (do_edges(g, to_start, edges_to_count, true, go_left, is_reverse, iteratee)) {
-        // All the edges where we're to were accepted, so do the edges where we're from
-        return do_edges(g, from_start, edges_from_count, false, go_left, is_reverse, iteratee);
-    } else {
-        return false;
+    // get the index range corresponding to the side's edges
+    size_t begin, end;
+    if (go_left != is_reverse) {
+        // left side
+        begin = g + G_NODE_HEADER_LENGTH;
+        end = begin + g_iv[g + G_NODE_LEFT_COUNT_OFFSET];
     }
+    else {
+        // right side
+        begin = g + G_NODE_HEADER_LENGTH + g_iv[g + G_NODE_LEFT_COUNT_OFFSET];
+        end = begin + g_iv[g + G_NODE_RIGHT_COUNT_OFFSET];
+    }
+    
+    // construct the neighboring handles and execute the iteratee on them
+    bool keep_going = true;
+    for (size_t i = begin; i < end && keep_going; ++i) {
+        uint64_t raw_edge = g_iv[i];
+        handle_t next = number_bool_packing::pack(g + edge_relative_offset(raw_edge),
+                                                  edge_orientation(raw_edge) != is_reverse);
+        keep_going = iteratee(next);
+    }
+    return keep_going;
 }
 
 bool XG::for_each_handle_impl(const function<bool(const handle_t&)>& iteratee, bool parallel) const {
@@ -1884,13 +2038,9 @@ bool XG::for_each_handle_impl(const function<bool(const handle_t&)>& iteratee, b
                         }
                     }
                     
-                    // How many edges are there of each type on this record?
-                    size_t edges_to_count = g_iv[g + G_NODE_TO_COUNT_OFFSET];
-                    size_t edges_from_count = g_iv[g + G_NODE_FROM_COUNT_OFFSET];
-                    
                     // This record is the header plus all the edge records it contains.
                     // Decode the entry size in the same thread doing the iteration.
-                    g += G_NODE_HEADER_LENGTH + G_EDGE_LENGTH * (edges_to_count + edges_from_count);
+                    g += G_NODE_HEADER_LENGTH + g_iv[g + G_NODE_LEFT_COUNT_OFFSET] + g_iv[g + G_NODE_RIGHT_COUNT_OFFSET];
                 }
             }
             
@@ -1907,13 +2057,9 @@ bool XG::for_each_handle_impl(const function<bool(const handle_t&)>& iteratee, b
                 stop_early = true;
             }
             
-            // How many edges are there of each type on this record?
-            size_t edges_to_count = g_iv[g + G_NODE_TO_COUNT_OFFSET];
-            size_t edges_from_count = g_iv[g + G_NODE_FROM_COUNT_OFFSET];
-            
             // This record is the header plus all the edge records it contains.
             // Decode the entry size in the same thread doing the iteration.
-            g += G_NODE_HEADER_LENGTH + G_EDGE_LENGTH * (edges_to_count + edges_from_count);
+            g += G_NODE_HEADER_LENGTH + g_iv[g + G_NODE_LEFT_COUNT_OFFSET] + g_iv[g + G_NODE_RIGHT_COUNT_OFFSET];
         }
     }
     
