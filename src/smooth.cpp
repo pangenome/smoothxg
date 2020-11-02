@@ -520,16 +520,15 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
 void _put_block_in_group(
         maf_t &merged_maf_blocks, uint64_t block_id, uint64_t num_seq_in_block,
         bool add_consensus,
-        std::vector<std::vector<maf_row_t>> &mafs
+        std::vector<std::vector<maf_row_t>> &mafs,
+        bool new_block_on_the_left
 ){
     uint64_t alignment_size_merged_maf_blocks =
             merged_maf_blocks.field_blocks.empty() ? 0 : merged_maf_blocks.rows.begin()->second.begin() ->aligned_seq.length();
 
-    bool new_block_on_the_left;
-
     uint64_t num_seq_not_cons = num_seq_in_block - (add_consensus ? 1 : 0);
     for (uint64_t i = 0; i < num_seq_not_cons; i++){
-        auto maf_row = mafs[block_id][i];
+        auto &maf_row = mafs[block_id][i];
         bool merged_row = false;
 
         if (merged_maf_blocks.rows.count(maf_row.path_name) == 0) {
@@ -539,11 +538,12 @@ void _put_block_in_group(
             ));
         } else {
             for (auto &merged_maf_prow : merged_maf_blocks.rows[maf_row.path_name]) {
-                if (merged_maf_prow.aligned_seq.length() == alignment_size_merged_maf_blocks && maf_row.is_reversed == merged_maf_prow.is_reversed){
+                // Check the length to avoid merging more rows from the same last block
+                if (merged_maf_prow.aligned_seq.length() == alignment_size_merged_maf_blocks &&
+                    maf_row.is_reversed == merged_maf_prow.is_reversed){
                     if (merged_maf_prow.is_reversed){
                         if ((merged_maf_prow.path_length - merged_maf_prow.record_start) == (maf_row.path_length - (maf_row.record_start + maf_row.seq_size))) {
                             // merged_maf_row_end == maf_row_begin, new row on the left
-                            new_block_on_the_left = false;
 
                             merged_maf_prow.record_start -= maf_row.seq_size;
                             merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq;
@@ -553,7 +553,6 @@ void _put_block_in_group(
                             break;
                         } else if ((maf_row.path_length - maf_row.record_start) == (merged_maf_prow.path_length - (merged_maf_prow.record_start + merged_maf_prow.seq_size))) {
                             // maf_row_end == merged_maf_row_begin, new row on the right
-                            new_block_on_the_left = true;
 
                             merged_maf_prow.aligned_seq += maf_row.aligned_seq;
                             merged_maf_prow.seq_size += maf_row.seq_size;
@@ -564,7 +563,6 @@ void _put_block_in_group(
                     } else {
                         if ((merged_maf_prow.record_start + merged_maf_prow.seq_size) == maf_row.record_start) {
                             // merged_maf_row_end == maf_row_begin, new row on the right
-                            new_block_on_the_left = false;
 
                             merged_maf_prow.aligned_seq += maf_row.aligned_seq;
                             merged_maf_prow.seq_size += maf_row.seq_size;
@@ -573,7 +571,6 @@ void _put_block_in_group(
                             break;
                         } else if ((maf_row.record_start + maf_row.seq_size) == merged_maf_prow.record_start) {
                             // maf_row_end == merged_maf_row_begin, new row on the left
-                            new_block_on_the_left = true;
 
                             merged_maf_prow.record_start -= maf_row.seq_size;
                             merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq ;
@@ -589,7 +586,7 @@ void _put_block_in_group(
 
         if (!merged_row){
             // If in the merged group there are sequences from previous blocks, put gaps for the new added paths form new blocks
-            std::string gaps;
+            std::string gaps = "";
             for (uint64_t j = 0; j < alignment_size_merged_maf_blocks; j++){ gaps += "-"; }
 
             merged_maf_blocks.rows[maf_row.path_name].push_back(
@@ -638,9 +635,10 @@ void _put_block_in_group(
 
     // I take the length from a one of the path present in the last merged block
     uint64_t num_gaps_to_add = mafs[block_id][0].aligned_seq.size();
-    std::string gaps;
-    for (uint64_t  i = 0; i < num_gaps_to_add; i++){ gaps += "-"; }
     alignment_size_merged_maf_blocks += num_gaps_to_add;
+
+    std::string gaps = "";
+    for (uint64_t  i = 0; i < num_gaps_to_add; i++){ gaps += "-"; }
 
     for (auto &rows : merged_maf_blocks.rows){
         for (auto& merged_maf_prow : rows.second){
@@ -669,7 +667,6 @@ void _put_block_in_group(
     } else {
         merged_maf_blocks.field_blocks.push_back(block_id);
     }
-
 }
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
@@ -720,6 +717,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
             while (block_id < num_blocks) {
                 if (mafs_ready[block_id].load()){
+                    //std::cerr << "blockId " << block_id << std::endl;
+
                     uint64_t num_seq_in_block = mafs[block_id].size();
 
                     bool is_last_block = (block_id == num_blocks - 1);
@@ -727,6 +726,11 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                     bool prep_new_merge_group = false;
                     bool merged = false;
                     bool fraction_below_threshold = false;
+
+                    // -1) undefined; 0) the new block go on the right; the new block go on the left
+                    int8_t new_block_on_the_left = merged_maf_blocks.field_blocks.size() > 1 ? (
+                            (merged_maf_blocks.field_blocks.front() > merged_maf_blocks.field_blocks.back() ? 1 : 0)
+                    ) : -1;
 
                     if (merge_blocks){
                         if (merged_maf_blocks.field_blocks.empty()){
@@ -736,7 +740,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                             uint64_t num_contiguous_seq = 0;
 
-                            int8_t new_block_on_the_left = -1; // 0) the new block go on the right; the new block go on the left
                             for (uint64_t i = 0; i < num_seq_in_block; i++) {
                                 // Do not check the consensus (always forward)
                                 if (!add_consensus || i < num_seq_in_block - 1) {
@@ -844,7 +847,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                     if (merged){
                         // ..then merge
 
-                        _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, add_consensus, mafs);
+                        _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, add_consensus, mafs, new_block_on_the_left == 1);
 
                         _clear_maf_block(block_id, mafs);
                     }
@@ -1013,7 +1016,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                         // This is a mergeable (and not the last) block: it is the first one, or the last merge failed
                         // (and the current un-merged block becomes the first one of the next group)
 
-                        _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, add_consensus, mafs);
+                        _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, add_consensus, mafs, false);
 
                         _clear_maf_block(block_id, mafs);
                     }
