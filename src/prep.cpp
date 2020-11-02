@@ -10,14 +10,12 @@ void prep(
     const std::string& gfa_out,
     const uint64_t& max_node_length,
     const float& p_sgd_min_term_updates,
-    const bool& toposort) {
+    const bool& toposort,
+    const uint64_t& num_threads) {
 
     // load it into an odgi
     odgi::graph_t graph;
     odgi::gfa_to_handle(gfa_in, &graph);
-
-    // how many threads should we use
-    uint64_t num_threads = odgi::get_thread_count();
 
     // sort it using a short sorting pipeline equivalent to `odgi sort -p Ygs`
 

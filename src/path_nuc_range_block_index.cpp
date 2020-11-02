@@ -12,7 +12,7 @@ ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> generate_path_nuc_r
         // find out each path's step_handle ranges of a block
         // record this in the happy tress map
         for (auto path_range : block.path_ranges) {
-            // go from step_handle_t to path name
+            // go from step_handle_t to path nameb
             std::string path_name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
             // find out if there already is an entry for *path_name* in the map
             // if so, fetch the entry tree, else create a new one

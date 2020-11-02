@@ -8,10 +8,8 @@ namespace smoothxg {
 void cleanup(
     odgi::graph_t& graph,
     const float& p_sgd_min_term_updates,
-    const bool& toposort) {
-
-    // how many threads should we use
-    uint64_t num_threads = odgi::get_thread_count();
+    const bool& toposort,
+    const uint64_t& num_threads) {
 
     // sort it using a short sorting pipeline equivalent to `odgi sort -p Ygs`
 

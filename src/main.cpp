@@ -102,13 +102,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    size_t n_threads = args::get(num_threads);
-    if (n_threads) {
-        omp_set_num_threads(args::get(num_threads));
-    } else {
-        n_threads = 1;
-        omp_set_num_threads(1);
-    }
+    size_t n_threads = num_threads ? args::get(num_threads) : 1;
+    omp_set_num_threads(n_threads);
 
     double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 
@@ -191,7 +186,7 @@ int main(int argc, char** argv) {
                 gfa_in_name = args::get(base) + '/' + args::get(gfa_in) + ".prep.gfa";
             }
             std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
-            smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort));
+            smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort), n_threads);
         } else {
             gfa_in_name = args::get(gfa_in);
         }
@@ -285,6 +280,7 @@ int main(int argc, char** argv) {
                                               poa_q,
                                               poa_c,
                                               local_alignment,
+                                              n_threads,
                                               args::get(write_msa_in_maf_format), maf_header,
                                               args::get(merge_blocks), contiguous_path_jaccard,
                                               !args::get(use_spoa),

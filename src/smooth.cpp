@@ -608,6 +608,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
                               bool local_alignment,
+                              int n_threads,
                               std::string &path_output_maf, std::string &maf_header,
                               bool merge_blocks, double contiguous_path_jaccard,
                               bool use_abpoa,
@@ -888,7 +889,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     std::vector<path_position_range_t> path_mapping;
     std::vector<path_position_range_t> consensus_mapping;
     std::mutex path_mapping_mutex, consensus_mapping_mutex, logging_mutex;
-    uint64_t thread_count = odgi::get_thread_count();
+    uint64_t thread_count = n_threads;
 
     std::stringstream poa_banner;
     poa_banner << "[smoothxg::smooth_and_lace] applying "
@@ -897,112 +898,113 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                << " to " << blocks.size() << " blocks:";
     progress_meter::ProgressMeter poa_progress(blocks.size(), poa_banner.str());
 
-    paryfor::parallel_for<uint64_t>(
-        0, blocks.size(), thread_count, [&](uint64_t block_id, int tid) {
-            auto &block = blocks[block_id];
+#pragma omp parallel for schedule(static,1)
+    for (uint64_t i = 0; i < blocks.size(); ++i) {
+        uint64_t block_id = i;
+        auto &block = blocks[block_id];
 
-            std::string consensus_name;
-            if (add_consensus){
-                consensus_name = consensus_base_name + std::to_string(block_id);
-            }
+        std::string consensus_name;
+        if (add_consensus){
+            consensus_name = consensus_base_name + std::to_string(block_id);
+        }
 
-            // std::cerr << "on block " << block_id+1 << " of " << blocks.size() << std::endl;
-            auto &block_graph = block_graphs[block_id];
+        // std::cerr << "on block " << block_id+1 << " of " << blocks.size() << std::endl;
+        auto &block_graph = block_graphs[block_id];
 
-            if (use_abpoa) {
-                block_graph = smooth_abpoa(graph,
-                                           block,
-                                           block_id,
-                                           poa_m,
-                                           poa_n,
-                                           poa_g,
-                                           poa_e,
-                                           poa_q,
-                                           poa_c,
-                                           local_alignment,
-                                           (produce_maf || (add_consensus && merge_blocks)) ? &mafs[block_id] : nullptr,
-                                           produce_maf,
-                                           true, // banded alignment
-                                           consensus_name,
-                                           write_fasta_blocks);
-            } else {
-                block_graph = smooth_spoa(graph,
-                                          block,
-                                          block_id,
-                                          poa_m,
-                                          -poa_n,
-                                          -poa_g,
-                                          -poa_e,
-                                          -poa_q,
-                                          -poa_c,
-                                          local_alignment,
-                                          (produce_maf || (add_consensus && merge_blocks)) ? &mafs[block_id] : nullptr,
-                                          produce_maf,
-                                          consensus_name,
-                                          write_fasta_blocks);
-            }
+        if (use_abpoa) {
+            block_graph = smooth_abpoa(graph,
+                                       block,
+                                       block_id,
+                                       poa_m,
+                                       poa_n,
+                                       poa_g,
+                                       poa_e,
+                                       poa_q,
+                                       poa_c,
+                                       local_alignment,
+                                       (produce_maf || (add_consensus && merge_blocks)) ? &mafs[block_id] : nullptr,
+                                       produce_maf,
+                                       true, // banded alignment
+                                       consensus_name,
+                                       write_fasta_blocks);
+        } else {
+            block_graph = smooth_spoa(graph,
+                                      block,
+                                      block_id,
+                                      poa_m,
+                                      -poa_n,
+                                      -poa_g,
+                                      -poa_e,
+                                      -poa_q,
+                                      -poa_c,
+                                      local_alignment,
+                                      (produce_maf || (add_consensus && merge_blocks)) ? &mafs[block_id] : nullptr,
+                                      produce_maf,
+                                      consensus_name,
+                                      write_fasta_blocks);
+        }
 
-            if (produce_maf || (add_consensus && merge_blocks)){
-                mafs_ready[block_id].store(true);
-            }
+        if (produce_maf || (add_consensus && merge_blocks)){
+            mafs_ready[block_id].store(true);
+        }
 
-            // std::cerr << std::endl;
-            // std::cerr << "After block graph. Exiting for now....." <<
-            // std::endl; exit(0);
-            if (block_graph.get_node_count() > 0) {
-                // auto& block_graph = block_graphs.back();
-                // record the start and end paths
-                // nb: the path order is the same in the input block and output
-                // graph
-                uint64_t path_id = 0;
-                for (auto &path_range : block.path_ranges) {
-                    auto path_handle =
-                        graph.get_path_handle_of_step(path_range.begin);
-                    auto last_step = graph.get_previous_step(path_range.end);
-                    {
-                        std::lock_guard<std::mutex> guard(path_mapping_mutex);
-                        path_mapping.push_back(
-                            {path_handle, // target path
-                             graph.get_position_of_step(
-                                 path_range.begin), // start position
-                             (graph.get_position_of_step(
-                                  last_step) // end position
-                              + graph.get_length(
-                                    graph.get_handle_of_step(last_step))),
-                             path_range.begin, path_range.end,
-                             as_path_handle(++path_id), block_id});
-                    }
+        // std::cerr << std::endl;
+        // std::cerr << "After block graph. Exiting for now....." <<
+        // std::endl; exit(0);
+        if (block_graph.get_node_count() > 0) {
+            // auto& block_graph = block_graphs.back();
+            // record the start and end paths
+            // nb: the path order is the same in the input block and output
+            // graph
+            uint64_t path_id = 0;
+            for (auto &path_range : block.path_ranges) {
+                auto path_handle =
+                    graph.get_path_handle_of_step(path_range.begin);
+                auto last_step = graph.get_previous_step(path_range.end);
+                {
+                    std::lock_guard<std::mutex> guard(path_mapping_mutex);
+                    path_mapping.push_back(
+                        {path_handle, // target path
+                         graph.get_position_of_step(
+                             path_range.begin), // start position
+                         (graph.get_position_of_step(
+                             last_step) // end position
+                          + graph.get_length(
+                              graph.get_handle_of_step(last_step))),
+                         path_range.begin, path_range.end,
+                         as_path_handle(++path_id), block_id});
                 }
-                // make the graph
+            }
+            // make the graph
 
-                // record the consensus path
-                if (add_consensus) {
-                    auto consensus_handle = block_graph.get_path_handle(consensus_name);
+            // record the consensus path
+            if (add_consensus) {
+                auto consensus_handle = block_graph.get_path_handle(consensus_name);
 
-                    uint64_t path_end = 0;
-                    step_handle_t empty_step;
-                    as_integers(empty_step)[0] = 0;
-                    as_integers(empty_step)[1] = 0;
-                    block_graph.for_each_step_in_path(consensus_handle, [&](const step_handle_t &step) {
-                        path_end += block_graph.get_length(block_graph.get_handle_of_step(step));
-                    });
+                uint64_t path_end = 0;
+                step_handle_t empty_step;
+                as_integers(empty_step)[0] = 0;
+                as_integers(empty_step)[1] = 0;
+                block_graph.for_each_step_in_path(consensus_handle, [&](const step_handle_t &step) {
+                                                                        path_end += block_graph.get_length(block_graph.get_handle_of_step(step));
+                                                                    });
 
-                    {
-                        std::lock_guard<std::mutex> guard(consensus_mapping_mutex);
-                        consensus_mapping.push_back(
-                                {
-                                    as_path_handle(0),  // consensus = 0 path handle
-                                    0,                        // start position
-                                    path_end,                          // end position
-                                    empty_step, empty_step, consensus_handle,
-                                    block_id
-                                }
+                {
+                    std::lock_guard<std::mutex> guard(consensus_mapping_mutex);
+                    consensus_mapping.push_back(
+                        {
+                            as_path_handle(0),  // consensus = 0 path handle
+                            0,                        // start position
+                            path_end,                          // end position
+                            empty_step, empty_step, consensus_handle,
+                            block_id
+                        }
                         );
-                    }
                 }
             }
-            poa_progress.increment(1);
-        });
+        }
+        poa_progress.increment(1);
+    }
 
     poa_progress.finish();
 
@@ -1154,34 +1156,34 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     validate_banner << "[smoothxg::smooth_and_lace] validating "
                     << paths.size() << " path sequences:";
     progress_meter::ProgressMeter validate_progress(paths.size(), validate_banner.str());
-    paryfor::parallel_for<uint64_t>(
-        0, paths.size(), thread_count,
-        [&](uint64_t path_id, int tid) {
-            auto path = paths[path_id];
-            std::string orig_seq, smoothed_seq;
-            graph.for_each_step_in_path(
-                graph.get_path_handle(smoothed.get_path_name(path)),
-                [&](const step_handle_t &step) {
-                    orig_seq.append(
-                        graph.get_sequence(graph.get_handle_of_step(step)));
-                });
-            smoothed.for_each_step_in_path(
-                path,
-                [&](const step_handle_t &step) {
-                    smoothed_seq.append(
-                        smoothed.get_sequence(smoothed.get_handle_of_step(step)));
-                });
-            if (orig_seq != smoothed_seq) {
-                std::cerr << "[smoothxg] error! path "
-                          << smoothed.get_path_name(path)
-                          << " was corrupted in the smoothed graph" << std::endl
-                          << "original\t" << orig_seq << std::endl
-                          << "smoothed\t" << smoothed_seq << std::endl;
-                exit(1);
-            }
-            assert(orig_seq == smoothed_seq);
-            validate_progress.increment(1);
-        });
+#pragma omp parallel for schedule(static,1)
+    for (uint64_t i = 0; i < paths.size(); ++i) {
+        uint64_t path_id = i;
+        auto path = paths[path_id];
+        std::string orig_seq, smoothed_seq;
+        graph.for_each_step_in_path(
+            graph.get_path_handle(smoothed.get_path_name(path)),
+            [&](const step_handle_t &step) {
+                orig_seq.append(
+                    graph.get_sequence(graph.get_handle_of_step(step)));
+            });
+        smoothed.for_each_step_in_path(
+            path,
+            [&](const step_handle_t &step) {
+                smoothed_seq.append(
+                    smoothed.get_sequence(smoothed.get_handle_of_step(step)));
+            });
+        if (orig_seq != smoothed_seq) {
+            std::cerr << "[smoothxg] error! path "
+                      << smoothed.get_path_name(path)
+                      << " was corrupted in the smoothed graph" << std::endl
+                      << "original\t" << orig_seq << std::endl
+                      << "smoothed\t" << smoothed_seq << std::endl;
+            exit(1);
+        }
+        assert(orig_seq == smoothed_seq);
+        validate_progress.increment(1);
+    }
     validate_progress.finish();
 
     if (!consensus_mapping.empty()) {
