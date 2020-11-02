@@ -36,6 +36,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
     args::ValueFlag<std::string> _consensus_jump_max(parser, "jump_max[,jump_max]*", "preserve all divergences from the consensus paths greater than this length, with multiples allowed [default: 100]", {'C', "consensus-jump-max"});
     args::Flag merge_blocks(parser, "bool", "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "merge-blocks"});
+    args::Flag write_block_fastas(parser, "bool", "write the FASTA sequences for blocks as they are processed",{'B', "write-block-fastas"});
     args::ValueFlag<double> _contiguous_path_jaccard(parser, "float","minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",{'J', "contiguous-path-jaccard"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
@@ -101,13 +102,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    size_t n_threads = args::get(num_threads);
-    if (n_threads) {
-        omp_set_num_threads(args::get(num_threads));
-    } else {
-        n_threads = 1;
-        omp_set_num_threads(1);
-    }
+    size_t n_threads = num_threads ? args::get(num_threads) : 1;
+    omp_set_num_threads(n_threads);
 
     double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 
@@ -190,7 +186,7 @@ int main(int argc, char** argv) {
                 gfa_in_name = args::get(base) + '/' + args::get(gfa_in) + ".prep.gfa";
             }
             std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
-            smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort));
+            smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort), n_threads);
         } else {
             gfa_in_name = args::get(gfa_in);
         }
@@ -284,11 +280,13 @@ int main(int argc, char** argv) {
                                               poa_q,
                                               poa_c,
                                               local_alignment,
+                                              n_threads,
                                               args::get(write_msa_in_maf_format), maf_header,
                                               args::get(merge_blocks), contiguous_path_jaccard,
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "",
-                                              consensus_path_names);
+                                              consensus_path_names,
+                                              args::get(write_block_fastas));
 
     {
         uint64_t smoothed_nodes = 0;
