@@ -35,9 +35,13 @@ int main(int argc, char** argv) {
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
     args::ValueFlag<std::string> _consensus_jump_max(parser, "jump_max[,jump_max]*", "preserve all divergences from the consensus paths greater than this length, with multiples allowed [default: 100]", {'C', "consensus-jump-max"});
+
+    // Merge blocks (for merging MAF blocks and consensus sequences)
     args::Flag merge_blocks(parser, "bool", "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "merge-blocks"});
-    args::Flag write_block_fastas(parser, "bool", "write the FASTA sequences for blocks as they are processed",{'B', "write-block-fastas"});
+    args::Flag _do_not_delete_original_consensus(parser, "bool", "do not delete original consensus sequences in the merged MAF blocks and in the smoothed graph",{'N', "no-original-consensus-deletion"});
     args::ValueFlag<double> _contiguous_path_jaccard(parser, "float","minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",{'J', "contiguous-path-jaccard"});
+
+    args::Flag write_block_fastas(parser, "bool", "write the FASTA sequences for blocks as they are processed",{'B', "write-block-fastas"});
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "block-weight-max"});
@@ -282,7 +286,7 @@ int main(int argc, char** argv) {
                                               local_alignment,
                                               n_threads,
                                               args::get(write_msa_in_maf_format), maf_header,
-                                              args::get(merge_blocks), contiguous_path_jaccard,
+                                              args::get(merge_blocks), args::get(_do_not_delete_original_consensus), contiguous_path_jaccard,
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "",
                                               consensus_path_names,
