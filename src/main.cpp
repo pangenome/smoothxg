@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
 
     // Merge blocks (for merging MAF blocks and consensus sequences)
     args::Flag merge_blocks(parser, "bool", "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "merge-blocks"});
-    args::Flag _do_not_delete_original_consensus(parser, "bool", "do not delete original consensus sequences in the merged MAF blocks and in the smoothed graph",{'N', "no-original-consensus-deletion"});
+    args::Flag _preserve_unmerged_consensus(parser, "bool", "do not delete original consensus sequences in the merged MAF blocks and in the smoothed graph",{'N', "preserve-unmerged-consensus"});
     args::ValueFlag<double> _contiguous_path_jaccard(parser, "float","minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",{'J', "contiguous-path-jaccard"});
 
     args::Flag write_block_fastas(parser, "bool", "write the FASTA sequences for blocks as they are processed",{'B', "write-block-fastas"});
@@ -95,9 +95,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (!args::get(merge_blocks) && _contiguous_path_jaccard) {
+    if (!args::get(merge_blocks) && (_contiguous_path_jaccard || _preserve_unmerged_consensus)) {
         std::cerr << "[smoothxg::main] error: Please specify -M/--merge-blocks option to use the "
-                     "-J/--contiguous-path-jaccard option." << std::endl;
+                     "-J/--contiguous-path-jaccard and/or the -N/--preserve-unmerged-consensus option." << std::endl;
         return 1;
     }
 
@@ -286,7 +286,7 @@ int main(int argc, char** argv) {
                                               local_alignment,
                                               n_threads,
                                               args::get(write_msa_in_maf_format), maf_header,
-                                              args::get(merge_blocks), args::get(_do_not_delete_original_consensus), contiguous_path_jaccard,
+                                              args::get(merge_blocks), args::get(_preserve_unmerged_consensus), contiguous_path_jaccard,
                                               !args::get(use_spoa),
                                               args::get(add_consensus) ? "Consensus_" : "",
                                               consensus_path_names,

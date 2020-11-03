@@ -678,7 +678,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                               bool local_alignment,
                               int n_threads,
                               std::string &path_output_maf, std::string &maf_header,
-                              bool merge_blocks, bool keep_original_consensus_sequences, double contiguous_path_jaccard,
+                              bool merge_blocks, bool preserve_unmerged_consensus, double contiguous_path_jaccard,
                               bool use_abpoa,
                               const std::string &consensus_base_name,
                               std::vector<std::string>& consensus_path_names,
@@ -913,7 +913,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                     uint64_t length_alignment = merged_maf_blocks.rows.begin()->second.begin()->aligned_seq.length();
                                     uint64_t start_cons_pos_in_alignment = 0;
                                     for (auto &maf_cons_prow : merged_maf_blocks.consensus_rows){
-                                        if (merged_maf_blocks_size == 1 || keep_original_consensus_sequences){
+                                        if (merged_maf_blocks_size == 1 || preserve_unmerged_consensus){
                                             std::string gapped_cons;
 
                                             uint64_t pos;
@@ -1383,7 +1383,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         bool are_there_merged_intervals = merged_block_id_intervals_tree.size() != 0;
 
         for (auto &pos_range : consensus_mapping) {
-            if (!keep_original_consensus_sequences && are_there_merged_intervals){
+            if (!preserve_unmerged_consensus && are_there_merged_intervals){
                 std::vector<size_t> result;
                 merged_block_id_intervals_tree.overlap(pos_range.target_graph_id, pos_range.target_graph_id + 1, result);
 
