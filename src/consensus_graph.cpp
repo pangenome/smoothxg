@@ -34,7 +34,7 @@ ostream& operator<<(ostream& o, const link_path_t& a) {
 // prep the graph into a given GFA file
 // we'll then build the xg index on top of that in low memory
 
-odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
+odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                                      const std::vector<std::string>& consensus_path_names,
                                      const uint64_t& consensus_jump_max,
                                      const uint64_t& thread_count,
@@ -251,7 +251,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         [&](const step_handle_t begin,
             const step_handle_t end,
             ska::flat_hash_set<uint64_t> seen_nodes, // by copy
-            const odgi::graph_t& graph) {
+            const xg::XG& graph) {
             uint64_t novel_bp = 0;
             for (auto s = begin;
                  s != end; s = graph.get_next_step(s)) {
@@ -269,7 +269,7 @@ odgi::graph_t create_consensus_graph(const odgi::graph_t& smoothed,
         [&](const step_handle_t begin,
             const step_handle_t end,
             ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
-            const odgi::graph_t& graph) {
+            const xg::XG& graph) {
             for (auto s = begin;
                  s != end; s = graph.get_next_step(s)) {
                 handle_t h = graph.get_handle_of_step(s);
