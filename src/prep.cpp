@@ -100,7 +100,7 @@ void prep(
     // final toposort
     if (toposort) {
         graph.apply_ordering(odgi::algorithms::topological_order(
-                                 &graph, true, false, true),
+                                 &graph, true, true, true),
                              true);
     }
 

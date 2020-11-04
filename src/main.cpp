@@ -322,6 +322,7 @@ int main(int argc, char** argv) {
         } else {
             jump_maxes.push_back(100);
         }
+        std::cerr << "[smoothxg::main] building xg index from smoothed graph" << std::endl;
         XG smoothed_xg;
         smoothed_xg.from_gfa(smoothed_out_gfa, args::get(validate),
                              args::get(base).empty() ? smoothed_out_gfa : args::get(base));
