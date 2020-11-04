@@ -29,8 +29,8 @@ int main(int argc, char** argv) {
     args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator");
     args::HelpFlag help(parser, "help", "display this help menu", {'h', "help"});
     args::ValueFlag<std::string> gfa_in(parser, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
-    //args::ValueFlag<std::string> xg_out(parser, "FILE", "write the resulting xg index to this file", {'o', "out"});
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
+    args::ValueFlag<std::string> smoothed_out(parser, "FILE", "write GFA to this file (not /dev/stdout if consensus graph is made)", {'o', "smoothed-out"});
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
@@ -105,6 +105,12 @@ int main(int argc, char** argv) {
         std::cerr << "[smoothxg::main] error: Please specify -K/--keep-temp or -n/--no-prep, not both." << std::endl;
         return 1;
     }
+
+    if (!smoothed_out) {
+        std::cerr << "[smoothxg::main] error: Please specify an output file with -o/--smoothed-out" << std::endl;
+        return 1;
+    }
+    std::string smoothed_out_gfa = args::get(smoothed_out);
 
     size_t n_threads = num_threads ? args::get(num_threads) : 1;
     omp_set_num_threads(n_threads);
@@ -275,24 +281,24 @@ int main(int argc, char** argv) {
     }
 
     std::vector<std::string> consensus_path_names;
-    auto smoothed = smoothxg::smooth_and_lace(graph,
-                                              blocks,
-                                              poa_m,
-                                              poa_n,
-                                              poa_g,
-                                              poa_e,
-                                              poa_q,
-                                              poa_c,
-                                              local_alignment,
-                                              n_threads,
-                                              args::get(write_msa_in_maf_format), maf_header,
-                                              args::get(merge_blocks), args::get(_preserve_unmerged_consensus), contiguous_path_jaccard,
-                                              !args::get(use_spoa),
-                                              args::get(add_consensus) ? "Consensus_" : "",
-                                              consensus_path_names,
-                                              args::get(write_block_fastas));
-
     {
+        auto smoothed = smoothxg::smooth_and_lace(graph,
+                                                  blocks,
+                                                  poa_m,
+                                                  poa_n,
+                                                  poa_g,
+                                                  poa_e,
+                                                  poa_q,
+                                                  poa_c,
+                                                  local_alignment,
+                                                  n_threads,
+                                                  args::get(write_msa_in_maf_format), maf_header,
+                                                  args::get(merge_blocks), args::get(_preserve_unmerged_consensus), contiguous_path_jaccard,
+                                                  !args::get(use_spoa),
+                                                  args::get(add_consensus) ? "Consensus_" : "",
+                                                  consensus_path_names,
+                                                  args::get(write_block_fastas));
+
         uint64_t smoothed_nodes = 0;
         uint64_t smoothed_length = 0;
         smoothed.for_each_handle(
@@ -301,10 +307,12 @@ int main(int argc, char** argv) {
                 smoothed_length += smoothed.get_length(h);
             });
         std::cerr << "[smoothxg::main] smoothed graph length " << smoothed_length << "bp " << "in " << smoothed_nodes << " nodes" << std::endl;
-    }
 
-    std::cerr << "[smoothxg::main] writing smoothed graph" << std::endl;
-    smoothed.to_gfa(std::cout);
+        std::cerr << "[smoothxg::main] writing smoothed graph to " << smoothed_out_gfa << std::endl;
+        ofstream out(smoothed_out_gfa.c_str());
+        smoothed.to_gfa(out);
+        out.close();
+    }
 
     // do we need to build the consensus graph?
     if (write_consensus_graph) {
@@ -318,9 +326,12 @@ int main(int argc, char** argv) {
         } else {
             jump_maxes.push_back(100);
         }
+        XG smoothed_xg;
+        smoothed_xg.from_gfa(smoothed_out_gfa, args::get(validate),
+                             args::get(base).empty() ? smoothed_out_gfa : args::get(base));
         for (auto jump_max : jump_maxes) {
             odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(
-                smoothed, consensus_path_names, jump_max, n_threads,
+                smoothed_xg, consensus_path_names, jump_max, n_threads,
                 args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
             ofstream o(consensus_base + "@" + std::to_string(jump_max) + ".gfa");
             consensus_graph.to_gfa(o);
