@@ -123,7 +123,7 @@ void break_blocks(const xg::XG& graph,
                     break;
                 }
             }
-            if (to_break) {
+            if (block.path_ranges.size() > 1 && to_break) {
                 ++n_cut_blocks;
                 uint64_t cut_length = max_poa_length;
                 bool found_repeat = false;
