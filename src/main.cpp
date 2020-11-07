@@ -48,7 +48,8 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "path-jump-max"});
     args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "subpath-min"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "edge-jump-max"});
-    args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.1]", {'R', "min-segment-ratio"});
+    //args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.1]", {'R', "min-segment-ratio"});
+    args::ValueFlag<double> _block_group_identity(parser, "N", "minimum edit-based identity to group sequences in POA [default: 0.5]", {'I', "block-id-min"});
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "copy-length-min"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "copy-length-max"});
     args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "poa-length-max"});
@@ -124,7 +125,7 @@ int main(int argc, char** argv) {
     uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
     uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
-    double min_segment_ratio = _min_segment_ratio ? args::get(_min_segment_ratio) : 0.1;
+    double block_group_identity =  _block_group_identity ? args::get(_block_group_identity) : 0.5;
 
     if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
         std::cerr
@@ -219,6 +220,7 @@ int main(int argc, char** argv) {
     uint64_t autocorr_stride = 50;
     smoothxg::break_blocks(graph,
                            blocks,
+                           block_group_identity,
                            max_poa_length,
                            min_copy_length,
                            max_copy_length,
@@ -226,7 +228,6 @@ int main(int argc, char** argv) {
                            autocorr_stride,
                            order_paths_from_longest,
                            true,
-                           min_segment_ratio,
                            n_threads,
                            write_consensus_graph);
 

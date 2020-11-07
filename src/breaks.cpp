@@ -9,6 +9,7 @@ using namespace handlegraph;
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
 void break_blocks(const xg::XG& graph,
                   std::vector<block_t>& blocks,
+                  const double& block_group_identity,
                   const uint64_t& max_poa_length,
                   const uint64_t& min_copy_length,
                   const uint64_t& max_copy_length,
@@ -16,7 +17,6 @@ void break_blocks(const xg::XG& graph,
                   const uint64_t& autocorr_stride,
                   const bool& order_paths_from_longest,
                   const bool& break_repeats,
-                  const double& min_segment_ratio,
                   const uint64_t& thread_count,
                   const bool& consensus_graph) {
 
@@ -35,43 +35,67 @@ void break_blocks(const xg::XG& graph,
         [&](uint64_t block_id, int tid) {
             //for (auto& block : blocks) {
             auto &block = blocks[block_id];
-            // do we have super-short sequences?
-            double max_seq_length = 0;
-            if (block.path_ranges.size()) {
-                for (auto& path_range : block.path_ranges) {
-                    max_seq_length = std::max(max_seq_length, (double)path_range.length);
+            // ensure that the sequences in the block
+            // are within our identity threshold
+            // if not, peel them off into splits
+            //EdlibAlignResult result = edlibAlign("hello", 5, "world!", 6, edlibDefaultAlignConfig());
+            std::vector<std::string> seqs;
+            for (auto& path_range : block.path_ranges) {
+                std::string name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
+                seqs.emplace_back();
+                auto& seq = seqs.back();
+                for (step_handle_t step = path_range.begin;
+                     step != path_range.end;
+                     step = graph.get_next_step(step)) {
+                    seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
                 }
-                bool short_seqs = false;
-                double seq_length_threshold = min_segment_ratio * max_seq_length;
-                for (auto& path_range : block.path_ranges) {
-                    if (path_range.length < seq_length_threshold) {
-                        short_seqs = true; break;
-                    }
-                }
-                if (short_seqs) {
-                    block_t new_block;
-                    // find short path ranges and them to the new block
-                    for (auto& path_range : block.path_ranges) {
-                        if (path_range.length < seq_length_threshold) {
-                            new_block.path_ranges.push_back(path_range);
-                            path_range.length = 0; // signal to clean up
+            }
+            std::vector<std::vector<uint64_t>> groups;
+            // iterate through the seqs
+            // for each sequence try to match it to a group at the given identity threshold
+            // if we can't get it to match, add a new group
+            groups.emplace_back();
+            groups.back().push_back(0); // seed with the first sequence
+            for (uint64_t i = 1; i < seqs.size(); ++i) {
+                auto& curr = seqs[i];
+                uint64_t best_group = 0;
+                double best_id = -1;
+                for (uint64_t j = 0; j < groups.size(); ++j) {
+                    auto& group = groups[j];
+                    for (uint64_t k = 0; k < group.size(); ++k) {
+                        auto& other = seqs[k];
+                        EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
+                                                             edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_DISTANCE, NULL, 0));
+                        if (result.status == EDLIB_STATUS_OK) {
+                            double id = (double)(curr.size() - result.editDistance) / (double)curr.size();
+                            if (id > best_id) {
+                                best_group = j;
+                                best_id = id;
+                            }
                         }
                     }
-                    // remove the path ranges from the old block
-                    block.path_ranges.erase(
-                        std::remove_if(
-                            block.path_ranges.begin(), block.path_ranges.end(),
-                            [](const path_range_t& path_range) {
-                                return path_range.length == 0;
-                            }),
-                        block.path_ranges.end());
-                    for (auto& path_range : block.path_ranges) {
-                        assert(path_range.length > 0);
-                    }
-                    assert(new_block.path_ranges.size());
-                    assert(block.path_ranges.size());
+                }
+                if (best_id > 0) {
+                    groups[best_group].push_back(i);
+                } else {
+                    groups.push_back({i});
+                }
+            }
+            if (groups.size() == 1) {
+                // nothing to do
+                {
+                    std::lock_guard<std::mutex> guard(new_blocks_mutex);
+                    new_blocks.push_back(std::make_pair(block_id, block));
+                }
+            } else {
+                ++split_blocks;
+                uint64_t i = 0;
+                for (auto& group : groups) {
+                    block_t new_block;
                     new_block.is_split = true;
-                    ++split_blocks;
+                    for (auto& i : group) {
+                        new_block.path_ranges.push_back(block.path_ranges[i]);
+                    }
                     for (auto& path_range : new_block.path_ranges) {
                         new_block.total_path_length += path_range.length;
                         new_block.max_path_length = std::max(new_block.max_path_length,
@@ -79,12 +103,8 @@ void break_blocks(const xg::XG& graph,
                     }
                     {
                         std::lock_guard<std::mutex> guard(new_blocks_mutex);
-                        new_blocks.push_back(std::make_pair(block_id + 0.5, new_block));
+                        new_blocks.push_back(std::make_pair(block_id + i++ * (1.0/groups.size()), new_block));
                     }
-                }
-                {
-                    std::lock_guard<std::mutex> guard(new_blocks_mutex);
-                    new_blocks.push_back(std::make_pair(block_id, block));
                 }
             }
             splits_progress.increment(1);
