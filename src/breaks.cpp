@@ -22,108 +22,7 @@ void break_blocks(const xg::XG& graph,
 
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
-    std::stringstream splits_banner;
-    splits_banner << "[smoothxg::break_blocks] splitting short sequences out of " << blocks.size() << " blocks:";
-    progress_meter::ProgressMeter splits_progress(blocks.size(), splits_banner.str());
-
-    std::atomic<uint64_t> split_blocks;
-    split_blocks.store(0);
-    std::mutex new_blocks_mutex;
-    std::vector<std::pair<double, block_t>> new_blocks;
-    paryfor::parallel_for<uint64_t>(
-        0, blocks.size(), thread_count,
-        [&](uint64_t block_id, int tid) {
-            //for (auto& block : blocks) {
-            auto &block = blocks[block_id];
-            // ensure that the sequences in the block
-            // are within our identity threshold
-            // if not, peel them off into splits
-            //EdlibAlignResult result = edlibAlign("hello", 5, "world!", 6, edlibDefaultAlignConfig());
-            std::vector<std::string> seqs;
-            for (auto& path_range : block.path_ranges) {
-                std::string name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
-                seqs.emplace_back();
-                auto& seq = seqs.back();
-                for (step_handle_t step = path_range.begin;
-                     step != path_range.end;
-                     step = graph.get_next_step(step)) {
-                    seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
-                }
-            }
-            std::vector<std::vector<uint64_t>> groups;
-            // iterate through the seqs
-            // for each sequence try to match it to a group at the given identity threshold
-            // if we can't get it to match, add a new group
-            groups.emplace_back();
-            groups.back().push_back(0); // seed with the first sequence
-            for (uint64_t i = 1; i < seqs.size(); ++i) {
-                auto& curr = seqs[i];
-                uint64_t best_group = 0;
-                double best_id = -1;
-                for (uint64_t j = 0; j < groups.size(); ++j) {
-                    auto& group = groups[j];
-                    for (uint64_t k = 0; k < group.size(); ++k) {
-                        auto& other = seqs[k];
-                        EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                                             edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_DISTANCE, NULL, 0));
-                        if (result.status == EDLIB_STATUS_OK) {
-                            double id = (double)(curr.size() - result.editDistance) / (double)curr.size();
-                            if (id > best_id) {
-                                best_group = j;
-                                best_id = id;
-                            }
-                        }
-                    }
-                }
-                if (best_id > 0) {
-                    groups[best_group].push_back(i);
-                } else {
-                    groups.push_back({i});
-                }
-            }
-            if (groups.size() == 1) {
-                // nothing to do
-                {
-                    std::lock_guard<std::mutex> guard(new_blocks_mutex);
-                    new_blocks.push_back(std::make_pair(block_id, block));
-                }
-            } else {
-                ++split_blocks;
-                uint64_t i = 0;
-                for (auto& group : groups) {
-                    block_t new_block;
-                    new_block.is_split = true;
-                    for (auto& i : group) {
-                        new_block.path_ranges.push_back(block.path_ranges[i]);
-                    }
-                    for (auto& path_range : new_block.path_ranges) {
-                        new_block.total_path_length += path_range.length;
-                        new_block.max_path_length = std::max(new_block.max_path_length,
-                                                             path_range.length);
-                    }
-                    {
-                        std::lock_guard<std::mutex> guard(new_blocks_mutex);
-                        new_blocks.push_back(std::make_pair(block_id + i++ * (1.0/groups.size()), new_block));
-                    }
-                }
-            }
-            splits_progress.increment(1);
-        });
-    splits_progress.finish();
-    std::vector<block_t>().swap(blocks); // clear blocks
-    ips4o::parallel::sort(
-        new_blocks.begin(), new_blocks.end(),
-        [](const std::pair<double, block_t>& a,
-           const std::pair<double, block_t>& b) {
-            return a.first < b.first;
-        });
-    for (auto& p : new_blocks) {
-        blocks.push_back(p.second);
-    }
-    std::vector<std::pair<double, block_t>>().swap(new_blocks); // clear new_blocks
-
-    std::cerr << "[smoothxg::break_blocks] split " << split_blocks << " blocks" << std::endl;
-    std::cerr << "[smoothxg::break_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
+        std::cerr << "[smoothxg::break_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
     
     std::stringstream breaks_banner;
     breaks_banner << "[smoothxg::break_blocks] cutting " << blocks.size() << " blocks:";
@@ -262,6 +161,112 @@ void break_blocks(const xg::XG& graph,
         });
     breaks_progress.finish();
     std::cerr << "[smoothxg::break_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
+
+    std::stringstream splits_banner;
+    splits_banner << "[smoothxg::break_blocks] splitting " << blocks.size() << " blocks at identity " << block_group_identity << ":";
+    progress_meter::ProgressMeter splits_progress(blocks.size(), splits_banner.str());
+
+    std::atomic<uint64_t> split_blocks;
+    split_blocks.store(0);
+    std::mutex new_blocks_mutex;
+    std::vector<std::pair<double, block_t>> new_blocks;
+    paryfor::parallel_for<uint64_t>(
+        0, blocks.size(), thread_count,
+        [&](uint64_t block_id, int tid) {
+            //for (auto& block : blocks) {
+            auto &block = blocks[block_id];
+            // ensure that the sequences in the block
+            // are within our identity threshold
+            // if not, peel them off into splits
+            std::vector<std::string> seqs;
+            for (auto& path_range : block.path_ranges) {
+                std::string name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
+                seqs.emplace_back();
+                auto& seq = seqs.back();
+                for (step_handle_t step = path_range.begin;
+                     step != path_range.end;
+                     step = graph.get_next_step(step)) {
+                    seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+                }
+            }
+            std::vector<std::vector<uint64_t>> groups;
+            // iterate through the seqs
+            // for each sequence try to match it to a group at the given identity threshold
+            // if we can't get it to match, add a new group
+            groups.push_back({0}); // seed with the first sequence
+            for (uint64_t i = 1; i < seqs.size(); ++i) {
+                auto& curr = seqs[i];
+                uint64_t best_group = 0;
+                double best_id = -1;
+                for (uint64_t j = 0; j < groups.size(); ++j) {
+                    auto& group = groups[j];
+                    for (uint64_t k = 0; k < group.size(); ++k) {
+                        auto& other = seqs[group[k]];
+                        EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
+                                                             edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_DISTANCE, NULL, 0));
+                        if (result.status == EDLIB_STATUS_OK) {
+                            //double id = (double)((curr.size()+other.size()) - result.editDistance) / (double)(curr.size()+other.size());
+                            double id = (double)(other.size() - result.editDistance) / (double)(other.size());
+                            if (id >= block_group_identity && id > best_id) {
+                                best_group = j;
+                                best_id = id;
+                            }
+                        }
+                    }
+                }
+                if (best_id > 0) {
+                    groups[best_group].push_back(i);
+                } else {
+                    groups.push_back({i});
+                }
+            }
+            if (false && groups.size() == 1) {
+                // nothing to do
+                {
+                    std::lock_guard<std::mutex> guard(new_blocks_mutex);
+                    new_blocks.push_back(std::make_pair(block_id, block));
+                }
+            } else {
+                ++split_blocks;
+                uint64_t i = 0;
+                for (auto& group : groups) {
+                    block_t new_block;
+                    //new_block.is_split = true;
+                    /*
+                    std::cerr << "group " << i << " contains ";
+                    for (auto& j : group) std::cerr << " " << j;
+                    std::cerr << std::endl;
+                    */
+                    for (auto& j : group) {
+                        new_block.path_ranges.push_back(block.path_ranges[j]);
+                    }
+                    for (auto& path_range : new_block.path_ranges) {
+                        new_block.total_path_length += path_range.length;
+                        new_block.max_path_length = std::max(new_block.max_path_length,
+                                                             path_range.length);
+                    }
+                    {
+                        std::lock_guard<std::mutex> guard(new_blocks_mutex);
+                        new_blocks.push_back(std::make_pair(block_id + i++ * (1.0/groups.size()), new_block));
+                    }
+                }
+            }
+            splits_progress.increment(1);
+        });
+    splits_progress.finish();
+    std::vector<block_t>().swap(blocks); // clear blocks
+    ips4o::parallel::sort(
+        new_blocks.begin(), new_blocks.end(),
+        [](const std::pair<double, block_t>& a,
+           const std::pair<double, block_t>& b) {
+            return a.first < b.first;
+        });
+    for (auto& p : new_blocks) {
+        blocks.push_back(p.second);
+    }
+    std::vector<std::pair<double, block_t>>().swap(new_blocks); // clear new_blocks
+
+    std::cerr << "[smoothxg::break_blocks] split " << split_blocks << " blocks" << std::endl;
 }
 
 }
