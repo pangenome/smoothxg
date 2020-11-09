@@ -220,7 +220,7 @@ void break_blocks(const xg::XG& graph,
                     groups.push_back({i});
                 }
             }
-            if (false && groups.size() == 1) {
+            if (groups.size() == 1) {
                 // nothing to do
                 {
                     std::lock_guard<std::mutex> guard(new_blocks_mutex);
