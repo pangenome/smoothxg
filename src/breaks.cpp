@@ -203,10 +203,12 @@ void break_blocks(const xg::XG& graph,
                     for (uint64_t k = 0; k < group.size(); ++k) {
                         auto& other = seqs[group[k]];
                         EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                                             edlibNewAlignConfig(-1, EDLIB_MODE_HW, EDLIB_TASK_DISTANCE, NULL, 0));
-                        if (result.status == EDLIB_STATUS_OK) {
+                                                             edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
+                        if (result.status == EDLIB_STATUS_OK
+                            && result.editDistance >= 0) {
                             //double id = (double)((curr.size()+other.size()) - result.editDistance) / (double)(curr.size()+other.size());
-                            double id = (double)(other.size() - result.editDistance) / (double)(other.size());
+                            // TODO FIx should be max of other and curr size
+                            double id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
                             if (id >= block_group_identity && id > best_id) {
                                 best_group = j;
                                 best_id = id;

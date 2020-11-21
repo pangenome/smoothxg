@@ -1063,7 +1063,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                << " to " << blocks.size() << " blocks:";
     progress_meter::ProgressMeter poa_progress(blocks.size(), poa_banner.str());
 
-#pragma omp parallel for schedule(guided)
+#pragma omp parallel for schedule(dynamic,1)
     for (uint64_t i = 0; i < blocks.size(); ++i) {
         uint64_t block_id = i;
         auto &block = blocks[block_id];
