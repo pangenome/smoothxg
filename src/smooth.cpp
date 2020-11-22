@@ -6,6 +6,7 @@
 
 #include "maf.hpp"
 #include "deps/cgranges/cpp/IITree.h"
+#include "atomic_bitvector.hpp"
 
 #include "progress.hpp"
 
@@ -693,11 +694,10 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     std::vector<odgi::graph_t> block_graphs;
     block_graphs.resize(blocks.size());
 
-    // ToDo: better a queue (or nthreads queues)?
     // If merged consensus sequences have to be embedded, this structures are needed to keep the blocks' coordinates,
     // but the sequences will be considered (and kept in memory) only if a MAF has to be produced
     std::vector<std::vector<maf_row_t>> mafs(produce_maf || (add_consensus && merge_blocks) ? blocks.size() : 0);
-    std::vector<std::atomic<bool>> mafs_ready(produce_maf || (add_consensus && merge_blocks) ? blocks.size() : 0);
+    atomicbitvector::atomic_bv_t mafs_ready(produce_maf || (add_consensus && merge_blocks) ? blocks.size() : 0);
 
     IITree<uint64_t, uint64_t> merged_block_id_intervals_tree;
     std::unordered_set<uint64_t> inverted_merged_block_id_intervals_ranks;
@@ -718,7 +718,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             }
 
             while (block_id < num_blocks) {
-                if (mafs_ready[block_id].load()){
+                if (mafs_ready.test(block_id)){
                     uint64_t num_seq_in_block = mafs[block_id].size();
 
                     bool is_last_block = (block_id == num_blocks - 1);
@@ -1046,7 +1046,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             }
 
             clear_vector(mafs);
-            clear_vector(mafs_ready);
         }
     };
     std::thread write_maf_thread(write_maf_lambda);
@@ -1110,7 +1109,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         }
 
         if (produce_maf || (add_consensus && merge_blocks)){
-            mafs_ready[block_id].store(true);
+            mafs_ready.set(block_id);
         }
 
         // std::cerr << std::endl;
