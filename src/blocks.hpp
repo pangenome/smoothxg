@@ -6,8 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
-//#include <IITree.h> // cgranges
-//#include "atomic_bitvector.hpp"
+
 #include "xg.hpp"
 
 namespace smoothxg {
