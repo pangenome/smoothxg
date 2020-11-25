@@ -1393,6 +1393,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
         // all raw consensus paths
         std::vector<path_handle_t> consensus_paths(blocks.size());
+        atomicbitvector::atomic_bv_t consensus_paths_to_not_embed(blocks.size());
         //consensus_paths_by_block
 
         merged_block_id_intervals_tree.index();
@@ -1404,15 +1405,26 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 merged_block_id_intervals_tree.overlap(pos_range.target_graph_id, pos_range.target_graph_id + 1, result);
 
                 if (!result.empty()) {
+                    consensus_paths_to_not_embed.set(pos_range.target_graph_id);
                     continue; // skip the embedding for the single consensus sequence
                 }
             }
 
             auto &block = block_graphs[pos_range.target_graph_id];
             path_handle_t smoothed_path = smoothed.create_path_handle(
-                block.get_path_name(pos_range.target_path)
+                    block.get_path_name(pos_range.target_path)
             );
             consensus_paths[pos_range.target_graph_id] = smoothed_path;
+        }
+
+        #pragma omp parallel for schedule(static,1)
+        for (auto &pos_range : consensus_mapping) {
+            if (consensus_paths_to_not_embed.test(pos_range.target_graph_id)) {
+                continue; // skip the embedding for the single consensus sequence
+            }
+
+            auto &block = block_graphs[pos_range.target_graph_id];
+            path_handle_t smoothed_path = consensus_paths[pos_range.target_graph_id];
 
             auto &id_trans = id_mapping[pos_range.target_graph_id];
             block.for_each_step_in_path(
@@ -1428,7 +1440,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
         // Sort respect to the target_graph_id (== block_id), because in the merged_block_id_intervals_tree
         // there are the block_id_intervals expressed as first_block_id and last_block_id
-        // No longer necessary, if the first sort is confirmed.
+        // No longer necessary, if the first sorting is confirmed.
         /*ips4o::parallel::sort(consensus_mapping.begin(), consensus_mapping.end(),
                               [](const path_position_range_t &a, const path_position_range_t &b) {
                                   return (a.target_graph_id < b.target_graph_id);
