@@ -195,23 +195,28 @@ void break_blocks(const xg::XG& graph,
             // if we can't get it to match, add a new group
             groups.push_back({0}); // seed with the first sequence
             for (uint64_t i = 1; i < seqs.size(); ++i) {
-                auto& curr = seqs[i];
+                if (block_group_identity == 0) {
+                    groups[0].push_back(i);
+                    continue;
+                }
+                auto& curr_fwd = seqs[i];
+                auto curr_rev = odgi::reverse_complement(curr_fwd);
                 uint64_t best_group = 0;
                 double best_id = -1;
-                for (uint64_t j = 0; j < groups.size(); ++j) {
-                    auto& group = groups[j];
-                    for (uint64_t k = 0; k < group.size(); ++k) {
-                        auto& other = seqs[group[k]];
-                        EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                                             edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
-                        if (result.status == EDLIB_STATUS_OK
-                            && result.editDistance >= 0) {
-                            //double id = (double)((curr.size()+other.size()) - result.editDistance) / (double)(curr.size()+other.size());
-                            // TODO FIx should be max of other and curr size
-                            double id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
-                            if (id >= block_group_identity && id > best_id) {
-                                best_group = j;
-                                best_id = id;
+                for (auto& curr : { curr_fwd, curr_rev }) {
+                    for (uint64_t j = 0; j < groups.size(); ++j) {
+                        auto& group = groups[j];
+                        for (uint64_t k = 0; k < group.size(); ++k) {
+                            auto& other = seqs[group[k]];
+                            EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
+                                                                 edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
+                            if (result.status == EDLIB_STATUS_OK
+                                && result.editDistance >= 0) {
+                                double id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
+                                if (id >= block_group_identity && id > best_id) {
+                                    best_group = j;
+                                    best_id = id;
+                                }
                             }
                         }
                     }

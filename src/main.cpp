@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N", "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]", {'U', "path-sgd-term-updates"});
     args::Flag use_spoa(parser, "use-spoa", "run spoa (in local alignment mode) instead of abPOA (in global alignment mode) for smoothing", {'S', "spoa"});
     args::Flag change_alignment_mode(parser, "change-alignment-mode", "change the alignment mode of spoa to global, the local alignment mode of abpoa is currently not supported", {'Z', "change-alignment-mode"});
-    args::Flag no_toposort(parser, "no-toposort", "don't apply topological sorting in the sort pipeline", {'T', "no-toposort"});
+    args::Flag no_toposort(parser, "prep-no-toposort", "do not apply topological sorting in the prep sort pipeline", {'T', "prep-no-toposort"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});

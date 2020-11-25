@@ -14,6 +14,7 @@
 #include "sautocorr.hpp"
 #include "xg.hpp"
 #include "paryfor.hpp"
+#include "odgi/dna.hpp"
 
 namespace smoothxg {
 
