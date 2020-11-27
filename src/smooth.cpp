@@ -1124,10 +1124,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                           write_fasta_blocks);
             }
 
-            if (produce_maf || (add_consensus && merge_blocks)){
-                mafs_ready.set(block_id);
-            }
-
             // std::cerr << std::endl;
             // std::cerr << "After block graph. Exiting for now....." <<
             // std::endl; exit(0);

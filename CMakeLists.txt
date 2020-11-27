@@ -229,6 +229,8 @@ set(abPOA_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/include")
 # set(abPOA_src_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/src")
 set(abPOA_LIB "${INSTALL_DIR}/src/abPOA-build/lib")
 
+add_subdirectory(deps/edlib EXCLUDE_FROM_ALL)
+
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
 
@@ -313,7 +315,8 @@ set(smoothxg_INCLUDES
   "${sautocorr_INCLUDE}"
   "${abPOA_INCLUDE}"
   "${abPOA_src_INCLUDE}"
-  "${bbhash_INCLUDE}")
+  "${bbhash_INCLUDE}"
+  "deps/edlib/edlib/include")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
@@ -331,6 +334,7 @@ add_executable(smoothxg
   ${CMAKE_SOURCE_DIR}/src/main.cpp)
 target_link_libraries(smoothxg spoa)
 target_link_libraries(smoothxg ${smoothxg_LIBS})
+target_link_libraries(smoothxg edlib)
 
 # -lz is needed for abPOA, as indicated in the example.c
 # https://github.com/yangao07/abPOA/blob/17d7b287b905bcd0e684ca5015a78e5a73a40798/example.c#L3
