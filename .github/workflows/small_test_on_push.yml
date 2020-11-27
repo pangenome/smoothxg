@@ -1,0 +1,27 @@
+on: [push]
+
+name: build and test
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install required packages
+        run: sudo apt-get update && sudo apt-get install -y
+          git 
+          bash 
+          cmake 
+          make 
+          g++ 
+          python3-dev 
+          libatomic-ops-dev 
+          autoconf 
+          libgsl-dev 
+          zlib1g-dev
+      - name: Init and update submodules
+        run: git submodule update --init --recursive
+      - name: Build smoothxg
+        run: cmake -H. -Bbuild && cmake --build build -- -j 1
+      - name: Run a test on the DRB1-3123 dataset
+        run: ./bin/smoothxg -t 1 -g test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.seqwish.gfa -w 10000 -j 5000 -e 5000 -l 10000 -m test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.maf -s test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.consensus -a -C 10,100,1000,10000 -o test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.gfa
