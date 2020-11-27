@@ -8,17 +8,16 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Install required packages
-        run: apt-get update \
-          && apt-get install -y \
-          git \
-          bash \
-          cmake \
-          make \
-          g++ \
-          python3-dev \
-          libatomic-ops-dev \
-          autoconf \
-          libgsl-dev \
+        run: apt-get update && apt-get install -y 
+          git 
+          bash 
+          cmake 
+          make 
+          g++ 
+          python3-dev 
+          libatomic-ops-dev 
+          autoconf 
+          libgsl-dev 
           zlib1g-dev
       - name: Build smoothxg
         run: cmake -H. -Bbuild && cmake --build build -- -j $(nproc)
