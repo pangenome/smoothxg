@@ -69,8 +69,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
     // TODO make this an SDSL bitvector so we can infer the rank in O(1) saving space in our consensus_path_handles vector
     std::vector<bool> handle_is_consensus(smoothed.get_node_count());
     std::vector<path_handle_t> consensus_path_handles(smoothed.get_node_count());
-    std::string consensus_string = "consensus";
-    uint64_t index = 0;
+    std::string consensus_string = "Consensus";
     smoothed.for_each_handle([&](const handle_t& h) {
         // Why is there no "for_each_path_handle_on_handle"?! :(
         smoothed.for_each_step_on_handle(h, [&](const step_handle_t step) {
@@ -79,12 +78,12 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
             if (path_name.find(consensus_string, 0) == 0) {
                 // we found a consensus path!
                 nid_t node_id = smoothed.get_id(h);
-                handle_is_consensus[node_id] = true;
-                consensus_path_handles[node_id] = path;
-                // TODO abort mission here but should work anyhow
+                handle_is_consensus[node_id - 1] = true;
+                consensus_path_handles[node_id - 1] = path;
+                // TODO abort mission here but should work anyhow because we only have at most one consensus path per node
+                // return;
             }
         });
-        index++;
     });
 
     std::vector<path_handle_t> non_consensus_paths;
@@ -174,9 +173,9 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                     nid_t node_id = smoothed.get_id(h);
                     bool on_consensus = false;
                     path_handle_t curr_consensus;
-                    if (handle_is_consensus[node_id]) {
+                    if (handle_is_consensus[node_id - 1]) {
                         on_consensus = true;
-                        curr_consensus = consensus_path_handles[node_id];
+                        curr_consensus = consensus_path_handles[node_id - 1];
                     }
                     // TODO: we should use a bitvector (vector<bool>) saying if the node is in the consensus graph
                     // and then we don't have to iterate path_steps * path_steps
