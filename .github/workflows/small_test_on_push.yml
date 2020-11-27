@@ -20,7 +20,7 @@ jobs:
           libgsl-dev 
           zlib1g-dev
       - name: Init and update submodules
-        run: git submodule init && git submodule update
+        run: git submodule update --init --recursive
       - name: Build smoothxg
         run: cmake -H. -Bbuild && cmake --build build -- -j $(nproc)
       - name: Run a test on the DRB1-3123 dataset
