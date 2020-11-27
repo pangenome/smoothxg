@@ -66,6 +66,26 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         is_consensus[as_integer(path)] = true;
     }
 
+    // TODO make this an SDSL bitvector so we can infer the rank in O(1) saving space in our consensus_path_handles vector
+    std::vector<bool> handle_is_consensus(smoothed.get_node_count());
+    std::vector<path_handle_t> consensus_path_handles(smoothed.get_node_count());
+    std::string consensus_string = "Consensus";
+    smoothed.for_each_handle([&](const handle_t &h) {
+        // Why is there no "for_each_path_handle_on_handle"?! :(
+        smoothed.for_each_step_on_handle(h, [&](const step_handle_t step) {
+            path_handle_t path = smoothed.get_path_handle_of_step(step);
+            std::string path_name = smoothed.get_path_name(path);
+            if (path_name.find(consensus_string, 0) == 0) {
+                // we found a consensus path!
+                nid_t node_id = smoothed.get_id(h);
+                handle_is_consensus[node_id - 1] = true;
+                consensus_path_handles[node_id - 1] = path;
+                // TODO abort mission here but should work anyhow because we only have at most one consensus path per node
+                // return;
+            }
+        });
+    });
+
     std::vector<path_handle_t> non_consensus_paths;
     non_consensus_paths.reserve(smoothed.get_path_count()+1-consensus_paths.size());
     smoothed.for_each_path_handle(
@@ -150,6 +170,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                 [&](const step_handle_t& step) {
                     // check if we're on the step with any consensus
                     handle_t h = smoothed.get_handle_of_step(step);
+                    nid_t node_id = smoothed.get_id(h);
                     bool on_consensus = false;
                     path_handle_t curr_consensus;
                     // TODO: we should use a bitvector (vector<bool>) saying if the node is in the consensus graph
@@ -158,6 +179,11 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                     // .... but keep in mind that this makes the assumption that we have only one consensus path at any place in the graph
                     // .... if we have more, should we just handle the first in this context...?
                     ///.... currently we are using the "last" one we find (but there's only one)
+                    if (handle_is_consensus[node_id - 1]) {
+                        on_consensus = true;
+                        curr_consensus = consensus_path_handles[node_id - 1];
+                    }
+                    /*
                     smoothed.for_each_step_on_handle(
                         h,
                         [&](const step_handle_t& s) {
@@ -167,6 +193,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                                 curr_consensus = p;
                             }
                         });
+                    */
                     // if we're on the consensus
                     if (on_consensus) {
                         // we haven't seen any consensus before?
