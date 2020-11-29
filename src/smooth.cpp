@@ -751,6 +751,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 for (uint64_t i = 0; i < num_seq_in_block; i++) {
                                     // Do not check the consensus (always forward)
                                     if (!add_consensus || i < num_seq_in_block - 1) {
+
                                         auto &maf_row = mafs[block_id][i];
 
                                         // To merge a block, it has to contains new sequences...
@@ -1078,7 +1079,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                    << " to " << blocks.size() << " blocks:";
         progress_meter::ProgressMeter poa_progress(blocks.size(), poa_banner.str());
 
-    #pragma omp parallel for schedule(static,1)
+#pragma omp parallel for schedule(dynamic,1)
         for (uint64_t i = 0; i < blocks.size(); ++i) {
             uint64_t block_id = i;
             auto &block = blocks[block_id];

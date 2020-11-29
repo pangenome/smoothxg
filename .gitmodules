@@ -46,3 +46,6 @@
 [submodule "deps/abPOA"]
 	path = deps/abPOA
 	url = https://github.com/ekg/abPOA
+[submodule "deps/edlib"]
+	path = deps/edlib
+	url = https://github.com/Martinsos/edlib.git
