@@ -90,12 +90,14 @@ void prep(
             false,
             snapshot_prefix);
 
+    graph.set_number_of_threads(num_threads);
     graph.apply_ordering(order, true);
 
     // groom
     odgi::graph_t groomed;
     odgi::algorithms::groom(graph, groomed, true);
     graph = groomed;
+    graph.set_number_of_threads(num_threads);
 
     // final toposort
     if (toposort) {

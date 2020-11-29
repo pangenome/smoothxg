@@ -465,6 +465,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
 
     // create new consensus graph which only has the consensus and link paths in it
     odgi::graph_t consensus;
+    consensus.set_number_of_threads(thread_count);
+
     // add the consensus paths first
     // ?? --- could this be run in parallel
     for (auto& path : consensus_paths) {
@@ -610,6 +612,11 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
             link_steps(prev, link.end);
         }
     }
+
+    // unchop the graph
+    // TODO put this before validation
+    odgi::algorithms::unchop(consensus, thread_count, false);
+
     // validate consensus graph
     // number of handles
     smoothed.for_each_path_handle(
@@ -665,9 +672,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
             });
         });
 
-    // unchop the graph
-    // TODO put this before validation
-    odgi::algorithms::unchop(consensus);
+
 
     /*
     ofstream o("pre_reduce.gfa");
@@ -868,7 +873,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         consensus.destroy_handle(handle);
     }
 
-    odgi::algorithms::unchop(consensus); // is doing this multiple times necessary?
+    odgi::algorithms::unchop(consensus, thread_count, false); // is doing this multiple times necessary?
 
     std::cerr << "[smoothxg::create_consensus_graph] removing edges connecting the path with a gap less than consensus-jump-max=" << consensus_jump_max << std::endl;
 
@@ -976,7 +981,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
             });
         });
 
-    odgi::algorithms::unchop(consensus); // again, is this necessary?
+    odgi::algorithms::unchop(consensus, thread_count, false); // again, is this necessary?
 
     std::cerr << "[smoothxg::create_consensus_graph] trimming back link paths" << std::endl;
 
@@ -1046,7 +1051,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         consensus.destroy_path(link);
     }
 
-    odgi::algorithms::unchop(consensus); // we have to run this in parallel -- unchop my life
+    odgi::algorithms::unchop(consensus, thread_count, false); // we have to run this in parallel -- unchop my life
 
     link_paths.clear();
     for (auto& n : link_path_names_to_keep) {
@@ -1106,7 +1111,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         consensus.destroy_handle(handle);
     }
 
-    odgi::algorithms::unchop(consensus); // another one
+    odgi::algorithms::unchop(consensus, thread_count, false); // another one
 
     uint64_t consensus_nodes = 0;
     uint64_t consensus_length = 0;
