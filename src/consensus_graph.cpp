@@ -613,10 +613,6 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         }
     }
 
-    // unchop the graph
-    // TODO put this before validation
-    odgi::algorithms::unchop(consensus, thread_count, false);
-
     // validate consensus graph
     // number of handles
     smoothed.for_each_path_handle(
@@ -673,6 +669,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         });
 
 
+    // unchop the graph
+    odgi::algorithms::unchop(consensus, thread_count, false);
 
     /*
     ofstream o("pre_reduce.gfa");
