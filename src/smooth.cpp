@@ -1441,11 +1441,32 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 });
         }
 
-        ska::flat_hash_set<uint64_t> consensus_path_is_merged;
         std::vector<path_handle_t> merged_consensus_paths;
 
         std::vector<size_t> merged_block_id_intervals;
         merged_block_id_intervals_tree.overlap(0, blocks.size(), merged_block_id_intervals);
+
+        for (auto &merged_block_id_interval_idx : merged_block_id_intervals){
+            uint64_t start = merged_block_id_intervals_tree.start(merged_block_id_interval_idx);
+            uint64_t end = merged_block_id_intervals_tree.end(merged_block_id_interval_idx) - 1;
+
+            if (inverted_merged_block_id_intervals_ranks.count(merged_block_id_intervals_tree.data(merged_block_id_interval_idx)) != 0){
+                uint64_t tmp = start;
+
+                start = end;
+                end = tmp;
+            }
+            path_handle_t consensus_path = smoothed.create_path_handle(
+                    consensus_base_name +
+                    std::to_string(start) + "-" + std::to_string(end)
+            );
+            merged_consensus_paths.push_back(consensus_path);
+        }
+
+        std::mutex consensus_path_is_merged_mutex;
+        ska::flat_hash_set<uint64_t> consensus_path_is_merged;
+
+        #pragma omp parallel for schedule(static,1)
         for (auto &merged_block_id_interval_idx : merged_block_id_intervals){
             uint64_t start = merged_block_id_intervals_tree.start(merged_block_id_interval_idx);
             uint64_t end = merged_block_id_intervals_tree.end(merged_block_id_interval_idx) - 1;
@@ -1455,11 +1476,10 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 start = end;
                 end = tmp;
             }
-            path_handle_t consensus_path = smoothed.create_path_handle(
+            path_handle_t consensus_path = smoothed.get_path_handle(
                     consensus_base_name +
                     std::to_string(start) + "-" + std::to_string(end)
             );
-            merged_consensus_paths.push_back(consensus_path);
 
             int8_t step = 1;
             if (start > end) {
@@ -1467,8 +1487,13 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
             }
 
             for (uint64_t block_id = start; block_id != (end + step); block_id += step) {
-                //consensus_path_is_merged[block_id] = true;
-                consensus_path_is_merged.insert(as_integer(consensus_paths[block_id]));
+                {
+                    std::lock_guard<std::mutex> guard(consensus_path_is_merged_mutex);
+
+                    //consensus_path_is_merged[block_id] = true;
+                    consensus_path_is_merged.insert(as_integer(consensus_paths[block_id]));
+                }
+
                 auto &block = block_graphs[block_id];
                 auto &id_trans = id_mapping[block_id];
                 block.for_each_step_in_path(consensus_mapping[block_id].target_path, [&](const step_handle_t &step) {
