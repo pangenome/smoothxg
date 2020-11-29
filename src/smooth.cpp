@@ -1407,7 +1407,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                 if (!result.empty()) {
                     // Invalidate the position range (it will not be used anymore)
-                    pos_range.end_pos =  pos_range.start_pos;
+                    pos_range.end_pos = pos_range.start_pos;
                     continue; // skip the embedding for the single consensus sequence
                 }
             }
@@ -1418,17 +1418,19 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         }
 
         #pragma omp parallel for schedule(static,1)
-        for (auto &pos_range : consensus_mapping) {
-            if (pos_range.start_pos == pos_range.end_pos) {
+        for(uint64_t i = 0; i < consensus_mapping.size(); ++i){
+            path_position_range_t *pos_range = &consensus_mapping[i];
+
+            if (pos_range->start_pos == pos_range->end_pos) {
                 continue; // skip the embedding for the single consensus sequence
             }
 
-            auto &block = block_graphs[pos_range.target_graph_id];
-            path_handle_t smoothed_path = consensus_paths[pos_range.target_graph_id];
+            auto &block = block_graphs[pos_range->target_graph_id];
+            path_handle_t smoothed_path = consensus_paths[pos_range->target_graph_id];
 
-            auto &id_trans = id_mapping[pos_range.target_graph_id];
+            auto &id_trans = id_mapping[pos_range->target_graph_id];
             block.for_each_step_in_path(
-                pos_range.target_path, [&](const step_handle_t &step) {
+                pos_range->target_path, [&](const step_handle_t &step) {
                     handle_t h = block.get_handle_of_step(step);
                     handle_t t = smoothed.get_handle(block.get_id(h) + id_trans,
                                                      block.get_is_reverse(h));
