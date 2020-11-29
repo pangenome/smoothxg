@@ -1166,8 +1166,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                     as_integers(empty_step)[0] = 0;
                     as_integers(empty_step)[1] = 0;
                     block_graph.for_each_step_in_path(consensus_handle, [&](const step_handle_t &step) {
-                                                                            path_end += block_graph.get_length(block_graph.get_handle_of_step(step));
-                                                                        });
+                        path_end += block_graph.get_length(block_graph.get_handle_of_step(step));
+                    });
 
                     {
                         std::lock_guard<std::mutex> guard(consensus_mapping_mutex);
@@ -1179,7 +1179,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 empty_step, empty_step, consensus_handle,
                                 block_id
                             }
-                            );
+                        );
                     }
                 }
             }
@@ -1379,7 +1379,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 auto &b_id = as_integer(b.base_path);
                 return (a_id < b_id || a_id == b_id && a.start_pos < b.start_pos);
             });*/
-        // Sort respect to the block_id, to avoid re-sorting to embed the merged consensus paths
+        // Sort respect to the target_graph_id (== block_id), because in the merged_block_id_intervals_tree
+        // there are the block_id_intervals expressed as first_block_id and last_block_id
         ips4o::parallel::sort(consensus_mapping.begin(), consensus_mapping.end(),
                               [](const path_position_range_t &a, const path_position_range_t &b) {
                                   return (a.target_graph_id < b.target_graph_id);
@@ -1393,33 +1394,32 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
         // all raw consensus paths
         std::vector<path_handle_t> consensus_paths(blocks.size());
-        atomicbitvector::atomic_bv_t consensus_paths_to_not_embed(blocks.size());
         //consensus_paths_by_block
 
         merged_block_id_intervals_tree.index();
         bool are_there_merged_intervals = merged_block_id_intervals_tree.size() != 0;
 
+        // Create first the path handles
         for (auto &pos_range : consensus_mapping) {
             if (!preserve_unmerged_consensus && are_there_merged_intervals){
                 std::vector<size_t> result;
                 merged_block_id_intervals_tree.overlap(pos_range.target_graph_id, pos_range.target_graph_id + 1, result);
 
                 if (!result.empty()) {
-                    consensus_paths_to_not_embed.set(pos_range.target_graph_id);
+                    // Invalidate the position range (it will not be used anymore)
+                    pos_range.end_pos =  pos_range.start_pos;
                     continue; // skip the embedding for the single consensus sequence
                 }
             }
 
-            auto &block = block_graphs[pos_range.target_graph_id];
-            path_handle_t smoothed_path = smoothed.create_path_handle(
-                    block.get_path_name(pos_range.target_path)
+            consensus_paths[pos_range.target_graph_id] = smoothed.create_path_handle(
+                    block_graphs[pos_range.target_graph_id].get_path_name(pos_range.target_path)
             );
-            consensus_paths[pos_range.target_graph_id] = smoothed_path;
         }
 
         #pragma omp parallel for schedule(static,1)
         for (auto &pos_range : consensus_mapping) {
-            if (consensus_paths_to_not_embed.test(pos_range.target_graph_id)) {
+            if (pos_range.start_pos == pos_range.end_pos) {
                 continue; // skip the embedding for the single consensus sequence
             }
 
@@ -1438,13 +1438,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 });
         }
 
-        // Sort respect to the target_graph_id (== block_id), because in the merged_block_id_intervals_tree
-        // there are the block_id_intervals expressed as first_block_id and last_block_id
-        // No longer necessary, if the first sorting is confirmed.
-        /*ips4o::parallel::sort(consensus_mapping.begin(), consensus_mapping.end(),
-                              [](const path_position_range_t &a, const path_position_range_t &b) {
-                                  return (a.target_graph_id < b.target_graph_id);
-                              });*/
         ska::flat_hash_set<uint64_t> consensus_path_is_merged;
         std::vector<path_handle_t> merged_consensus_paths;
 
