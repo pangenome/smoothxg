@@ -11,6 +11,7 @@
 #include <xg.hpp>
 #include "paryfor.hpp"
 #include "blocks.hpp"
+#include "atomic_bitvector.hpp"
 
 namespace smoothxg {
 

@@ -66,9 +66,21 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         is_consensus[as_integer(path)] = true;
     }
 
-    // TODO make this an SDSL bitvector so we can infer the rank in O(1) saving space in our consensus_path_handles vector
-    std::vector<bool> handle_is_consensus(smoothed.get_node_count());
+    atomicbitvector::atomic_bv_t handle_is_consensus(smoothed.get_node_count());
     std::vector<path_handle_t> consensus_path_handles(smoothed.get_node_count());
+#pragma omp parallel for schedule(static, 1) num_threads(thread_count)
+    for (uint64_t i = 0; i < consensus_paths.size(); ++i) {
+        smoothed.for_each_step_in_path(consensus_paths[i], [&](const step_handle_t& step) {
+            nid_t node_id = smoothed.get_id(smoothed.get_handle_of_step(step));
+
+            if (!handle_is_consensus.set(node_id - 1)) {
+                handle_is_consensus.set(node_id - 1);
+                consensus_path_handles[node_id - 1] = consensus_paths[i];
+            }
+        });
+    }
+
+    /*// TODO make this an SDSL bitvector so we can infer the rank in O(1) saving space in our consensus_path_handles vector
     std::string consensus_string = "Consensus";
     smoothed.for_each_handle([&](const handle_t &h) {
         // Why is there no "for_each_path_handle_on_handle"?! :(
@@ -84,7 +96,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                 // return;
             }
         });
-    });
+    });*/
 
     std::vector<path_handle_t> non_consensus_paths;
     non_consensus_paths.reserve(smoothed.get_path_count()+1-consensus_paths.size());
@@ -179,7 +191,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                     // .... but keep in mind that this makes the assumption that we have only one consensus path at any place in the graph
                     // .... if we have more, should we just handle the first in this context...?
                     ///.... currently we are using the "last" one we find (but there's only one)
-                    if (handle_is_consensus[node_id - 1]) {
+                    if (handle_is_consensus.test(node_id - 1)) {
                         on_consensus = true;
                         curr_consensus = consensus_path_handles[node_id - 1];
                     }
