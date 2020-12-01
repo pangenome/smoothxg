@@ -1,3 +1,4 @@
+#include <deps/sdsl-lite/include/sdsl/int_vector.hpp>
 #include "blocks.hpp"
 #include "progress.hpp"
 
@@ -14,15 +15,20 @@ smoothable_blocks(
     ) {
     // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
     std::vector<block_t> blocks;
-    std::vector<std::vector<bool>> seen_steps;
+    std::vector<sdsl::bit_vector> seen_steps(graph.get_path_count());
+
     // cast to vectorizable graph for determining the sort position of nodes
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
     std::cerr << "[smoothxg::smoothable_blocks] computing blocks" << std::endl;
-    graph.for_each_path_handle(
-        [&](const path_handle_t& path) {
-            seen_steps.emplace_back();
-            seen_steps.back().resize(graph.get_step_count(path));
-        });
+
+    {
+        uint64_t rank = 0;
+        graph.for_each_path_handle(
+                [&](const path_handle_t& path) {
+                    sdsl::util::assign(seen_steps[rank++], sdsl::bit_vector(graph.get_step_count(path), 0));
+                });
+    }
+
     auto seen_step =
         [&](const step_handle_t& step) {
             // in xg, the first half of the step is the path handle, which is it's rank + 1
@@ -31,7 +37,7 @@ smoothable_blocks(
         };
     auto mark_step =
         [&](const step_handle_t& step) {
-            seen_steps[path_rank(step)-1][step_rank(step)] = true;
+            seen_steps[path_rank(step)-1][step_rank(step)] = 1;
         };
     auto finalize_block =
         [&](block_t& block) {
