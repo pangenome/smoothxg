@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
-
+#include "mmmultimap.hpp"
 #include "xg.hpp"
 
 namespace smoothxg {
@@ -22,6 +22,7 @@ inline uint64_t step_rank(const step_handle_t& step) {
 }
 
 struct path_range_t {
+    uint64_t rank;
     step_handle_t begin;
     step_handle_t end;
     uint64_t length;
@@ -30,13 +31,22 @@ struct path_range_t {
 };
 
 struct block_t {
-    std::vector<handle_t> handles;
-    uint64_t total_path_length = 0;
+    std::vector<handle_t> handles; // hmmm do we need this?
+    uint64_t total_path_length = 0; // what of this do we "Really" need?
     uint64_t max_path_length = 0;
     std::vector<path_range_t> path_ranges;
     bool broken = false;
     bool is_repeat = false;
     bool is_split = false;
+};
+
+class blockset_t {
+public:
+    mmmulti::map<uint64_t, path_range_t> blocks;
+    void add_block(const block_t& block);
+    block_t get_block(uint64_t);
+    // todo provide comparison operator<() for path_range_t
+    //    and, maybe? to sort the mmmultimap properly, comparison for std::pair<uint64_t, path_range_t>
 };
 
 // find the boundaries of blocks that we can compress with spoa
