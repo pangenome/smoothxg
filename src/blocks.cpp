@@ -15,6 +15,7 @@ smoothable_blocks(
     ) {
     // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
     std::vector<block_t> blocks;
+    std::vector<std::vector<handle_t>> blocks_handles;
     std::vector<sdsl::bit_vector> seen_steps(graph.get_path_count());
 
     // cast to vectorizable graph for determining the sort position of nodes
@@ -40,10 +41,10 @@ smoothable_blocks(
             seen_steps[path_rank(step)-1][step_rank(step)] = 1;
         };
     auto finalize_block =
-        [&](block_t& block) {
+        [&](block_t& block, std::vector<handle_t>& block_handles) {
             // collect the steps on all handles
             std::vector<step_handle_t> traversals;
-            for (auto& handle : block.handles) {
+            for (auto& handle : block_handles) {
                 graph.for_each_step_on_handle(
                     handle,
                     [&](const step_handle_t& step) {
@@ -52,6 +53,9 @@ smoothable_blocks(
                         }
                     });
             }
+
+            std::vector<handle_t>().swap(block_handles);
+
             // sort them
             std::sort(
                 traversals.begin(), traversals.end(),
@@ -180,13 +184,14 @@ smoothable_blocks(
                     << graph.get_node_count() << " handles:";
     progress_meter::ProgressMeter blocks_progress(graph.get_node_count(), blocks_banner.str());
 
-    
     graph.for_each_handle(
         [&](const handle_t& handle) {
             if (blocks.empty()) {
                 blocks.emplace_back();
-                auto& block = blocks.back();
-                block.handles.push_back(handle);
+
+                blocks_handles.emplace_back();
+                auto& block_handles = blocks_handles.back();
+                block_handles.push_back(handle);
             } else {
                 // how much sequence would we be adding to the block?
                 int64_t handle_length = graph.get_length(handle);
@@ -219,6 +224,7 @@ smoothable_blocks(
                         longest_edge_jump = std::max(longest_edge_jump, jump);
                     });
                 auto& block = blocks.back();
+                auto& block_handles = blocks_handles.back();
                 // if we add to the current block, do we go over our total path length?
                 if (block.total_path_length + sequence_to_add > max_block_weight
                     || max_edge_jump && longest_edge_jump > max_edge_jump) {
@@ -227,22 +233,30 @@ smoothable_blocks(
                               << block.total_path_length << " " << sequence_to_add << " " << max_block_weight << std::endl;
                     */
                     // if so, finalize the last block and add the new one
-                    finalize_block(block);
+                    finalize_block(block, block_handles);
+
                     blocks.emplace_back();
-                    blocks.back().handles.push_back(handle);
+
+                    blocks_handles.emplace_back();
+                    auto& block_handles = blocks_handles.back();
+                    block_handles.push_back(handle);
                 } else {
                     // if not, add and update
-                    block.handles.push_back(handle);
                     block.total_path_length += sequence_to_add;
+
+                    block_handles.push_back(handle);
                 }
             }
             blocks_progress.increment(1);
         });
+
     blocks_progress.finish();
     
     if (blocks.back().path_ranges.empty()) {
-        finalize_block(blocks.back());
+        finalize_block(blocks.back(), blocks_handles.back());
     }
+
+    blocks_handles.clear();
 
     blocks.erase(
         std::remove_if(
