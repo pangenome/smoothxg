@@ -218,6 +218,7 @@ void break_blocks(const xg::XG& graph,
                                     best_id = id;
                                 }
                             }
+                            edlibFreeAlignResult(result);
                         }
                     }
                 }
