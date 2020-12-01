@@ -250,8 +250,7 @@ void break_blocks(const xg::XG& graph,
                     }
                     for (auto& path_range : new_block.path_ranges) {
                         new_block.total_path_length += path_range.length;
-                        new_block.max_path_length = std::max(new_block.max_path_length,
-                                                             path_range.length);
+                        //new_block.max_path_length = std::max(new_block.max_path_length, path_range.length);
                     }
                     {
                         std::lock_guard<std::mutex> guard(new_blocks_mutex);

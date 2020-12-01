@@ -124,7 +124,7 @@ smoothable_blocks(
 
             // finally, mark which steps we've kept and record the total length
             block.total_path_length = 0; // recalculate how much sequence we have
-            block.max_path_length = 0; // and the longest path range
+            //block.max_path_length = 0; // and the longest path range
             for (auto& path_range : block.path_ranges) {
                 auto& included_path_length = path_range.length;
                 included_path_length = 0;
@@ -143,8 +143,7 @@ smoothable_blocks(
                     included_path_length += graph.get_length(graph.get_handle_of_step(curr_step));
                 }
                 block.total_path_length += included_path_length;
-                block.max_path_length = std::max(included_path_length,
-                                                 block.max_path_length);
+                //block.max_path_length = std::max(included_path_length, block.max_path_length);
             }
             //std::cerr << "max_path_length " << block.max_path_length << std::endl;
 

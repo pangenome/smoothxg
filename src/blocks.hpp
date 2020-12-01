@@ -33,11 +33,11 @@ struct path_range_t {
 struct block_t {
     std::vector<handle_t> handles; // hmmm do we need this?
     uint64_t total_path_length = 0; // what of this do we "Really" need?
-    uint64_t max_path_length = 0;
+    //uint64_t max_path_length = 0;
     std::vector<path_range_t> path_ranges;
     bool broken = false;
     bool is_repeat = false;
-    bool is_split = false;
+    //bool is_split = false;
 };
 
 class blockset_t {
