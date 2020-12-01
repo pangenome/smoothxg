@@ -15,7 +15,7 @@ smoothable_blocks(
     ) {
     // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
     std::vector<block_t> blocks;
-    std::vector<std::vector<handle_t>> blocks_handles;
+    std::vector<handle_t> block_handles;
     std::vector<sdsl::bit_vector> seen_steps(graph.get_path_count());
 
     // cast to vectorizable graph for determining the sort position of nodes
@@ -189,8 +189,6 @@ smoothable_blocks(
             if (blocks.empty()) {
                 blocks.emplace_back();
 
-                blocks_handles.emplace_back();
-                auto& block_handles = blocks_handles.back();
                 block_handles.push_back(handle);
             } else {
                 // how much sequence would we be adding to the block?
@@ -223,8 +221,8 @@ smoothable_blocks(
                         int64_t jump = std::abs(other_vec_offset - handle_vec_offset);
                         longest_edge_jump = std::max(longest_edge_jump, jump);
                     });
+
                 auto& block = blocks.back();
-                auto& block_handles = blocks_handles.back();
                 // if we add to the current block, do we go over our total path length?
                 if (block.total_path_length + sequence_to_add > max_block_weight
                     || max_edge_jump && longest_edge_jump > max_edge_jump) {
@@ -237,8 +235,6 @@ smoothable_blocks(
 
                     blocks.emplace_back();
 
-                    blocks_handles.emplace_back();
-                    auto& block_handles = blocks_handles.back();
                     block_handles.push_back(handle);
                 } else {
                     // if not, add and update
@@ -253,10 +249,8 @@ smoothable_blocks(
     blocks_progress.finish();
     
     if (blocks.back().path_ranges.empty()) {
-        finalize_block(blocks.back(), blocks_handles.back());
+        finalize_block(blocks.back(), block_handles);
     }
-
-    blocks_handles.clear();
 
     blocks.erase(
         std::remove_if(
