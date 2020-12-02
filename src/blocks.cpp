@@ -4,9 +4,9 @@
 
 namespace smoothxg {
 
-std::vector<block_t>
-smoothable_blocks(
+void smoothable_blocks(
     const xg::XG& graph,
+    blockset_t& blockset,
     const uint64_t& max_block_weight,
     const uint64_t& max_path_jump,
     const uint64_t& min_subpath,
@@ -14,7 +14,7 @@ smoothable_blocks(
     const bool& order_paths_from_longest
     ) {
     // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
-    std::vector<block_t> blocks;
+    block_t block;
     std::vector<handle_t> block_handles;
     std::vector<sdsl::bit_vector> seen_steps(graph.get_path_count());
 
@@ -22,13 +22,12 @@ smoothable_blocks(
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
     std::cerr << "[smoothxg::smoothable_blocks] computing blocks" << std::endl;
 
-    {
-        uint64_t rank = 0;
-        graph.for_each_path_handle(
-                [&](const path_handle_t& path) {
-                    sdsl::util::assign(seen_steps[rank++], sdsl::bit_vector(graph.get_step_count(path), 0));
-                });
-    }
+    uint64_t rank = 0;
+    graph.for_each_path_handle([&](const path_handle_t& path) {
+        sdsl::util::assign(seen_steps[rank++], sdsl::bit_vector(graph.get_step_count(path), 0));
+    });
+
+    rank = 0;
 
     auto seen_step =
         [&](const step_handle_t& step) {
@@ -70,7 +69,7 @@ smoothable_blocks(
             std::vector<path_range_t> path_ranges;
             for (auto& step : traversals) {
                 if (path_ranges.empty()) {
-                    path_ranges.push_back({step, step, 0});
+                    path_ranges.push_back({step, step, 0, 0, 0, 0});
                 } else {
                     auto& path_range = path_ranges.back();
                     auto& last = path_range.end;
@@ -79,7 +78,7 @@ smoothable_blocks(
                             - (graph.get_position_of_step(last) + graph.get_length(graph.get_handle_of_step(last)))
                             > max_path_jump)) {
                         // make a new range
-                        path_ranges.push_back({step, step, 0});
+                        path_ranges.push_back({step, step, 0, 0, 0, 0});
                     } else {
                         // extend the range
                         last = step;
@@ -151,9 +150,7 @@ smoothable_blocks(
             }
             //std::cerr << "max_path_length " << block.max_path_length << std::endl;
 
-            if (total_path_length == 0) {
-                std::vector<path_range_t>().swap(block.path_ranges);
-            } else {
+            if (total_path_length > 0) {
                 // order the path ranges from longest/shortest to shortest/longest
                 // this gets called lots of times... probably best to make it std::sort or not parallel
                 std::sort(
@@ -180,7 +177,11 @@ smoothable_blocks(
                               << graph.get_id(graph.get_handle_of_step(graph.get_previous_step(path_range.end))) << std::endl;
                 }
                 */
+
+                blockset.add_block(rank++, block);
             };
+
+            std::vector<path_range_t>().swap(block.path_ranges);
         };
     //uint64_t id = 0;
     std::stringstream blocks_banner;
@@ -193,8 +194,6 @@ smoothable_blocks(
     graph.for_each_handle(
         [&](const handle_t& handle) {
             if (block_handles.empty()) {
-                blocks.emplace_back();
-
                 total_path_length = 0;
                 block_handles.push_back(handle);
             } else {
@@ -229,7 +228,6 @@ smoothable_blocks(
                         longest_edge_jump = std::max(longest_edge_jump, jump);
                     });
 
-                auto& block = blocks.back();
                 // if we add to the current block, do we go over our total path length?
                 if (total_path_length + sequence_to_add > max_block_weight
                     || max_edge_jump && longest_edge_jump > max_edge_jump) {
@@ -240,10 +238,7 @@ smoothable_blocks(
                     // if so, finalize the last block and add the new one
                     finalize_block(block, block_handles);
 
-                    if (!block.path_ranges.empty()) {
-                        blocks.emplace_back();
-                    }
-
+                    block.path_ranges.clear();
                     total_path_length = 0;
                     block_handles.push_back(handle);
                 } else {
@@ -258,12 +253,8 @@ smoothable_blocks(
 
     blocks_progress.finish();
     
-    if (blocks.back().path_ranges.empty()) {
-        finalize_block(blocks.back(), block_handles);
-
-        if (blocks.back().path_ranges.empty()) {
-            blocks.pop_back();
-        }
+    if (block.path_ranges.empty()) {
+        finalize_block(block, block_handles);
     }
 
     /*blocks.erase(
@@ -276,7 +267,6 @@ smoothable_blocks(
 
     // at the end, we'll be left with some fragments of paths that aren't included in any blocks
     // that's ok, but we should see how much of a problem it is / should they be compressed?
-    return blocks;
 }
 
 }
