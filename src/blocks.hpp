@@ -32,12 +32,12 @@ struct path_range_t {
 
 struct block_t {
     //std::vector<handle_t> handles;  // Do we need this? Yes, but not here.
-    uint64_t total_path_length = 0; // Do we need this? Yes, but not here.
+    //uint64_t total_path_length = 0; // Do we need this? Yes, but not here.
     //uint64_t max_path_length = 0; // Not used.
     std::vector<path_range_t> path_ranges;
-    bool broken = false;
-    bool is_repeat = false;
-    //bool is_split = false;        // Not used.
+    //bool broken = false;        // Not used.
+    //bool is_repeat = false;     // Not used.
+    //bool is_split = false;      // Not used.
 };
 
 class blockset_t {

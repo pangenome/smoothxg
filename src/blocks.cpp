@@ -127,7 +127,7 @@ smoothable_blocks(
                 block.path_ranges.end());
 
             // finally, mark which steps we've kept and record the total length
-            block.total_path_length = 0; // recalculate how much sequence we have
+            uint64_t total_path_length = 0; // recalculate how much sequence we have
             //block.max_path_length = 0; // and the longest path range
             for (auto& path_range : block.path_ranges) {
                 auto& included_path_length = path_range.length;
@@ -146,37 +146,41 @@ smoothable_blocks(
                     mark_step(curr_step);
                     included_path_length += graph.get_length(graph.get_handle_of_step(curr_step));
                 }
-                block.total_path_length += included_path_length;
+                total_path_length += included_path_length;
                 //block.max_path_length = std::max(included_path_length, block.max_path_length);
             }
             //std::cerr << "max_path_length " << block.max_path_length << std::endl;
 
-            // order the path ranges from longest/shortest to shortest/longest
-            // this gets called lots of times... probably best to make it std::sort or not parallel
-            std::sort(
-                block.path_ranges.begin(), block.path_ranges.end(),
-                order_paths_from_longest
-                ?
-                [](const path_range_t& a,
-                   const path_range_t& b) {
-                    return a.length > b.length;
-                }
-                :
-                [](const path_range_t& a,
-                   const path_range_t& b) {
-                    return a.length < b.length;
-                }
+            if (total_path_length == 0) {
+                std::vector<path_range_t>().swap(block.path_ranges);
+            } else {
+                // order the path ranges from longest/shortest to shortest/longest
+                // this gets called lots of times... probably best to make it std::sort or not parallel
+                std::sort(
+                        block.path_ranges.begin(), block.path_ranges.end(),
+                        order_paths_from_longest
+                        ?
+                        [](const path_range_t& a,
+                           const path_range_t& b) {
+                            return a.length > b.length;
+                        }
+                        :
+                        [](const path_range_t& a,
+                           const path_range_t& b) {
+                            return a.length < b.length;
+                        }
                 );
-            /*
-            std::cerr << "block----" << std::endl;
-            for (auto& path_range : block.path_ranges) {
-                std::cerr << "path_range " << path_range.length << " "
-                          << graph.get_path_name(graph.get_path_handle_of_step(path_range.begin))
-                          << " " << graph.get_id(graph.get_handle_of_step(path_range.begin))
-                          << "-"
-                          << graph.get_id(graph.get_handle_of_step(graph.get_previous_step(path_range.end))) << std::endl;
-            }
-            */                    
+                /*
+                std::cerr << "block----" << std::endl;
+                for (auto& path_range : block.path_ranges) {
+                    std::cerr << "path_range " << path_range.length << " "
+                              << graph.get_path_name(graph.get_path_handle_of_step(path_range.begin))
+                              << " " << graph.get_id(graph.get_handle_of_step(path_range.begin))
+                              << "-"
+                              << graph.get_id(graph.get_handle_of_step(graph.get_previous_step(path_range.end))) << std::endl;
+                }
+                */
+            };
         };
     //uint64_t id = 0;
     std::stringstream blocks_banner;
@@ -184,11 +188,14 @@ smoothable_blocks(
                     << graph.get_node_count() << " handles:";
     progress_meter::ProgressMeter blocks_progress(graph.get_node_count(), blocks_banner.str());
 
+    uint64_t total_path_length;
+
     graph.for_each_handle(
         [&](const handle_t& handle) {
-            if (blocks.empty()) {
+            if (block_handles.empty()) {
                 blocks.emplace_back();
 
+                total_path_length = 0;
                 block_handles.push_back(handle);
             } else {
                 // how much sequence would we be adding to the block?
@@ -224,7 +231,7 @@ smoothable_blocks(
 
                 auto& block = blocks.back();
                 // if we add to the current block, do we go over our total path length?
-                if (block.total_path_length + sequence_to_add > max_block_weight
+                if (total_path_length + sequence_to_add > max_block_weight
                     || max_edge_jump && longest_edge_jump > max_edge_jump) {
                     /*
                     std::cerr << "block over weight "
@@ -233,12 +240,15 @@ smoothable_blocks(
                     // if so, finalize the last block and add the new one
                     finalize_block(block, block_handles);
 
-                    blocks.emplace_back();
+                    if (!block.path_ranges.empty()) {
+                        blocks.emplace_back();
+                    }
 
+                    total_path_length = 0;
                     block_handles.push_back(handle);
                 } else {
                     // if not, add and update
-                    block.total_path_length += sequence_to_add;
+                    total_path_length += sequence_to_add;
 
                     block_handles.push_back(handle);
                 }
@@ -250,15 +260,19 @@ smoothable_blocks(
     
     if (blocks.back().path_ranges.empty()) {
         finalize_block(blocks.back(), block_handles);
+
+        if (blocks.back().path_ranges.empty()) {
+            blocks.pop_back();
+        }
     }
 
-    blocks.erase(
+    /*blocks.erase(
         std::remove_if(
             blocks.begin(), blocks.end(),
             [&](const block_t& block) {
                 return block.total_path_length == 0;
             }),
-        blocks.end());
+        blocks.end());*/
 
     // at the end, we'll be left with some fragments of paths that aren't included in any blocks
     // that's ok, but we should see how much of a problem it is / should they be compressed?

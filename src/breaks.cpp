@@ -146,8 +146,8 @@ void break_blocks(const xg::XG& graph,
                         return a.length < b.length;
                     }
                     );
-                block.broken = true;
-                block.is_repeat = found_repeat;
+                //block.broken = true;
+                //block.is_repeat = found_repeat;
                 breaks_progress.increment(1);
             }
             // prepare the path_ranges_t for a consensus graph if necessary
@@ -248,10 +248,10 @@ void break_blocks(const xg::XG& graph,
                     for (auto& j : group) {
                         new_block.path_ranges.push_back(block.path_ranges[j]);
                     }
-                    for (auto& path_range : new_block.path_ranges) {
-                        new_block.total_path_length += path_range.length;
-                        //new_block.max_path_length = std::max(new_block.max_path_length, path_range.length);
-                    }
+                    //for (auto& path_range : new_block.path_ranges) {
+                    //    //new_block.total_path_length += path_range.length;
+                    //    //new_block.max_path_length = std::max(new_block.max_path_length, path_range.length);
+                    //}
                     {
                         std::lock_guard<std::mutex> guard(new_blocks_mutex);
                         new_blocks.push_back(std::make_pair(block_id + i++ * (1.0/groups.size()), new_block));
