@@ -271,7 +271,7 @@ int main(int argc, char** argv) {
         maf_header += (order_paths_from_longest ? "longest" : "shortest");
         maf_header += "\n";
 
-        // break_blocks parameters
+        // create_blocks
         maf_header += "# max_block_weight=" + std::to_string(max_block_weight) +
                 " max_block_jump=" + std::to_string(max_block_jump) +
                 " min_subpath=" + std::to_string(min_subpath) +
@@ -282,7 +282,8 @@ int main(int argc, char** argv) {
                 " min_copy_length=" + std::to_string(min_copy_length) +
                 " max_copy_length=" + std::to_string(max_copy_length) +
                 " min_autocorr_z=" + std::to_string(min_autocorr_z) +
-                " autocorr_stride=" + std::to_string(autocorr_stride) + "\n";
+                " autocorr_stride=" + std::to_string(autocorr_stride) +
+                " block_group_identity=" + std::to_string(block_group_identity) + "\n";
     }
 
     std::vector<std::string> consensus_path_names;
