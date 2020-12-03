@@ -1089,7 +1089,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                 consensus_name = consensus_base_name + std::to_string(block_id);
             }
 
-            // std::cerr << "on block " << block_id+1 << " of " << blocks.size() << std::endl;
+            // std::cerr << "on block " << block_id+1 << " of " << blockset.size() << std::endl;
             auto &block_graph = block_graphs[block_id];
 
             if (use_abpoa) {

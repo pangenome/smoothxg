@@ -1,5 +1,6 @@
 #include "breaks.hpp"
 #include "progress.hpp"
+#include "atomic_bitvector.hpp"
 
 namespace smoothxg {
 
@@ -172,6 +173,8 @@ void break_blocks(const xg::XG& graph,
 
     auto* broken_blockset = new smoothxg::blockset_t("blocks.broken");
 
+    std::vector<std::vector<block_t>> broken_blocks(blockset->size());
+
     //std::vector<std::pair<double, block_t>> new_blocks;
     paryfor::parallel_for<uint64_t>(
         0, blockset->size(), thread_count,
@@ -237,10 +240,11 @@ void break_blocks(const xg::XG& graph,
                 //    std::lock_guard<std::mutex> guard(new_blocks_mutex);
                 //    new_blocks.push_back(std::make_pair(block_id, block));
                 //}
-                broken_blockset->add_block(block_id, block);
+
+                broken_blocks[block_id].push_back(block);
             } else {
                 ++split_blocks;
-                uint64_t i = 0;
+                //uint64_t i = 0;
 
                 for (auto& group : groups) {
                     block_t new_block;
@@ -262,8 +266,7 @@ void break_blocks(const xg::XG& graph,
                     //    new_blocks.push_back(std::make_pair(block_id + i++ * (1.0/groups.size()), new_block));
                     //}
 
-                    uint64_t new_block_id = (block_id + i++ * (1.0/groups.size()));
-                    broken_blockset->add_block(new_block_id, new_block);
+                    broken_blocks[block_id].push_back(new_block);
                 }
             }
             splits_progress.increment(1);
@@ -281,6 +284,13 @@ void break_blocks(const xg::XG& graph,
     //    blocks.push_back(p.second);
     //}
     //std::vector<std::pair<double, block_t>>().swap(new_blocks); // clear new_blocks
+
+    uint64_t block_id = 0;
+    for (auto& blocks : broken_blocks) {
+        for (auto& block : blocks) {
+            broken_blockset->add_block(block_id++, block);
+        }
+    }
 
     delete blockset;
     blockset = broken_blockset;
