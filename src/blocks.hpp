@@ -70,7 +70,7 @@ private:
     std::string _path_tmp_blocks;
 public:
     blockset_t(const std::string& dir_work = "") {
-        _path_tmp_blocks = dir_work + "temp.blocks";
+        _path_tmp_blocks = dir_work + ".temp";
         std::remove(_path_tmp_blocks.c_str());
 
         _num_blocks = 0;
@@ -79,15 +79,26 @@ public:
         _blocks.open_writer();
     }
 
-    ~blockset_t(){
-        std::remove(_path_tmp_blocks.c_str());
-    }
+    //~blockset_t(){
+    //    std::remove(_path_tmp_blocks.c_str());
+    //}
+
+    /*blockset_t& operator=(const blockset_t *pr){
+        _num_blocks = pr->_num_blocks;
+        _blocks = &pr->_blocks;
+        _path_tmp_blocks = pr->_path_tmp_blocks;
+
+        return *this;
+    }*/
 
     [[nodiscard]] uint64_t size() const {
         return _num_blocks;
     }
 
     void add_block(const uint64_t block_id, block_t& block) {
+        //if (block_id >= _num_blocks) {
+        //    _num_blocks += 1;
+        //}
         _num_blocks += 1;
 
         for (uint64_t i = 0; i < block.path_ranges.size(); ++i) {
@@ -96,11 +107,11 @@ public:
         }
     }
 
-    void index(const uint64_t num_threads, const uint64_t max_block_id) {
-        _blocks.index(num_threads, max_block_id + 1);
+    void index(const uint64_t num_threads) {
+        _blocks.index(num_threads, _num_blocks);
     }
 
-    block_t get_block(uint64_t block_id) {
+    [[nodiscard]] block_t get_block(uint64_t block_id) const {
         block_t block;
         block.path_ranges = _blocks.values(block_id + 1);
         return block;
@@ -116,6 +127,7 @@ public:
     const uint64_t& max_path_jump,
     const uint64_t& min_subpath,
     const uint64_t& max_edge_jump,
-    const bool& order_paths_from_longest);
+    const bool& order_paths_from_longest,
+    const int num_threads);
 
 }

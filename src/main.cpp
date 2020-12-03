@@ -209,20 +209,21 @@ int main(int argc, char** argv) {
         }
     }
 
-    smoothxg::blockset_t blockset;
+    auto* blockset = new smoothxg::blockset_t("blocks");
     smoothxg::smoothable_blocks(graph,
-                                              blockset,
-                                              max_block_weight,
-                                              max_block_jump,
-                                              min_subpath,
-                                              max_edge_jump,
-                                              order_paths_from_longest);
+                              *blockset,
+                              max_block_weight,
+                              max_block_jump,
+                              min_subpath,
+                              max_edge_jump,
+                              order_paths_from_longest,
+                              num_threads);
 
     uint64_t min_autocorr_z = 5;
     uint64_t autocorr_stride = 50;
-    //todo
-    /*smoothxg::break_blocks(graph,
-                           blocks,
+
+    smoothxg::break_blocks(graph,
+                           blockset,
                            block_group_identity,
                            max_poa_length,
                            min_copy_length,
@@ -232,7 +233,7 @@ int main(int argc, char** argv) {
                            order_paths_from_longest,
                            true,
                            n_threads,
-                           write_consensus_graph);*/
+                           write_consensus_graph);
 
     // build the path_step_rank_ranges -> index_in_blocks_vector
     // flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:
@@ -287,7 +288,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> consensus_path_names;
     {
         auto smoothed = smoothxg::smooth_and_lace(graph,
-                                                  blockset,
+                                                  *blockset,
                                                   poa_m,
                                                   poa_n,
                                                   poa_g,

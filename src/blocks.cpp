@@ -11,7 +11,8 @@ void smoothable_blocks(
     const uint64_t& max_path_jump,
     const uint64_t& min_subpath,
     const uint64_t& max_edge_jump,
-    const bool& order_paths_from_longest
+    const bool& order_paths_from_longest,
+    const int num_threads
     ) {
     // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
     block_t block;
@@ -267,6 +268,8 @@ void smoothable_blocks(
 
     // at the end, we'll be left with some fragments of paths that aren't included in any blocks
     // that's ok, but we should see how much of a problem it is / should they be compressed?
+
+    blockset.index(num_threads);
 }
 
 }

@@ -57,7 +57,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           bool save_block_fastas = false);
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
-                              blockset_t &blocks,
+                              const blockset_t &blockset,
                               int poa_m, int poa_n,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,

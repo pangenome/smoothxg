@@ -23,7 +23,7 @@ using namespace handlegraph;
 // break the path ranges at likely VNTR boundaries
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
 void break_blocks(const xg::XG& graph,
-                  std::vector<block_t>& blocks,
+                  blockset_t*& blockset,
                   const double& block_group_identity,
                   const uint64_t& max_poa_length,
                   const uint64_t& min_copy_length,

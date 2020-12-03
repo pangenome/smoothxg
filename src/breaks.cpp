@@ -8,7 +8,7 @@ using namespace handlegraph;
 // break the path ranges at likely VNTR boundaries
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
 void break_blocks(const xg::XG& graph,
-                  std::vector<block_t>& blocks,
+                  blockset_t*& blockset,
                   const double& block_group_identity,
                   const uint64_t& max_poa_length,
                   const uint64_t& min_copy_length,
@@ -22,18 +22,18 @@ void break_blocks(const xg::XG& graph,
 
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
-        std::cerr << "[smoothxg::break_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
+    std::cerr << "[smoothxg::break_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
     
     std::stringstream breaks_banner;
-    breaks_banner << "[smoothxg::break_blocks] cutting " << blocks.size() << " blocks:";
-    progress_meter::ProgressMeter breaks_progress(blocks.size(), breaks_banner.str());
-    
+    breaks_banner << "[smoothxg::break_blocks] cutting " << blockset->size() << " blocks:";
+    progress_meter::ProgressMeter breaks_progress(blockset->size(), breaks_banner.str());
+
     uint64_t n_cut_blocks = 0;
     uint64_t n_repeat_blocks = 0;
     paryfor::parallel_for<uint64_t>(
-        0, blocks.size(), thread_count,
+        0, blockset->size(), thread_count,
         [&](uint64_t block_id, int tid) {
-            auto &block = blocks[block_id];
+            auto block = blockset->get_block(block_id);
             // check if we have sequences that are too long
             bool to_break = false;
             for (auto& path_range : block.path_ranges) {
@@ -163,18 +163,21 @@ void break_blocks(const xg::XG& graph,
     std::cerr << "[smoothxg::break_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
 
     std::stringstream splits_banner;
-    splits_banner << "[smoothxg::break_blocks] splitting " << blocks.size() << " blocks at identity " << block_group_identity << ":";
-    progress_meter::ProgressMeter splits_progress(blocks.size(), splits_banner.str());
+    splits_banner << "[smoothxg::break_blocks] splitting " << blockset->size() << " blocks at identity " << block_group_identity << ":";
+    progress_meter::ProgressMeter splits_progress(blockset->size(), splits_banner.str());
 
     std::atomic<uint64_t> split_blocks;
     split_blocks.store(0);
     std::mutex new_blocks_mutex;
-    std::vector<std::pair<double, block_t>> new_blocks;
+
+    auto* broken_blockset = new smoothxg::blockset_t("blocks.broken");
+
+    //std::vector<std::pair<double, block_t>> new_blocks;
     paryfor::parallel_for<uint64_t>(
-        0, blocks.size(), thread_count,
+        0, blockset->size(), thread_count,
         [&](uint64_t block_id, int tid) {
             //for (auto& block : blocks) {
-            auto &block = blocks[block_id];
+            auto block = blockset->get_block(block_id);
             // ensure that the sequences in the block
             // are within our identity threshold
             // if not, peel them off into splits
@@ -230,13 +233,15 @@ void break_blocks(const xg::XG& graph,
             }
             if (groups.size() == 1) {
                 // nothing to do
-                {
-                    std::lock_guard<std::mutex> guard(new_blocks_mutex);
-                    new_blocks.push_back(std::make_pair(block_id, block));
-                }
+                //{
+                //    std::lock_guard<std::mutex> guard(new_blocks_mutex);
+                //    new_blocks.push_back(std::make_pair(block_id, block));
+                //}
+                broken_blockset->add_block(block_id, block);
             } else {
                 ++split_blocks;
                 uint64_t i = 0;
+
                 for (auto& group : groups) {
                     block_t new_block;
                     //new_block.is_split = true;
@@ -252,26 +257,34 @@ void break_blocks(const xg::XG& graph,
                     //    //new_block.total_path_length += path_range.length;
                     //    //new_block.max_path_length = std::max(new_block.max_path_length, path_range.length);
                     //}
-                    {
-                        std::lock_guard<std::mutex> guard(new_blocks_mutex);
-                        new_blocks.push_back(std::make_pair(block_id + i++ * (1.0/groups.size()), new_block));
-                    }
+                    //{
+                    //    std::lock_guard<std::mutex> guard(new_blocks_mutex);
+                    //    new_blocks.push_back(std::make_pair(block_id + i++ * (1.0/groups.size()), new_block));
+                    //}
+
+                    uint64_t new_block_id = (block_id + i++ * (1.0/groups.size()));
+                    broken_blockset->add_block(new_block_id, new_block);
                 }
             }
             splits_progress.increment(1);
         });
     splits_progress.finish();
-    std::vector<block_t>().swap(blocks); // clear blocks
-    ips4o::parallel::sort(
-        new_blocks.begin(), new_blocks.end(),
-        [](const std::pair<double, block_t>& a,
-           const std::pair<double, block_t>& b) {
-            return a.first < b.first;
-        });
-    for (auto& p : new_blocks) {
-        blocks.push_back(p.second);
-    }
-    std::vector<std::pair<double, block_t>>().swap(new_blocks); // clear new_blocks
+
+    //std::vector<block_t>().swap(blocks); // clear blocks
+    //ips4o::parallel::sort(
+    //    new_blocks.begin(), new_blocks.end(),
+    //    [](const std::pair<double, block_t>& a,
+    //       const std::pair<double, block_t>& b) {
+    //        return a.first < b.first;
+    //    });
+    //for (auto& p : new_blocks) {
+    //    blocks.push_back(p.second);
+    //}
+    //std::vector<std::pair<double, block_t>>().swap(new_blocks); // clear new_blocks
+
+    delete blockset;
+    blockset = broken_blockset;
+    blockset->index(thread_count);
 
     std::cerr << "[smoothxg::break_blocks] split " << split_blocks << " blocks" << std::endl;
 }

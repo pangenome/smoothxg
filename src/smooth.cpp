@@ -672,7 +672,7 @@ void _put_block_in_group(
 }
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
-                              blockset_t &blockset,
+                              const blockset_t &blockset,
                               int poa_m, int poa_n,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
@@ -698,8 +698,6 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
     IITree<uint64_t, uint64_t> merged_block_id_intervals_tree;
     std::unordered_set<uint64_t> inverted_merged_block_id_intervals_ranks;
-
-    blockset.index(n_threads, blockset.size() - 1);
 
     {
         bool produce_maf = !path_output_maf.empty();
