@@ -173,7 +173,27 @@ void break_blocks(const xg::XG& graph,
 
     auto* broken_blockset = new smoothxg::blockset_t("blocks.broken");
 
+    atomicbitvector::atomic_bv_t block_was_broken(blockset->size());
     std::vector<std::vector<block_t>> broken_blocks(blockset->size());
+
+    auto write_broken_blocks_lambda = [&]() {
+        uint64_t num_blocks = block_was_broken.size();
+
+        uint64_t old_block_id = 0;
+        uint64_t new_block_id = 0;
+
+        while (old_block_id < num_blocks) {
+            if (block_was_broken.test(old_block_id)) {
+                for (auto &block : broken_blocks[old_block_id]) {
+                    broken_blockset->add_block(new_block_id++, block);
+                }
+
+                std::vector<block_t>().swap(broken_blocks[old_block_id]);
+                ++old_block_id;
+            }
+        }
+    };
+    std::thread write_broken_blocks_lambda_thread(write_broken_blocks_lambda);
 
     //std::vector<std::pair<double, block_t>> new_blocks;
     paryfor::parallel_for<uint64_t>(
@@ -269,9 +289,15 @@ void break_blocks(const xg::XG& graph,
                     broken_blocks[block_id].push_back(new_block);
                 }
             }
+
+            block_was_broken.set(block_id);
             splits_progress.increment(1);
         });
     splits_progress.finish();
+
+    write_broken_blocks_lambda_thread.join();
+
+    std::vector<std::vector<block_t>>().swap(broken_blocks); // clear blocks
 
     //std::vector<block_t>().swap(blocks); // clear blocks
     //ips4o::parallel::sort(
@@ -284,13 +310,6 @@ void break_blocks(const xg::XG& graph,
     //    blocks.push_back(p.second);
     //}
     //std::vector<std::pair<double, block_t>>().swap(new_blocks); // clear new_blocks
-
-    uint64_t block_id = 0;
-    for (auto& blocks : broken_blocks) {
-        for (auto& block : blocks) {
-            broken_blockset->add_block(block_id++, block);
-        }
-    }
 
     delete blockset;
     blockset = broken_blockset;
