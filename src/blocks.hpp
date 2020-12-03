@@ -67,12 +67,20 @@ private:
     uint64_t _num_blocks;
     mmmulti::map<uint64_t, path_range_t> _blocks;
 
+    std::string _path_tmp_blocks;
 public:
-    blockset_t() {
+    blockset_t(const std::string& dir_work = "") {
+        _path_tmp_blocks = dir_work + "temp.blocks";
+        std::remove(_path_tmp_blocks.c_str());
+
         _num_blocks = 0;
-        _blocks.set_base_filename("temp.dat");
+        _blocks.set_base_filename(_path_tmp_blocks);
 
         _blocks.open_writer();
+    }
+
+    ~blockset_t(){
+        std::remove(_path_tmp_blocks.c_str());
     }
 
     [[nodiscard]] uint64_t size() const {
