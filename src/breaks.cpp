@@ -20,21 +20,62 @@ void break_blocks(const xg::XG& graph,
                   const bool& break_repeats,
                   const uint64_t& thread_count,
                   const bool& consensus_graph) {
-
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
-    std::cerr << "[smoothxg::break_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
-    
-    std::stringstream breaks_banner;
-    breaks_banner << "[smoothxg::break_blocks] cutting " << blockset->size() << " blocks:";
-    progress_meter::ProgressMeter breaks_progress(blockset->size(), breaks_banner.str());
+    std::cerr << "[smoothxg::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
+    std::cerr << "[smoothxg::break_and_split_blocks] splitting " << blockset->size() << " blocks at identity " << block_group_identity << std::endl;
 
-    uint64_t n_cut_blocks = 0;
-    uint64_t n_repeat_blocks = 0;
+    std::stringstream breaks_and_splits_banner;
+    breaks_and_splits_banner << "[smoothxg::break_and_split_blocks] cutting and splitting " << blockset->size() << " blocks:";
+    progress_meter::ProgressMeter breaks_and_splits_progress(blockset->size(), breaks_and_splits_banner.str());
+
+    std::atomic<uint64_t> n_cut_blocks;
+    n_cut_blocks.store(0);
+
+    std::atomic<uint64_t> n_repeat_blocks;
+    n_repeat_blocks.store(0);
+
+    std::atomic<uint64_t> split_blocks;
+    split_blocks.store(0);
+
+    atomicbitvector::atomic_bv_t block_is_ready(blockset->size());
+    std::vector<std::vector<block_t>> ready_blocks(blockset->size());
+
+    auto* broken_blockset = new smoothxg::blockset_t("blocks.broken");
+
+    auto write_ready_blocks_lambda = [&]() {
+        uint64_t num_blocks = block_is_ready.size();
+
+        uint64_t old_block_id = 0;
+        uint64_t new_block_id = 0;
+
+        while (old_block_id < num_blocks) {
+            if (block_is_ready.test(old_block_id)) {
+                for (auto &block : ready_blocks[old_block_id]) {
+                    broken_blockset->add_block(new_block_id++, block);
+
+                    block.path_ranges.clear();
+                    block.path_ranges.shrink_to_fit();
+                    std::vector<path_range_t>().swap(block.path_ranges);
+                }
+
+                ready_blocks[old_block_id].clear();
+                ready_blocks[old_block_id].shrink_to_fit();
+                std::vector<block_t>().swap(ready_blocks[old_block_id]);
+
+                ++old_block_id;
+            } else {
+                std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+            }
+        }
+    };
+    std::thread write_ready_blocks_thread(write_ready_blocks_lambda);
 
 #pragma omp parallel for schedule(static,1) num_threads(thread_count)
     for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id){
         auto block = blockset->get_block(block_id);
+
+        /// cutting
         // check if we have sequences that are too long
         bool to_break = false;
         for (auto& path_range : block.path_ranges) {
@@ -60,16 +101,21 @@ void break_blocks(const xg::XG& graph,
                          step = graph.get_next_step(step)) {
                         seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
                     }
-                    if (seq.length() < 2*min_copy_length) continue;
-                    //std::cerr << "on " << name << "\t" << seq.length() << std::endl;
-                    std::vector<uint8_t> vec(seq.begin(), seq.end());
-                    sautocorr::repeat_t result = sautocorr::repeat(vec,
-                                                                   min_copy_length,
-                                                                   max_copy_length,
-                                                                   min_copy_length,
-                                                                   min_autocorr_z,
-                                                                   autocorr_stride);
-                    repeats.push_back(result);
+                    if (seq.length() >= 2*min_copy_length){
+                        //std::cerr << "on " << name << "\t" << seq.length() << std::endl;
+                        std::vector<uint8_t> vec(seq.begin(), seq.end());
+                        sautocorr::repeat_t result = sautocorr::repeat(vec,
+                                                                       min_copy_length,
+                                                                       max_copy_length,
+                                                                       min_copy_length,
+                                                                       min_autocorr_z,
+                                                                       autocorr_stride);
+                        repeats.push_back(result);
+                    }
+
+                    seq.clear();
+                    seq.shrink_to_fit();
+                    std::string().swap(seq);
                 }
                 // if there is, set the cut length to some fraction of it
                 std::vector<double> lengths;
@@ -93,7 +139,6 @@ void break_blocks(const xg::XG& graph,
             }
             std::vector<path_range_t> chopped_ranges;
             for (auto& path_range : block.path_ranges) {
-
                 if (!found_repeat && path_range.length < cut_length) {
                     chopped_ranges.push_back(path_range);
                     continue;
@@ -149,7 +194,6 @@ void break_blocks(const xg::XG& graph,
             );
             //block.broken = true;
             //block.is_repeat = found_repeat;
-            breaks_progress.increment(1);
         }
         // prepare the path_ranges_t for a consensus graph if necessary
         // we do this here, because it works in parallel
@@ -159,49 +203,8 @@ void break_blocks(const xg::XG& graph,
                 path_range.nuc_end = graph.get_position_of_step(path_range.end);
             }
         }
-    }
-    breaks_progress.finish();
-    std::cerr << "[smoothxg::break_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
 
-    std::stringstream splits_banner;
-    splits_banner << "[smoothxg::break_blocks] splitting " << blockset->size() << " blocks at identity " << block_group_identity << ":";
-    progress_meter::ProgressMeter splits_progress(blockset->size(), splits_banner.str());
-
-    std::atomic<uint64_t> split_blocks;
-    split_blocks.store(0);
-
-    auto* broken_blockset = new smoothxg::blockset_t("blocks.broken");
-
-    atomicbitvector::atomic_bv_t block_was_broken(blockset->size());
-    std::vector<std::vector<block_t>> broken_blocks(blockset->size());
-
-    auto write_broken_blocks_lambda = [&]() {
-        uint64_t num_blocks = block_was_broken.size();
-
-        uint64_t old_block_id = 0;
-        uint64_t new_block_id = 0;
-
-        while (old_block_id < num_blocks) {
-            if (block_was_broken.test(old_block_id)) {
-                for (auto &block : broken_blocks[old_block_id]) {
-                    broken_blockset->add_block(new_block_id++, block);
-
-                    std::vector<path_range_t>().swap(block.path_ranges);
-                }
-
-                std::vector<block_t>().swap(broken_blocks[old_block_id]);
-                ++old_block_id;
-            } else {
-                std::this_thread::sleep_for(std::chrono::nanoseconds(1));
-            }
-        }
-    };
-    std::thread write_broken_blocks_lambda_thread(write_broken_blocks_lambda);
-
-#pragma omp parallel for schedule(static,1) num_threads(thread_count)
-    for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id){
-        //for (auto& block : blocks) {
-        auto block = blockset->get_block(block_id);
+        /// splitting
         // ensure that the sequences in the block
         // are within our identity threshold
         // if not, peel them off into splits
@@ -257,7 +260,7 @@ void break_blocks(const xg::XG& graph,
         }
         if (groups.size() == 1) {
             // nothing to do
-            broken_blocks[block_id].push_back(block);
+            ready_blocks[block_id].push_back(block);
         } else {
             ++split_blocks;
 
@@ -278,24 +281,30 @@ void break_blocks(const xg::XG& graph,
                 //}
                 //{
 
-                broken_blocks[block_id].push_back(new_block);
+                ready_blocks[block_id].push_back(new_block);
             }
         }
 
-        block_was_broken.set(block_id);
-        splits_progress.increment(1);
-    };
-    splits_progress.finish();
+        block_is_ready.set(block_id);
 
-    write_broken_blocks_lambda_thread.join();
 
-    std::vector<std::vector<block_t>>().swap(broken_blocks);
+        breaks_and_splits_progress.increment(1);
+    }
+
+    breaks_and_splits_progress.finish();
+
+    std::cerr << "[smoothxg::break_and_split_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
+    std::cerr << "[smoothxg::break_and_split_blocks] split " << split_blocks << " blocks" << std::endl;
+
+    write_ready_blocks_thread.join();
+
+    ready_blocks.clear();
+    ready_blocks.shrink_to_fit();
+    std::vector<std::vector<block_t>>().swap(ready_blocks);
 
     delete blockset;
     blockset = broken_blockset;
     blockset->index(thread_count);
-
-    std::cerr << "[smoothxg::break_blocks] split " << split_blocks << " blocks" << std::endl;
 }
 
 }
