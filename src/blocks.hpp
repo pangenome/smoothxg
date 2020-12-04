@@ -93,9 +93,6 @@ public:
     }
 
     void add_block(const uint64_t block_id, block_t& block) {
-        //if (block_id >= _num_blocks) {
-        //    _num_blocks += 1;
-        //}
         _num_blocks += 1;
 
         for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {

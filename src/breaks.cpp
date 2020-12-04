@@ -178,7 +178,8 @@ void break_blocks(const xg::XG& graph,
             }
             block.path_ranges = chopped_ranges;
             // order the path ranges from longest/shortest to shortest/longest
-            ips4o::parallel::sort(
+            // this gets called lots of times... probably best to make it std::sort or not parallel
+            std::sort(
                     block.path_ranges.begin(), block.path_ranges.end(),
                     order_paths_from_longest
                     ?

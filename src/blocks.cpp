@@ -258,14 +258,6 @@ void smoothable_blocks(
         finalize_block(block, block_handles);
     }
 
-    /*blocks.erase(
-        std::remove_if(
-            blocks.begin(), blocks.end(),
-            [&](const block_t& block) {
-                return block.total_path_length == 0;
-            }),
-        blocks.end());*/
-
     // at the end, we'll be left with some fragments of paths that aren't included in any blocks
     // that's ok, but we should see how much of a problem it is / should they be compressed?
 
