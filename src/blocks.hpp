@@ -22,34 +22,11 @@ inline uint64_t step_rank(const step_handle_t& step) {
 }
 
 struct path_range_t {
-    step_handle_t begin;
-    step_handle_t end;
+    step_handle_t begin{};
+    step_handle_t end{};
     uint64_t length = 0;
     uint64_t nuc_begin = 0;
     uint64_t nuc_end = 0;
-
-    uint64_t rank = 0;
-
-    bool operator<(const path_range_t& pr) const{
-       return rank < pr.rank;
-    }
-    bool operator>(const path_range_t& pr) const{
-        return rank > pr.rank;
-    }
-    path_range_t& operator=(const path_range_t &pr){
-        begin = pr.begin;
-        end = pr.end;
-        length = pr.length;
-        nuc_begin = pr.nuc_begin;
-        nuc_end = pr.nuc_end;
-
-        rank = pr.rank;
-
-        return *this;
-    }
-    bool operator!=(const path_range_t& pr) const{
-        return rank != pr.rank;
-    }
 };
 
 struct block_t {
@@ -62,14 +39,42 @@ struct block_t {
     //bool is_split = false;      // Not used.
 };
 
+struct ranked_path_range_t {
+    uint64_t rank = 0;
+
+    path_range_t path_range;
+
+    bool operator<(const ranked_path_range_t& pr) const{
+        return rank < pr.rank;
+    }
+    bool operator>(const ranked_path_range_t& pr) const{
+        return rank > pr.rank;
+    }
+    ranked_path_range_t& operator=(const ranked_path_range_t &pr){
+        path_range.begin = pr.path_range.begin;
+        path_range.end = pr.path_range.end;
+        path_range.length = pr.path_range.length;
+        path_range.nuc_begin = pr.path_range.nuc_begin;
+        path_range.nuc_end = pr.path_range.nuc_end;
+
+        rank = pr.rank;
+
+        return *this;
+    }
+    bool operator!=(const ranked_path_range_t& pr) const{
+        return rank != pr.rank;
+    }
+};
+
 class blockset_t {
 private:
     uint64_t _num_blocks;
-    mmmulti::map<uint64_t, path_range_t> _blocks;
+    mmmulti::map<uint64_t, ranked_path_range_t> _blocks;
 
     std::string _path_tmp_blocks;
+
 public:
-    blockset_t(const std::string& dir_work = "") {
+    explicit blockset_t(const std::string& dir_work = "") {
         _path_tmp_blocks = dir_work + ".temp";
         std::remove(_path_tmp_blocks.c_str());
 
@@ -83,14 +88,6 @@ public:
     //    std::remove(_path_tmp_blocks.c_str());
     //}
 
-    /*blockset_t& operator=(const blockset_t *pr){
-        _num_blocks = pr->_num_blocks;
-        _blocks = &pr->_blocks;
-        _path_tmp_blocks = pr->_path_tmp_blocks;
-
-        return *this;
-    }*/
-
     [[nodiscard]] uint64_t size() const {
         return _num_blocks;
     }
@@ -101,9 +98,11 @@ public:
         //}
         _num_blocks += 1;
 
-        for (uint64_t i = 0; i < block.path_ranges.size(); ++i) {
-            block.path_ranges[i].rank = i;
-            _blocks.append(block_id + 1, block.path_ranges[i]);
+        for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
+            _blocks.append(
+                    block_id + 1,
+                    {rank, block.path_ranges[rank]}
+            );
         }
     }
 
@@ -113,7 +112,9 @@ public:
 
     [[nodiscard]] block_t get_block(uint64_t block_id) const {
         block_t block;
-        block.path_ranges = _blocks.values(block_id + 1);
+        for (auto& ranked_path_range : _blocks.values(block_id + 1)){
+            block.path_ranges.push_back(ranked_path_range.path_range);
+        }
         return block;
     }
 };
@@ -128,6 +129,6 @@ public:
     const uint64_t& min_subpath,
     const uint64_t& max_edge_jump,
     const bool& order_paths_from_longest,
-    const int num_threads);
+    int num_threads);
 
 }
