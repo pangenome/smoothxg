@@ -127,7 +127,7 @@ void smoothable_blocks(
                 block.path_ranges.end());
 
             // finally, mark which steps we've kept and record the total length
-            uint64_t total_path_length = 0; // recalculate how much sequence we have
+            uint64_t _total_path_length = 0; // recalculate how much sequence we have
             //block.max_path_length = 0; // and the longest path range
             for (auto& path_range : block.path_ranges) {
                 auto& included_path_length = path_range.length;
@@ -146,12 +146,12 @@ void smoothable_blocks(
                     mark_step(curr_step);
                     included_path_length += graph.get_length(graph.get_handle_of_step(curr_step));
                 }
-                total_path_length += included_path_length;
+                _total_path_length += included_path_length;
                 //block.max_path_length = std::max(included_path_length, block.max_path_length);
             }
             //std::cerr << "max_path_length " << block.max_path_length << std::endl;
 
-            if (total_path_length > 0) {
+            if (_total_path_length > 0) {
                 // order the path ranges from longest/shortest to shortest/longest
                 // this gets called lots of times... probably best to make it std::sort or not parallel
                 std::sort(
@@ -192,64 +192,63 @@ void smoothable_blocks(
 
     uint64_t total_path_length = 0;
 
-    bool first_block = true;
     graph.for_each_handle(
         [&](const handle_t& handle) {
-            if (first_block) {
-                first_block = false;
+            // how much sequence would we be adding to the block?
+            int64_t handle_length = graph.get_length(handle);
+            uint64_t sequence_to_add = 0;
+            graph.for_each_step_on_handle(
+                handle,
+                [&](const step_handle_t& step) {
+                    if (!seen_step(step)) {
+                        sequence_to_add += handle_length;
+                    }
+                });
+            // for each edge, find the jump length
+            int64_t longest_edge_jump = 0;
+            int64_t handle_vec_offset = vec_graph.node_vector_offset(graph.get_id(handle));
+            //int64_t handle_length = graph.get_length(handle);
+            graph.follow_edges(
+                handle, false,
+                [&](const handle_t& o) {
+                    int64_t other_vec_offset = vec_graph.node_vector_offset(graph.get_id(o))
+                        + (graph.get_is_reverse(o) ? graph.get_length(o) : 0);
+                    int64_t jump = std::abs(other_vec_offset - (handle_vec_offset + handle_length));
+                    longest_edge_jump = std::max(longest_edge_jump, jump);
+                });
+            graph.follow_edges(
+                handle, true,
+                [&](const handle_t& o) {
+                    int64_t other_vec_offset = vec_graph.node_vector_offset(graph.get_id(o))
+                        + (graph.get_is_reverse(o) ? 0 : graph.get_length(o));
+                    int64_t jump = std::abs(other_vec_offset - handle_vec_offset);
+                    longest_edge_jump = std::max(longest_edge_jump, jump);
+                });
 
-                block_handles.push_back(handle);
+            if (
+                    // if it is not the first handle in the block
+                    !block_handles.empty() &&
+
+                    // if we add to the current block, do we go over our total path length?
+                    ((total_path_length + sequence_to_add > max_block_weight) || (max_edge_jump && longest_edge_jump > max_edge_jump))
+            ) {
+                /*
+                std::cerr << "block over weight "
+                          << block.total_path_length << " " << sequence_to_add << " " << max_block_weight << std::endl;
+                */
+
+                // if so, finalize the last block and add the new one
+                finalize_block(block, block_handles);
+
+                total_path_length = sequence_to_add;
             } else {
-                // how much sequence would we be adding to the block?
-                int64_t handle_length = graph.get_length(handle);
-                uint64_t sequence_to_add = 0;
-                graph.for_each_step_on_handle(
-                    handle,
-                    [&](const step_handle_t& step) {
-                        if (!seen_step(step)) {
-                            sequence_to_add += handle_length;
-                        }
-                    });
-                // for each edge, find the jump length
-                int64_t longest_edge_jump = 0;
-                int64_t handle_vec_offset = vec_graph.node_vector_offset(graph.get_id(handle));
-                //int64_t handle_length = graph.get_length(handle);
-                graph.follow_edges(
-                    handle, false,
-                    [&](const handle_t& o) {
-                        int64_t other_vec_offset = vec_graph.node_vector_offset(graph.get_id(o))
-                            + (graph.get_is_reverse(o) ? graph.get_length(o) : 0);
-                        int64_t jump = std::abs(other_vec_offset - (handle_vec_offset + handle_length));
-                        longest_edge_jump = std::max(longest_edge_jump, jump);
-                    });
-                graph.follow_edges(
-                    handle, true,
-                    [&](const handle_t& o) {
-                        int64_t other_vec_offset = vec_graph.node_vector_offset(graph.get_id(o))
-                            + (graph.get_is_reverse(o) ? 0 : graph.get_length(o));
-                        int64_t jump = std::abs(other_vec_offset - handle_vec_offset);
-                        longest_edge_jump = std::max(longest_edge_jump, jump);
-                    });
+                // if not, add and update
 
-                // if we add to the current block, do we go over our total path length?
-                if (total_path_length + sequence_to_add > max_block_weight
-                    || max_edge_jump && longest_edge_jump > max_edge_jump) {
-                    /*
-                    std::cerr << "block over weight "
-                              << block.total_path_length << " " << sequence_to_add << " " << max_block_weight << std::endl;
-                    */
-                    // if so, finalize the last block and add the new one
-                    finalize_block(block, block_handles);
-
-                    total_path_length = 0;
-                    block_handles.push_back(handle);
-                } else {
-                    // if not, add and update
-                    total_path_length += sequence_to_add;
-
-                    block_handles.push_back(handle);
-                }
+                total_path_length += sequence_to_add;
             }
+
+            block_handles.push_back(handle);
+
             blocks_progress.increment(1);
         });
 
