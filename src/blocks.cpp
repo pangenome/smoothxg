@@ -190,12 +190,14 @@ void smoothable_blocks(
                     << graph.get_node_count() << " handles:";
     progress_meter::ProgressMeter blocks_progress(graph.get_node_count(), blocks_banner.str());
 
-    uint64_t total_path_length;
+    uint64_t total_path_length = 0;
 
+    bool first_block = true;
     graph.for_each_handle(
         [&](const handle_t& handle) {
-            if (block_handles.empty()) {
-                total_path_length = 0;
+            if (first_block) {
+                first_block = false;
+
                 block_handles.push_back(handle);
             } else {
                 // how much sequence would we be adding to the block?
@@ -239,7 +241,6 @@ void smoothable_blocks(
                     // if so, finalize the last block and add the new one
                     finalize_block(block, block_handles);
 
-                    block.path_ranges.clear();
                     total_path_length = 0;
                     block_handles.push_back(handle);
                 } else {
