@@ -280,7 +280,6 @@ void break_blocks(const xg::XG& graph,
                 //    //new_block.total_path_length += path_range.length;
                 //    //new_block.max_path_length = std::max(new_block.max_path_length, path_range.length);
                 //}
-                //{
 
                 ready_blocks[block_id].push_back(new_block);
             }

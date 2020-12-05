@@ -84,9 +84,11 @@ public:
         _blocks.open_writer();
     }
 
-    //~blockset_t(){
-    //    std::remove(_path_tmp_blocks.c_str());
-    //}
+    ~blockset_t(){
+        _blocks.close_writer();
+        _blocks.close_reader();
+        std::remove(_path_tmp_blocks.c_str());
+    }
 
     [[nodiscard]] uint64_t size() const {
         return _num_blocks;

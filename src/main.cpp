@@ -289,7 +289,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> consensus_path_names;
     {
         auto smoothed = smoothxg::smooth_and_lace(graph,
-                                                  *blockset,
+                                                  blockset,
                                                   poa_m,
                                                   poa_n,
                                                   poa_g,
