@@ -113,7 +113,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
 
     //#ifdef SMOOTH_WRITE_BLOCKS_FASTA
     if (save_block_fastas) {
-        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_");
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
     }
 //#endif
 
@@ -389,7 +389,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     }
 
     if (save_block_fastas) {
-        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_");
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_spoa");
     }
 
     /*

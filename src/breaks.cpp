@@ -7,6 +7,31 @@ namespace smoothxg {
 
 using namespace handlegraph;
 
+
+void _prepare_and_write_fasta_for_block(const xg::XG &graph,
+                           const block_t &block,
+                           const uint64_t &block_id,
+                           const std::string& prefix,
+                           const std::string& suffix = ""){
+    std::vector<std::string> seqs;
+    std::vector<std::string> names;
+    for (auto &path_range : block.path_ranges) {
+        seqs.emplace_back();
+        auto &seq = seqs.back();
+        for (step_handle_t step = path_range.begin; step != path_range.end;
+             step = graph.get_next_step(step)) {
+            seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+        }
+        std::stringstream namess;
+        namess << graph.get_path_name(
+                graph.get_path_handle_of_step(path_range.begin))
+               << "_" << graph.get_position_of_step(path_range.begin);
+        names.push_back(namess.str());
+    }
+
+    write_fasta_for_block(graph, block, block_id, seqs, names, prefix, suffix);
+}
+
 // break the path ranges at likely VNTR boundaries
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
 void break_blocks(const xg::XG& graph,
@@ -272,6 +297,7 @@ void break_blocks(const xg::XG& graph,
         } else {
             ++split_blocks;
 
+            uint64_t i = 0;
             for (auto& group : groups) {
                 block_t new_block;
                 //new_block.is_split = true;
@@ -289,24 +315,18 @@ void break_blocks(const xg::XG& graph,
                 //}
 
                 ready_blocks[block_id].push_back(new_block);
+
+                if (write_block_to_split_fastas){
+                    _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_", "_" + std::to_string(i++));
+                }
             }
 
             if (write_block_to_split_fastas){
                 std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
 
                 // collect sequences
-                std::vector<std::string> names;
-                for (auto &path_range : block.path_ranges) {
-                    std::stringstream namess;
-                    namess << graph.get_path_name(
-                            graph.get_path_handle_of_step(path_range.begin))
-                           << "_" << graph.get_position_of_step(path_range.begin);
-                    names.push_back(namess.str());
-                }
-
-                write_fasta_for_block(graph, block, block_id, seqs, names,
-                                      "smoothxg_",
-                                      "_splitted_in_" + std::to_string(groups.size()) + "_blocks");
+                _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_",
+                                                   "_split_in_" + std::to_string(groups.size()) + "_in_" + std::to_string(elapsed_time.count()) + "s");
             }
         }
 
