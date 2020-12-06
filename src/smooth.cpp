@@ -73,8 +73,10 @@ void write_fasta_for_block(const xg::XG &graph,
                            const block_t &block,
                            const uint64_t &block_id,
                            const std::vector<std::string>& seqs,
-                           const std::vector<std::string>& names) {
-    std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
+                           const std::vector<std::string>& names,
+                           const std::string& prefix,
+                           const std::string& suffix) {
+    std::string s = prefix + std::to_string(block_id) + suffix + ".fa";
     std::ofstream fasta(s.c_str());
     for (uint64_t i = 0; i < seqs.size(); ++i) {
         fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
@@ -111,7 +113,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
 
     //#ifdef SMOOTH_WRITE_BLOCKS_FASTA
     if (save_block_fastas) {
-        write_fasta_for_block(graph, block, block_id, seqs, names);
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_");
     }
 //#endif
 
@@ -387,7 +389,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     }
 
     if (save_block_fastas) {
-        write_fasta_for_block(graph, block, block_id, seqs, names);
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_");
     }
 
     /*

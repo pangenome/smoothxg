@@ -41,7 +41,9 @@ int main(int argc, char** argv) {
     args::Flag _preserve_unmerged_consensus(parser, "bool", "do not delete original consensus sequences in the merged MAF blocks and in the smoothed graph",{'N', "preserve-unmerged-consensus"});
     args::ValueFlag<double> _contiguous_path_jaccard(parser, "float","minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",{'J', "contiguous-path-jaccard"});
 
-    args::Flag write_block_fastas(parser, "bool", "write the FASTA sequences for blocks as they are processed",{'B', "write-block-fastas"});
+    args::Flag write_block_to_split_fastas(parser, "bool", "write the FASTA sequences for blocks before its splitting",{'A', "write-block-before-split-fastas"});
+    args::Flag write_block_fastas(parser, "bool", "write the FASTA sequences for blocks put into poa",{'B', "write-block-fastas"});
+
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "block-weight-max"});
@@ -233,7 +235,8 @@ int main(int argc, char** argv) {
                            order_paths_from_longest,
                            true,
                            n_threads,
-                           write_consensus_graph);
+                           write_consensus_graph,
+                           args::get(write_block_to_split_fastas));
 
     // build the path_step_rank_ranges -> index_in_blocks_vector
     // flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:

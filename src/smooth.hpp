@@ -32,11 +32,13 @@ struct path_position_range_t {
     uint64_t target_graph_id;  // the block graph id
 };
 
-void write_tsv_for_block(const xg::XG &graph,
+void write_fasta_for_block(const xg::XG &graph,
                          const block_t &block,
                          const uint64_t &block_id,
                          const std::vector<std::string>& seqs,
-                         const std::vector<std::string>& names);
+                         const std::vector<std::string>& names,
+                         const std::string& prefix,
+                         const std::string& suffix = "");
 
 odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
                            int poa_m, int poa_n, int poa_g,
