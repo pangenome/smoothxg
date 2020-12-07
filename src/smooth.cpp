@@ -73,8 +73,10 @@ void write_fasta_for_block(const xg::XG &graph,
                            const block_t &block,
                            const uint64_t &block_id,
                            const std::vector<std::string>& seqs,
-                           const std::vector<std::string>& names) {
-    std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
+                           const std::vector<std::string>& names,
+                           const std::string& prefix,
+                           const std::string& suffix) {
+    std::string s = prefix + std::to_string(block_id) + suffix + ".fa";
     std::ofstream fasta(s.c_str());
     for (uint64_t i = 0; i < seqs.size(); ++i) {
         fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
@@ -111,7 +113,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
 
     //#ifdef SMOOTH_WRITE_BLOCKS_FASTA
     if (save_block_fastas) {
-        write_fasta_for_block(graph, block, block_id, seqs, names);
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
     }
 //#endif
 
@@ -387,7 +389,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
     }
 
     if (save_block_fastas) {
-        write_fasta_for_block(graph, block, block_id, seqs, names);
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_spoa");
     }
 
     /*
@@ -672,7 +674,7 @@ void _put_block_in_group(
 }
 
 odgi::graph_t smooth_and_lace(const xg::XG &graph,
-                              const std::vector<block_t> &blocks,
+                              blockset_t*& blockset,
                               int poa_m, int poa_n,
                               int poa_g, int poa_e,
                               int poa_q, int poa_c,
@@ -691,7 +693,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
     // record the start and end points of all the path ranges and the consensus
     //
     std::vector<odgi::graph_t> block_graphs;
-    block_graphs.resize(blocks.size());
+    block_graphs.resize(blockset->size());
 
     std::vector<path_position_range_t> path_mapping;
     std::vector<path_position_range_t> consensus_mapping;
@@ -707,8 +709,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
         // If merged consensus sequences have to be embedded, this structures are needed to keep the blocks' coordinates,
         // but the sequences will be considered (and kept in memory) only if a MAF has to be produced
-        std::vector<std::vector<maf_row_t>> mafs(produce_maf || (add_consensus && merge_blocks) ? blocks.size() : 0);
-        atomicbitvector::atomic_bv_t mafs_ready(produce_maf || (add_consensus && merge_blocks) ? blocks.size() : 0);
+        std::vector<std::vector<maf_row_t>> mafs(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
+        atomicbitvector::atomic_bv_t mafs_ready(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
 
         auto write_maf_lambda = [&]() {
             if (produce_maf || (add_consensus && merge_blocks)) {
@@ -716,7 +718,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
                 maf_t merged_maf_blocks;
 
-                uint64_t num_blocks = blocks.size();
+                uint64_t num_blocks = blockset->size();
 
                 std::ofstream out_maf;
 
@@ -1028,7 +1030,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
                                 if (produce_maf) {
                                     bool contains_loops = false;
                                     std::unordered_set<path_handle_t> seen_paths;
-                                    for (auto &path_range : blocks[block_id].path_ranges) {
+                                    for (auto &path_range : blockset->get_block(block_id).path_ranges) {
                                         path_handle_t path = graph.get_path_handle_of_step(path_range.begin);
                                         if (seen_paths.count(path)) {
                                             contains_loops = true;
@@ -1076,20 +1078,20 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         poa_banner << "[smoothxg::smooth_and_lace] applying "
                    << (local_alignment ? "local" : "global") << " "
                    << (use_abpoa ? "abPOA" : "SPOA")
-                   << " to " << blocks.size() << " blocks:";
-        progress_meter::ProgressMeter poa_progress(blocks.size(), poa_banner.str());
+                   << " to " << blockset->size() << " blocks:";
+        progress_meter::ProgressMeter poa_progress(blockset->size(), poa_banner.str());
 
 #pragma omp parallel for schedule(dynamic,1)
-        for (uint64_t i = 0; i < blocks.size(); ++i) {
+        for (uint64_t i = 0; i < blockset->size(); ++i) {
             uint64_t block_id = i;
-            auto &block = blocks[block_id];
+            auto block = blockset->get_block(block_id);
 
             std::string consensus_name;
             if (add_consensus){
                 consensus_name = consensus_base_name + std::to_string(block_id);
             }
 
-            // std::cerr << "on block " << block_id+1 << " of " << blocks.size() << std::endl;
+            // std::cerr << "on block " << block_id+1 << " of " << blockset->size() << std::endl;
             auto &block_graph = block_graphs[block_id];
 
             if (use_abpoa) {
@@ -1191,6 +1193,8 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
 
         write_maf_thread.join();
     }
+
+    delete blockset;
 
     std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings"
               << std::endl;
@@ -1394,7 +1398,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         std::cerr << "[smoothxg::smooth_and_lace] embedding consensus" << std::endl;
 
         // all raw consensus paths
-        std::vector<path_handle_t> consensus_paths(blocks.size());
+        std::vector<path_handle_t> consensus_paths(block_graphs.size());
         //consensus_paths_by_block
 
         merged_block_id_intervals_tree.index();
@@ -1444,7 +1448,7 @@ odgi::graph_t smooth_and_lace(const xg::XG &graph,
         std::vector<path_handle_t> merged_consensus_paths;
 
         std::vector<size_t> merged_block_id_intervals;
-        merged_block_id_intervals_tree.overlap(0, blocks.size(), merged_block_id_intervals);
+        merged_block_id_intervals_tree.overlap(0, block_graphs.size(), merged_block_id_intervals);
 
         for (auto &merged_block_id_interval_idx : merged_block_id_intervals){
             uint64_t start = merged_block_id_intervals_tree.start(merged_block_id_interval_idx);

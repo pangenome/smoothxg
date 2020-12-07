@@ -41,7 +41,9 @@ int main(int argc, char** argv) {
     args::Flag _preserve_unmerged_consensus(parser, "bool", "do not delete original consensus sequences in the merged MAF blocks and in the smoothed graph",{'N', "preserve-unmerged-consensus"});
     args::ValueFlag<double> _contiguous_path_jaccard(parser, "float","minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",{'J', "contiguous-path-jaccard"});
 
-    args::Flag write_block_fastas(parser, "bool", "write the FASTA sequences for blocks as they are processed",{'B', "write-block-fastas"});
+    args::Flag write_block_to_split_fastas(parser, "bool", "write the FASTA sequences for split blocks",{'A', "write-split-block-fastas"});
+    args::Flag write_block_fastas(parser, "bool", "write the FASTA sequences for blocks put into poa",{'B', "write-poa-block-fastas"});
+
     args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build", {'b', "base"});
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "block-weight-max"});
@@ -209,17 +211,21 @@ int main(int argc, char** argv) {
         }
     }
 
-    auto blocks = smoothxg::smoothable_blocks(graph,
-                                              max_block_weight,
-                                              max_block_jump,
-                                              min_subpath,
-                                              max_edge_jump,
-                                              order_paths_from_longest);
+    auto* blockset = new smoothxg::blockset_t("blocks");
+    smoothxg::smoothable_blocks(graph,
+                              *blockset,
+                              max_block_weight,
+                              max_block_jump,
+                              min_subpath,
+                              max_edge_jump,
+                              order_paths_from_longest,
+                              num_threads);
 
     uint64_t min_autocorr_z = 5;
     uint64_t autocorr_stride = 50;
+
     smoothxg::break_blocks(graph,
-                           blocks,
+                           blockset,
                            block_group_identity,
                            max_poa_length,
                            min_copy_length,
@@ -229,7 +235,8 @@ int main(int argc, char** argv) {
                            order_paths_from_longest,
                            true,
                            n_threads,
-                           write_consensus_graph);
+                           write_consensus_graph,
+                           args::get(write_block_to_split_fastas));
 
     // build the path_step_rank_ranges -> index_in_blocks_vector
     // flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:
@@ -267,7 +274,7 @@ int main(int argc, char** argv) {
         maf_header += (order_paths_from_longest ? "longest" : "shortest");
         maf_header += "\n";
 
-        // break_blocks parameters
+        // create_blocks
         maf_header += "# max_block_weight=" + std::to_string(max_block_weight) +
                 " max_block_jump=" + std::to_string(max_block_jump) +
                 " min_subpath=" + std::to_string(min_subpath) +
@@ -278,13 +285,14 @@ int main(int argc, char** argv) {
                 " min_copy_length=" + std::to_string(min_copy_length) +
                 " max_copy_length=" + std::to_string(max_copy_length) +
                 " min_autocorr_z=" + std::to_string(min_autocorr_z) +
-                " autocorr_stride=" + std::to_string(autocorr_stride) + "\n";
+                " autocorr_stride=" + std::to_string(autocorr_stride) +
+                " block_group_identity=" + std::to_string(block_group_identity) + "\n";
     }
 
     std::vector<std::string> consensus_path_names;
     {
         auto smoothed = smoothxg::smooth_and_lace(graph,
-                                                  blocks,
+                                                  blockset,
                                                   poa_m,
                                                   poa_n,
                                                   poa_g,
