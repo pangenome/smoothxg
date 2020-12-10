@@ -237,7 +237,40 @@ void break_blocks(const xg::XG& graph,
         // ensure that the sequences in the block
         // are within our identity threshold
         // if not, peel them off into splits
-        std::vector<std::string> seqs;
+        std::vector<std::string> seqs_dedup;
+        std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
+        for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
+            auto& path_range = block.path_ranges[rank];
+
+            std::string seq = "";
+            for (step_handle_t step = path_range.begin;
+                 step != path_range.end;
+                 step = graph.get_next_step(step)) {
+                seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+            }
+            auto seq_rev = odgi::reverse_complement(seq);
+
+            bool new_seq = true;
+            for (uint64_t j = 0; j < seqs_dedup.size(); ++j) {
+                if (seq == seqs_dedup[j] || seq_rev == seqs_dedup[j]) {
+                    seqs_dedup_original_ranks[j].push_back(rank);
+                    new_seq = false;
+                    break;
+                }
+            }
+
+            if (new_seq) {
+                seqs_dedup.push_back(seq);
+
+                seqs_dedup_original_ranks.emplace_back();
+                seqs_dedup_original_ranks.back().push_back(rank);
+            }
+
+            std::string().swap(seq);
+            std::string().swap(seq_rev);
+        }
+
+        /*std::vector<std::string> seqs;
         for (auto& path_range : block.path_ranges) {
             seqs.emplace_back();
             auto& seq = seqs.back();
@@ -246,7 +279,8 @@ void break_blocks(const xg::XG& graph,
                  step = graph.get_next_step(step)) {
                 seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
             }
-        }
+        }*/
+
         std::vector<std::vector<uint64_t>> groups;
         // iterate through the seqs
         // for each sequence try to match it to a group at the given identity threshold
@@ -255,12 +289,12 @@ void break_blocks(const xg::XG& graph,
         auto start_time = std::chrono::steady_clock::now();
 
         groups.push_back({0}); // seed with the first sequence
-        for (uint64_t i = 1; i < seqs.size(); ++i) {
+        for (uint64_t i = 1; i < seqs_dedup.size(); ++i) {
             if (block_group_identity == 0) {
                 groups[0].push_back(i);
                 continue;
             }
-            auto& curr_fwd = seqs[i];
+            auto& curr_fwd = seqs_dedup[i];
             auto curr_rev = odgi::reverse_complement(curr_fwd);
             uint64_t best_group = 0;
             double best_id = -1;
@@ -268,7 +302,7 @@ void break_blocks(const xg::XG& graph,
                 for (uint64_t j = 0; j < groups.size(); ++j) {
                     auto& group = groups[j];
                     for (uint64_t k = 0; k < group.size(); ++k) {
-                        auto& other = seqs[group[k]];
+                        auto& other = seqs_dedup[group[k]];
                         EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
                                                              edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
                         if (result.status == EDLIB_STATUS_OK
@@ -306,7 +340,9 @@ void break_blocks(const xg::XG& graph,
                 std::cerr << std::endl;
                 */
                 for (auto& j : group) {
-                    new_block.path_ranges.push_back(block.path_ranges[j]);
+                    for (auto& jj : seqs_dedup_original_ranks[j]) {
+                        new_block.path_ranges.push_back(block.path_ranges[jj]);
+                    }
                 }
                 //for (auto& path_range : new_block.path_ranges) {
                 //    //new_block.total_path_length += path_range.length;
