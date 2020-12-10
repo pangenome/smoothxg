@@ -32,6 +32,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> smoothed_out(parser, "FILE", "write GFA to this file (not /dev/stdout if consensus graph is made)", {'o', "smoothed-out"});
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
+    args::ValueFlag<std::string> _write_consensus_path_names(parser, "FILE", "write the consensus path names to this file", {'f', "write-consensus-path-names"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
     args::ValueFlag<std::string> _consensus_jump_max(parser, "jump_max[,jump_max]*", "preserve all divergences from the consensus paths greater than this length, with multiples allowed [default: 100]", {'C', "consensus-jump-max"});
 
@@ -109,7 +110,12 @@ int main(int argc, char** argv) {
     }
 
     if (!smoothed_out) {
-        std::cerr << "[smoothxg::main] error: Please specify an output file with -o/--smoothed-out" << std::endl;
+        std::cerr << "[smoothxg::main] error: Please specify an output file with -o/--smoothed-out." << std::endl;
+        return 1;
+    }
+
+    if (_write_consensus_path_names && !add_consensus) {
+        std::cerr << "[smoothxg::main] error: Please use -f/--write-consensus-path-names only with -a/--add-consensus." << std::endl;
         return 1;
     }
     std::string smoothed_out_gfa = args::get(smoothed_out);
@@ -320,6 +326,16 @@ int main(int argc, char** argv) {
         ofstream out(smoothed_out_gfa.c_str());
         smoothed.to_gfa(out);
         out.close();
+    }
+
+    // do we need to write the consensus path names?
+    if (_write_consensus_path_names) {
+        std::string write_consensus_path_names = args::get(_write_consensus_path_names);
+        std::ofstream consensus_path_names_out(write_consensus_path_names);
+        for (auto& consensus_path_name : consensus_path_names) {
+            consensus_path_names_out << consensus_path_name << std::endl;
+        }
+        consensus_path_names_out.close();
     }
 
     // do we need to build the consensus graph?
