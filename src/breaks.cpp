@@ -242,7 +242,7 @@ void break_blocks(const xg::XG& graph,
         for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
             auto& path_range = block.path_ranges[rank];
 
-            std::string seq = "";
+            std::string seq;
             for (step_handle_t step = path_range.begin;
                  step != path_range.end;
                  step = graph.get_next_step(step)) {
@@ -269,17 +269,6 @@ void break_blocks(const xg::XG& graph,
             std::string().swap(seq);
             std::string().swap(seq_rev);
         }
-
-        /*std::vector<std::string> seqs;
-        for (auto& path_range : block.path_ranges) {
-            seqs.emplace_back();
-            auto& seq = seqs.back();
-            for (step_handle_t step = path_range.begin;
-                 step != path_range.end;
-                 step = graph.get_next_step(step)) {
-                seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
-            }
-        }*/
 
         std::vector<std::vector<uint64_t>> groups;
         // iterate through the seqs
