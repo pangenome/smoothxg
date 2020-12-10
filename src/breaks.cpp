@@ -239,7 +239,6 @@ void break_blocks(const xg::XG& graph,
         // if not, peel them off into splits
         std::vector<std::string> seqs;
         for (auto& path_range : block.path_ranges) {
-            std::string name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
             seqs.emplace_back();
             auto& seq = seqs.back();
             for (step_handle_t step = path_range.begin;
