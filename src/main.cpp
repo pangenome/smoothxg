@@ -20,7 +20,6 @@
 #include "utils.hpp"
 #include "odgi/odgi.hpp"
 #include "consensus_graph.hpp"
-#include "path_nuc_range_block_index.hpp"
 
 using namespace std;
 using namespace xg;
