@@ -237,125 +237,125 @@ void break_blocks(const xg::XG& graph,
         // ensure that the sequences in the block
         // are within our identity threshold
         // if not, peel them off into splits
-        std::vector<std::string> seqs_dedup;
-        std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
-        for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
-            auto& path_range = block.path_ranges[rank];
+        if (block_group_identity > 0) {
+            std::vector<std::string> seqs_dedup;
+            std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
+            for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
+                auto& path_range = block.path_ranges[rank];
 
-            std::string seq;
-            for (step_handle_t step = path_range.begin;
-                 step != path_range.end;
-                 step = graph.get_next_step(step)) {
-                seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
-            }
-            auto seq_rev = odgi::reverse_complement(seq);
-
-            bool new_seq = true;
-            for (uint64_t j = 0; j < seqs_dedup.size(); ++j) {
-                if (seq == seqs_dedup[j] || seq_rev == seqs_dedup[j]) {
-                    seqs_dedup_original_ranks[j].push_back(rank);
-                    new_seq = false;
-                    break;
+                std::string seq;
+                for (step_handle_t step = path_range.begin;
+                     step != path_range.end;
+                     step = graph.get_next_step(step)) {
+                    seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
                 }
+                auto seq_rev = odgi::reverse_complement(seq);
+
+                bool new_seq = true;
+                for (uint64_t j = 0; j < seqs_dedup.size(); ++j) {
+                    if (seq == seqs_dedup[j] || seq_rev == seqs_dedup[j]) {
+                        seqs_dedup_original_ranks[j].push_back(rank);
+                        new_seq = false;
+                        break;
+                    }
+                }
+
+                if (new_seq) {
+                    seqs_dedup.push_back(seq);
+
+                    seqs_dedup_original_ranks.emplace_back();
+                    seqs_dedup_original_ranks.back().push_back(rank);
+                }
+
+                std::string().swap(seq);
+                std::string().swap(seq_rev);
             }
 
-            if (new_seq) {
-                seqs_dedup.push_back(seq);
+            std::vector<std::vector<uint64_t>> groups;
+            // iterate through the seqs
+            // for each sequence try to match it to a group at the given identity threshold
+            // if we can't get it to match, add a new group
 
-                seqs_dedup_original_ranks.emplace_back();
-                seqs_dedup_original_ranks.back().push_back(rank);
-            }
+            auto start_time = std::chrono::steady_clock::now();
 
-            std::string().swap(seq);
-            std::string().swap(seq_rev);
-        }
-
-        std::vector<std::vector<uint64_t>> groups;
-        // iterate through the seqs
-        // for each sequence try to match it to a group at the given identity threshold
-        // if we can't get it to match, add a new group
-
-        auto start_time = std::chrono::steady_clock::now();
-
-        groups.push_back({0}); // seed with the first sequence
-        for (uint64_t i = 1; i < seqs_dedup.size(); ++i) {
-            if (block_group_identity == 0) {
-                groups[0].push_back(i);
-                continue;
-            }
-            auto& curr_fwd = seqs_dedup[i];
-            auto curr_rev = odgi::reverse_complement(curr_fwd);
-            uint64_t best_group = 0;
-            double best_id = -1;
-            for (auto& curr : { curr_fwd, curr_rev }) {
-                for (uint64_t j = 0; j < groups.size(); ++j) {
-                    auto& group = groups[j];
-                    for (uint64_t k = 0; k < group.size(); ++k) {
-                        auto& other = seqs_dedup[group[k]];
-                        EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                                             edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
-                        if (result.status == EDLIB_STATUS_OK
-                            && result.editDistance >= 0) {
-                            double id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
-                            if (id >= block_group_identity && id > best_id) {
-                                best_group = j;
-                                best_id = id;
+            groups.push_back({0}); // seed with the first sequence
+            for (uint64_t i = 1; i < seqs_dedup.size(); ++i) {
+                auto& curr_fwd = seqs_dedup[i];
+                auto curr_rev = odgi::reverse_complement(curr_fwd);
+                uint64_t best_group = 0;
+                double best_id = -1;
+                for (auto& curr : { curr_fwd, curr_rev }) {
+                    for (uint64_t j = 0; j < groups.size(); ++j) {
+                        auto& group = groups[j];
+                        for (uint64_t k = 0; k < group.size(); ++k) {
+                            auto& other = seqs_dedup[group[k]];
+                            EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
+                                                                 edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
+                            if (result.status == EDLIB_STATUS_OK
+                                && result.editDistance >= 0) {
+                                double id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
+                                if (id >= block_group_identity && id > best_id) {
+                                    best_group = j;
+                                    best_id = id;
+                                }
                             }
+                            edlibFreeAlignResult(result);
                         }
-                        edlibFreeAlignResult(result);
                     }
                 }
+                if (best_id > 0) {
+                    groups[best_group].push_back(i);
+                } else {
+                    groups.push_back({i});
+                }
             }
-            if (best_id > 0) {
-                groups[best_group].push_back(i);
+
+            if (groups.size() == 1) {
+                // nothing to do
+                ready_blocks[block_id].push_back(block);
             } else {
-                groups.push_back({i});
-            }
-        }
+                ++split_blocks;
 
-        if (groups.size() == 1) {
-            // nothing to do
-            ready_blocks[block_id].push_back(block);
-        } else {
-            ++split_blocks;
+                uint64_t i = 0;
+                for (auto& group : groups) {
+                    block_t new_block;
+                    //new_block.is_split = true;
+                    /*
+                    std::cerr << "group " << i << " contains ";
+                    for (auto& j : group) std::cerr << " " << j;
+                    std::cerr << std::endl;
+                    */
+                    for (auto& j : group) {
+                        for (auto& jj : seqs_dedup_original_ranks[j]) {
+                            new_block.path_ranges.push_back(block.path_ranges[jj]);
+                        }
+                    }
+                    //for (auto& path_range : new_block.path_ranges) {
+                    //    //new_block.total_path_length += path_range.length;
+                    //    //new_block.max_path_length = std::max(new_block.max_path_length, path_range.length);
+                    //}
 
-            uint64_t i = 0;
-            for (auto& group : groups) {
-                block_t new_block;
-                //new_block.is_split = true;
-                /*
-                std::cerr << "group " << i << " contains ";
-                for (auto& j : group) std::cerr << " " << j;
-                std::cerr << std::endl;
-                */
-                for (auto& j : group) {
-                    for (auto& jj : seqs_dedup_original_ranks[j]) {
-                        new_block.path_ranges.push_back(block.path_ranges[jj]);
+                    ready_blocks[block_id].push_back(new_block);
+
+                    if (write_block_to_split_fastas){
+                        _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_", "_" + std::to_string(i++));
                     }
                 }
-                //for (auto& path_range : new_block.path_ranges) {
-                //    //new_block.total_path_length += path_range.length;
-                //    //new_block.max_path_length = std::max(new_block.max_path_length, path_range.length);
-                //}
-
-                ready_blocks[block_id].push_back(new_block);
 
                 if (write_block_to_split_fastas){
-                    _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_", "_" + std::to_string(i++));
+                    std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
+
+                    // collect sequences
+                    _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_",
+                                                       "_split_in_" + std::to_string(groups.size()) + "_in_" + std::to_string(elapsed_time.count()) + "s");
                 }
             }
-
-            if (write_block_to_split_fastas){
-                std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
-
-                // collect sequences
-                _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_",
-                                                   "_split_in_" + std::to_string(groups.size()) + "_in_" + std::to_string(elapsed_time.count()) + "s");
-            }
+        } else {
+            // nothing to do
+            ready_blocks[block_id].push_back(block);
         }
 
         block_is_ready.set(block_id);
-
 
         breaks_and_splits_progress.increment(1);
     }
