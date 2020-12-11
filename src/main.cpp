@@ -21,8 +21,6 @@
 #include "odgi/odgi.hpp"
 #include "consensus_graph.hpp"
 #include <chrono>
-#include <iomanip>
-#include "progress.hpp"
 
 using namespace std;
 using namespace xg;
@@ -371,7 +369,7 @@ int main(int argc, char** argv) {
         consensus_path_names_out.close();
     }
 
-    // end !read_consenus_path_names
+    // end !_read_consenus_path_names
     } else {
         if (!_smoothed_in_gfa) {
             std::cerr << "[smoothxg::main] error: Please only use the -D/--read-consensus-path-names parameter"

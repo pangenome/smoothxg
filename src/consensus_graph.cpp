@@ -35,7 +35,6 @@ ostream& operator<<(ostream& o, const link_path_t& a) {
 // we'll then build the xg index on top of that in low memory
 
 odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
-                                     // TODO: GBWT
                                      const std::vector<std::string>& consensus_path_names,
                                      const uint64_t& consensus_jump_max,
                                      // TODO: minimum allele frequency
@@ -80,24 +79,6 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         });
     }
 
-    /*// TODO make this an SDSL bitvector so we can infer the rank in O(1) saving space in our consensus_path_handles vector
-    std::string consensus_string = "Consensus";
-    smoothed.for_each_handle([&](const handle_t &h) {
-        // Why is there no "for_each_path_handle_on_handle"?! :(
-        smoothed.for_each_step_on_handle(h, [&](const step_handle_t step) {
-            path_handle_t path = smoothed.get_path_handle_of_step(step);
-            std::string path_name = smoothed.get_path_name(path);
-            if (path_name.find(consensus_string, 0) == 0) {
-                // we found a consensus path!
-                nid_t node_id = smoothed.get_id(h);
-                handle_is_consensus[node_id - 1] = true;
-                consensus_path_handles[node_id - 1] = path;
-                // TODO abort mission here but should work anyhow because we only have at most one consensus path per node
-                // return;
-            }
-        });
-    });*/
-
     std::vector<path_handle_t> non_consensus_paths;
     non_consensus_paths.reserve(smoothed.get_path_count()+1-consensus_paths.size());
     smoothed.for_each_path_handle(
@@ -134,11 +115,13 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
 
     std::vector<uint64_t> node_offset;
     node_offset.push_back(0);
+    // FIXME Isn't this something already given in XG?
     smoothed.for_each_handle(
         [&](const handle_t& h) {
             node_offset.push_back(node_offset.back()+smoothed.get_length(h));
         });
 
+    // FIXME I thought the XG can give us these things more easily?
     auto start_in_vector =
         [&](const handle_t& h) {
             if (!smoothed.get_is_reverse(h)) {
@@ -149,6 +132,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
             }
         };
 
+    // FIXME I thought the XG can give us these things more easily?
     auto end_in_vector =
         [&](const handle_t& h) {
             if (smoothed.get_is_reverse(h)) {
@@ -185,7 +169,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                     nid_t node_id = smoothed.get_id(h);
                     bool on_consensus = false;
                     path_handle_t curr_consensus;
-                    // TODO: we should use a bitvector (vector<bool>) saying if the node is in the consensus graph
+                    // we use a bitvector (vector<bool>) saying if the node is in the consensus graph
                     // and then we don't have to iterate path_steps * path_steps
                     // we'll also need to store the path handle of the consensus path at that node (another vector!)
                     // .... but keep in mind that this makes the assumption that we have only one consensus path at any place in the graph
@@ -195,17 +179,6 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                         on_consensus = true;
                         curr_consensus = consensus_path_handles[node_id - 1];
                     }
-                    /*
-                    smoothed.for_each_step_on_handle(
-                        h,
-                        [&](const step_handle_t& s) {
-                            path_handle_t p = smoothed.get_path_handle_of_step(s);
-                            if (is_consensus[as_integer(p)]) {
-                                on_consensus = true;
-                                curr_consensus = p;
-                            }
-                        });
-                    */
                     // if we're on the consensus
                     if (on_consensus) {
                         // we haven't seen any consensus before?
@@ -507,7 +480,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
     consensus.set_number_of_threads(thread_count);
 
     // add the consensus paths first
-    // ?? --- could this be run in parallel
+    // TODO could this be run in parallel?
     for (auto& path : consensus_paths) {
         // create the path
         path_handle_t path_cons_graph = consensus.create_path_handle(smoothed.get_path_name(path));
@@ -654,6 +627,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
 
     // validate consensus graph
     // number of handles
+    // TODO make this optional?
     smoothed.for_each_path_handle(
             [&](const path_handle_t &p) {
                 if (is_consensus[as_integer(p)]) {
@@ -693,6 +667,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                 }
             });
 
+    // TODO what is this doing?
+    // TODO this should be before the validation
     consensus.for_each_path_handle(
         [&](const path_handle_t& path) {
             consensus.for_each_step_in_path(path, [&] (const step_handle_t step) {
@@ -731,6 +707,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
 
     std::cerr << "[smoothxg::create_consensus_graph] cleaning up redundant link paths" << std::endl;
 
+    // TODO why is this even necessary?
     // remove paths that are contained in others
     // and add less than consensus_jump_max bp of sequence
     std::vector<path_handle_t> links_to_remove;
