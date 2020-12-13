@@ -274,16 +274,13 @@ namespace smoothxg {
                     std::string().swap(seq_rev);
                 }
 
-                std::cerr << std::endl;
-                {
-                    std::sort(
-                            rank_and_seqs_dedup.begin(), rank_and_seqs_dedup.end(),
-                            [](const std::pair<std::uint64_t, std::string>& a,
-                               const std::pair<std::uint64_t, std::string>& b) {
-                                return std::make_tuple(a.second.size(), std::ref(a.second)) < std::make_tuple(b.second.size(), std::ref(b.second));
-                            }
-                    );
-                }
+                std::sort(
+                        rank_and_seqs_dedup.begin(), rank_and_seqs_dedup.end(),
+                        [](const std::pair<std::uint64_t, std::string>& a,
+                           const std::pair<std::uint64_t, std::string>& b) {
+                            return std::make_tuple(a.second.size(), std::ref(a.second)) < std::make_tuple(b.second.size(), std::ref(b.second));
+                        }
+                );
 
                 std::vector<std::vector<uint64_t>> groups;
                 // iterate through the seqs
@@ -296,12 +293,14 @@ namespace smoothxg {
                 for (uint64_t i = 1; i < rank_and_seqs_dedup.size(); ++i) {
                     auto& curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
+
                     uint64_t best_group = 0;
                     double best_id = -1;
                     for (auto& curr : { curr_fwd, curr_rev }) {
-                        for (uint64_t j = 0; j < groups.size(); ++j) {
+                        for (int64_t j = groups.size() - 1; j >= 0 ; --j) {
                             auto& group = groups[j];
-                            for (uint64_t k = 0; k < group.size(); ++k) {
+
+                            for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto& other = rank_and_seqs_dedup[group[k]].second;
                                 EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
                                                                      edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
@@ -311,10 +310,20 @@ namespace smoothxg {
                                     if (id >= block_group_identity && id > best_id) {
                                         best_group = j;
                                         best_id = id;
+
+                                        break; // Stop with this group
                                     }
                                 }
                                 edlibFreeAlignResult(result);
                             }
+
+                            if (best_id > 0) {
+                                break;
+                            }
+                        }
+
+                        if (best_id > 0) {
+                            break;
                         }
                     }
                     if (best_id > 0) {
@@ -340,7 +349,7 @@ namespace smoothxg {
                         std::cerr << std::endl;
                         */
                         for (auto& j : group) {
-                            for (auto& jj : seqs_dedup_original_ranks[j]) {
+                            for (auto& jj : seqs_dedup_original_ranks[rank_and_seqs_dedup[j].first]) {
                                 new_block.path_ranges.push_back(block.path_ranges[jj]);
                             }
                         }
