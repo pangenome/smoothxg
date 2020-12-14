@@ -194,6 +194,10 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                             link.hash = 0;
                             seen_consensus = true;
                             last_seen_consensus = curr_consensus;
+                            // TODO do we want to add the allele depth of the start and end consensus handles to the link object?
+
+                            // TODO add frequency to construct link_path_t --> double
+                            // TODO min and max frequency
                         } else {
                             /*
                             if (last_seen_consensus != consensus) {
@@ -481,7 +485,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
     consensus.set_number_of_threads(thread_count);
 
     // add the consensus paths first
-    // FIXME could this be run in parallel?
+    // FIXME could this be run in parallel? --> create the path in an extra for
     std::cerr << "[smoothxg::create_consensus_graph] adding consensus paths" << std::endl;
     for (auto& path : consensus_paths) {
         // create the path
