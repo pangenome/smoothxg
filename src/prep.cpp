@@ -94,9 +94,7 @@ void prep(
     graph.apply_ordering(order, true);
 
     // groom
-    odgi::graph_t groomed;
-    odgi::algorithms::groom(graph, groomed, true);
-    graph = groomed;
+    graph.apply_ordering(odgi::algorithms::groom(graph, true));
     graph.set_number_of_threads(num_threads);
 
     // final toposort
