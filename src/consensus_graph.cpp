@@ -307,7 +307,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         };
 
     std::vector<std::pair<handle_t, handle_t>> perfect_edges;
-
+    // FIXME can we parallelize this?
     auto compute_best_link =
         [&](const std::vector<link_path_t>& links) {
             std::map<uint64_t, uint64_t> hash_counts;
@@ -448,6 +448,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
     // collect edges by node
     //
     // could this run in parallel?
+    // FIXME this is already paralellized now, right?
     // yes probably but we need to either lock the consensus path vectors or write into a multiset
     link_path_ms.for_each_value(
         [&](const link_path_t& v) {
@@ -480,7 +481,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
     consensus.set_number_of_threads(thread_count);
 
     // add the consensus paths first
-    // TODO could this be run in parallel?
+    // FIXME could this be run in parallel?
+    std::cerr << "[smoothxg::create_consensus_graph] adding consensus paths" << std::endl;
     for (auto& path : consensus_paths) {
         // create the path
         path_handle_t path_cons_graph = consensus.create_path_handle(smoothed.get_path_name(path));
@@ -506,32 +508,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         });
     }
 
-    auto add_path_segment
-        = [&](const link_path_t& link,
-              const step_handle_t& begin,
-              const step_handle_t& end,
-              uint64_t& new_rank) {
-              // how long was the last path? should we include it?
-              stringstream s;
-              s << "Link_" << *link.from_cons_name << "_" << *link.to_cons_name << "_" << link.rank << "_" << new_rank++;
-              path_handle_t path_cons_graph = consensus.create_path_handle(s.str());
-              for (step_handle_t step = begin;
-                   step != end;
-                   step = smoothed.get_next_step(step)) {
-                  handle_t curr_handle = smoothed.get_handle_of_step(step);
-                  nid_t node_id = smoothed.get_id(curr_handle);
-                  handle_t curr_handle_in_cons_graph = consensus.create_handle(smoothed.get_sequence(smoothed.get_handle(node_id)), node_id);
-                  bool rev = smoothed.get_is_reverse(curr_handle);
-                  if (rev) {
-                      consensus.append_step(path_cons_graph, consensus.flip(curr_handle_in_cons_graph));
-                  } else {
-                      consensus.append_step(path_cons_graph, curr_handle_in_cons_graph);
-                  }
-              }
-          };
-
-    /// ???? could THIS run in parallel
-    std::cerr << "[smoothxg::create_consensus_graph] adding consensus paths" << std::endl;
+    /// FIXME could THIS run in parallel
+    std::cerr << "[smoothxg::create_consensus_graph] adding link paths" << std::endl;
     // add link paths and edges not in the consensus paths
     std::vector<std::string> link_path_names;
     for (auto& link : consensus_links) {
@@ -557,6 +535,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                 if (!consensus.has_node(node_id)) {
                     //assert(false);
                     // todo should be in by definition...
+                    // FIXME so remove this line or what?
                     cur_handle_in_cons_graph = consensus.create_handle(smoothed.get_sequence(smoothed.get_handle(node_id)), node_id);
                 } else {
                     cur_handle_in_cons_graph = consensus.get_handle(node_id);
