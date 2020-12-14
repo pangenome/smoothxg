@@ -104,7 +104,7 @@ namespace smoothxg {
         for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id){
             auto block = blockset->get_block(block_id);
 
-            /// cutting
+            // Cutting
             // check if we have sequences that are too long
             bool to_break = false;
             for (auto& path_range : block.path_ranges) {
@@ -234,9 +234,8 @@ namespace smoothxg {
                 }
             }
 
-            /// splitting
-            // ensure that the sequences in the block
-            // are within our identity threshold
+            // Splitting
+            // ensure that the sequences in the block are within our identity threshold
             // if not, peel them off into splits
             if (block_group_identity > 0) {
                 std::vector<std::pair<std::uint64_t, std::string>> rank_and_seqs_dedup;
@@ -274,6 +273,7 @@ namespace smoothxg {
                     std::string().swap(seq_rev);
                 }
 
+                // Sort by length and lexicographically, to have similar sequences close to each other in the order
                 std::sort(
                         rank_and_seqs_dedup.begin(), rank_and_seqs_dedup.end(),
                         [](const std::pair<std::uint64_t, std::string>& a,
@@ -282,12 +282,12 @@ namespace smoothxg {
                         }
                 );
 
-                std::vector<std::vector<uint64_t>> groups;
+                auto start_time = std::chrono::steady_clock::now();
+
                 // iterate through the seqs
                 // for each sequence try to match it to a group at the given identity threshold
                 // if we can't get it to match, add a new group
-
-                auto start_time = std::chrono::steady_clock::now();
+                std::vector<std::vector<uint64_t>> groups;
 
                 groups.push_back({0}); // seed with the first sequence
                 for (uint64_t i = 1; i < rank_and_seqs_dedup.size(); ++i) {
@@ -297,13 +297,16 @@ namespace smoothxg {
                     uint64_t best_group = 0;
                     double best_id = -1;
                     for (auto& curr : { curr_fwd, curr_rev }) {
+                        // Start looking at from the last group
                         for (int64_t j = groups.size() - 1; j >= 0 ; --j) {
                             auto& group = groups[j];
 
+                            // Start looking at from the last added sequence to the group
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto& other = rank_and_seqs_dedup[group[k]].second;
                                 EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
                                                                      edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
+
                                 if (result.status == EDLIB_STATUS_OK
                                     && result.editDistance >= 0) {
                                     double id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
@@ -343,12 +346,15 @@ namespace smoothxg {
                     for (auto& group : groups) {
                         block_t new_block;
                         //new_block.is_split = true;
+
                         /*
                         std::cerr << "group " << i << " contains ";
                         for (auto& j : group) std::cerr << " " << j;
                         std::cerr << std::endl;
                         */
+
                         for (auto& j : group) {
+                            // Take the original path_ranges following their original order in the block
                             for (auto& jj : seqs_dedup_original_ranks[rank_and_seqs_dedup[j].first]) {
                                 new_block.path_ranges.push_back(block.path_ranges[jj]);
                             }
@@ -398,5 +404,4 @@ namespace smoothxg {
         blockset = broken_blockset;
         blockset->index(thread_count);
     }
-
 }
