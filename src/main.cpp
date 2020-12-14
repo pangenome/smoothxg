@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <fstream>
+#include <deps/odgi/src/odgi.hpp>
 #include "args.hxx"
 #include "sdsl/bit_vectors.hpp"
 #include "chain.hpp"
@@ -310,16 +311,16 @@ int main(int argc, char** argv) {
 
         uint64_t smoothed_nodes = 0;
         uint64_t smoothed_length = 0;
-        smoothed.for_each_handle(
+        smoothed->for_each_handle(
             [&](const handle_t& h) {
                 ++smoothed_nodes;
-                smoothed_length += smoothed.get_length(h);
+                smoothed_length += smoothed->get_length(h);
             });
         std::cerr << "[smoothxg::main] smoothed graph length " << smoothed_length << "bp " << "in " << smoothed_nodes << " nodes" << std::endl;
 
         std::cerr << "[smoothxg::main] writing smoothed graph to " << smoothed_out_gfa << std::endl;
         ofstream out(smoothed_out_gfa.c_str());
-        smoothed.to_gfa(out);
+        smoothed->to_gfa(out);
         out.close();
     }
 
@@ -340,11 +341,11 @@ int main(int argc, char** argv) {
         smoothed_xg.from_gfa(smoothed_out_gfa, args::get(validate),
                              args::get(base).empty() ? smoothed_out_gfa : args::get(base));
         for (auto jump_max : jump_maxes) {
-            odgi::graph_t consensus_graph = smoothxg::create_consensus_graph(
+            odgi::graph_t* consensus_graph = smoothxg::create_consensus_graph(
                 smoothed_xg, consensus_path_names, jump_max, n_threads,
                 args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
             ofstream o(consensus_base + "@" + std::to_string(jump_max) + ".gfa");
-            consensus_graph.to_gfa(o);
+            consensus_graph->to_gfa(o);
             o.close();
         }
     }

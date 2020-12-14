@@ -58,7 +58,7 @@ odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
                           const std::string &consensus_name = "",
                           bool save_block_fastas = false);
 
-odgi::graph_t smooth_and_lace(const xg::XG &graph,
+odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                               blockset_t*& blockset,
                               int poa_m, int poa_n,
                               int poa_g, int poa_e,
@@ -76,13 +76,13 @@ void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
                const std::vector<std::string> &sequence_names,
                bool include_consensus);
 
-void build_odgi(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t &output,
+void build_odgi(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
                 const std::vector<std::string> &sequence_names,
                 const std::vector<bool> &aln_is_reverse,
                 const std::string &consensus_name,
                 bool include_consensus = true);
 
-void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t &output,
+void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::vector<std::string> &sequence_names,
                       const std::vector<bool> &aln_is_reverse,
                       const std::string &consensus_name,
