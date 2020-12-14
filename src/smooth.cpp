@@ -1093,7 +1093,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             }
 
             // std::cerr << "on block " << block_id+1 << " of " << blockset->size() << std::endl;
-            auto block_graph = block_graphs[block_id];
+            auto& block_graph = block_graphs[block_id];
 
             if (use_abpoa) {
                 block_graph = smooth_abpoa(graph,
@@ -1210,7 +1210,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         });
 
     // build the sequence and edges into the output graph
-    odgi::graph_t* smoothed = new odgi::graph_t();
+    auto* smoothed = new odgi::graph_t();
 
     // add the nodes and edges to the graph
     std::vector<uint64_t> id_mapping;
