@@ -9,7 +9,6 @@
 #include "odgi/odgi.hpp"
 #include "odgi/topological_sort.hpp"
 #include "odgi/unchop.hpp"
-#include "paryfor.hpp"
 #include "spoa/spoa.hpp"
 #include "xg.hpp"
 #include <algorithm>
