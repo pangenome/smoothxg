@@ -152,119 +152,116 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
     // determine the ranges based on a map of the consensus path set
     
     // TODO: this could reflect the haplotype frequencies (from GBWT) to preserve variation > some freq
-    paryfor::parallel_for<uint64_t>(
-        0, non_consensus_paths.size(), thread_count,
-        [&](uint64_t idx, int tid) {
-            auto& path = non_consensus_paths[idx];
-            // for each step in path
-            link_path_t link;
-            link.path = path;
-            path_handle_t last_seen_consensus;
-            bool seen_consensus = false;
-            smoothed.for_each_step_in_path(
-                path,
-                [&](const step_handle_t& step) {
-                    // check if we're on the step with any consensus
-                    handle_t h = smoothed.get_handle_of_step(step);
-                    nid_t node_id = smoothed.get_id(h);
-                    bool on_consensus = false;
-                    path_handle_t curr_consensus;
-                    // we use a bitvector (vector<bool>) saying if the node is in the consensus graph
-                    // and then we don't have to iterate path_steps * path_steps
-                    // we'll also need to store the path handle of the consensus path at that node (another vector!)
-                    // .... but keep in mind that this makes the assumption that we have only one consensus path at any place in the graph
-                    // .... if we have more, should we just handle the first in this context...?
-                    ///.... currently we are using the "last" one we find (but there's only one)
-                    if (handle_is_consensus.test(node_id - 1)) {
-                        on_consensus = true;
-                        curr_consensus = consensus_path_handles[node_id - 1];
+#pragma omp parallel for schedule(static, 1) num_threads(thread_count)
+    for (uint64_t idx = 0; idx < non_consensus_paths.size(); ++idx){
+        auto& path = non_consensus_paths[idx];
+        // for each step in path
+        link_path_t link;
+        link.path = path;
+        path_handle_t last_seen_consensus;
+        bool seen_consensus = false;
+        smoothed.for_each_step_in_path(path, [&](const step_handle_t& step) {
+            // check if we're on the step with any consensus
+            handle_t h = smoothed.get_handle_of_step(step);
+            nid_t node_id = smoothed.get_id(h);
+            bool on_consensus = false;
+            path_handle_t curr_consensus;
+            // we use a bitvector (vector<bool>) saying if the node is in the consensus graph
+            // and then we don't have to iterate path_steps * path_steps
+            // we'll also need to store the path handle of the consensus path at that node (another vector!)
+            // .... but keep in mind that this makes the assumption that we have only one consensus path at any place in the graph
+            // .... if we have more, should we just handle the first in this context...?
+            ///.... currently we are using the "last" one we find (but there's only one)
+            if (handle_is_consensus.test(node_id - 1)) {
+                on_consensus = true;
+                curr_consensus = consensus_path_handles[node_id - 1];
+            }
+            // if we're on the consensus
+            if (on_consensus) {
+                // we haven't seen any consensus before?
+                if (!seen_consensus) {
+                    // we construct the first link path object
+                    link.length = 0;
+                    link.from_cons_name = cons_path_ptr[as_integer(curr_consensus)];
+                    link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
+                    link.from_cons_path = curr_consensus;
+                    link.to_cons_path = curr_consensus;
+                    link.begin = step;
+                    link.end = step;
+                    link.hash = 0;
+                    seen_consensus = true;
+                    last_seen_consensus = curr_consensus;
+                    // TODO do we want to add the allele depth of the start and end consensus handles to the link object?
+
+                    // TODO add frequency to construct link_path_t --> double
+                    // TODO min and max frequency
+                } else {
+                    /*
+                    if (last_seen_consensus != consensus) {
+                        std::cerr << "path " << smoothed.get_path_name(path) << " switched from " << smoothed.get_path_name(last_seen_consensus) << " to " << smoothed.get_path_name(consensus) << std::endl;
+                        last_seen_consensus = consensus;
                     }
-                    // if we're on the consensus
-                    if (on_consensus) {
-                        // we haven't seen any consensus before?
-                        if (!seen_consensus) {
-                            // we construct the first link path object
-                            link.length = 0;
-                            link.from_cons_name = cons_path_ptr[as_integer(curr_consensus)];
-                            link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
-                            link.from_cons_path = curr_consensus;
-                            link.to_cons_path = curr_consensus;
-                            link.begin = step;
-                            link.end = step;
-                            link.hash = 0;
-                            seen_consensus = true;
-                            last_seen_consensus = curr_consensus;
-                            // TODO do we want to add the allele depth of the start and end consensus handles to the link object?
+                    */
 
-                            // TODO add frequency to construct link_path_t --> double
-                            // TODO min and max frequency
-                        } else {
-                            /*
-                            if (last_seen_consensus != consensus) {
-                                std::cerr << "path " << smoothed.get_path_name(path) << " switched from " << smoothed.get_path_name(last_seen_consensus) << " to " << smoothed.get_path_name(consensus) << std::endl;
-                                last_seen_consensus = consensus;
-                            }
-                            */
+                    // we've seen a consensus before, and it's the same
+                    // and the direction of movement is correct
+                    // check the distance in the graph position vector
+                    // if it's over some threshold, record the link
+                    handle_t last_handle = smoothed.get_handle_of_step(link.end);
+                    handle_t curr_handle = smoothed.get_handle_of_step(step);
+                    uint64_t jump_length = std::abs(start_in_vector(curr_handle)
+                                                    - end_in_vector(last_handle));
 
-                            // we've seen a consensus before, and it's the same
-                            // and the direction of movement is correct
-                            // check the distance in the graph position vector
-                            // if it's over some threshold, record the link
-                            handle_t last_handle = smoothed.get_handle_of_step(link.end);
-                            handle_t curr_handle = smoothed.get_handle_of_step(step);
-                            uint64_t jump_length = std::abs(start_in_vector(curr_handle)
-                                                            - end_in_vector(last_handle));
-
-                            // TODO: don't just look at consensus_jump_max, but also consider allele frequency
-                            // from GBWT, keeping variants of any length if they're above some threshold
-                            if (link.from_cons_path == curr_consensus
-                                && jump_length < consensus_jump_max) {
-                                link.begin = step;
-                                link.end = step;
-                                link.length = 0;
-                            } else { // or it's different
-                                // this is when we write a link candidate record
-                                link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
-                                link.to_cons_path = curr_consensus;
-                                //link.begin = smoothed.get_next_step(link.begin);
-                                link.end = step;
-                                //std::cerr << "writing to mmset" << std::endl;
-                                link.length = get_path_seq_length(
-                                    smoothed.get_next_step(link.begin),
-                                    link.end);
-                                stringstream h;
-                                std::string seq = get_path_seq(smoothed.get_next_step(link.begin),
-                                                               link.end);
-                                h << smoothed.get_id(smoothed.get_handle_of_step(link.begin))
-                                  << ":"
-                                  << smoothed.get_id(smoothed.get_handle_of_step(link.end))
-                                  << ":"
-                                  << seq;
-                                link.hash = hash_seq(h.str());
-                                if (as_integer(link.from_cons_path) > as_integer(link.to_cons_path)) {
-                                    std::swap(link.from_cons_path, link.to_cons_path);
-                                    std::swap(link.from_cons_name, link.to_cons_name);
-                                }
-                                link.jump_length = jump_length;
-                                link_path_ms.append(link);
-
-                                // reset link
-                                link.length = 0;
-                                link.from_cons_name = cons_path_ptr[as_integer(curr_consensus)];
-                                link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
-                                link.from_cons_path = curr_consensus;
-                                link.to_cons_path = curr_consensus;
-                                link.begin = step;
-                                link.end = step;
-                                link.hash = 0;
-                                link.is_rev = smoothed.get_is_reverse(smoothed.get_handle_of_step(step));
-                            }
+                    // TODO: don't just look at consensus_jump_max, but also consider allele frequency
+                    // from GBWT, keeping variants of any length if they're above some threshold
+                    if (link.from_cons_path == curr_consensus
+                        && jump_length < consensus_jump_max) {
+                        link.begin = step;
+                        link.end = step;
+                        link.length = 0;
+                    } else { // or it's different
+                        // this is when we write a link candidate record
+                        link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
+                        link.to_cons_path = curr_consensus;
+                        //link.begin = smoothed.get_next_step(link.begin);
+                        link.end = step;
+                        //std::cerr << "writing to mmset" << std::endl;
+                        link.length = get_path_seq_length(
+                                smoothed.get_next_step(link.begin),
+                                link.end);
+                        stringstream h;
+                        std::string seq = get_path_seq(smoothed.get_next_step(link.begin),
+                                                       link.end);
+                        h << smoothed.get_id(smoothed.get_handle_of_step(link.begin))
+                          << ":"
+                          << smoothed.get_id(smoothed.get_handle_of_step(link.end))
+                          << ":"
+                          << seq;
+                        link.hash = hash_seq(h.str());
+                        if (as_integer(link.from_cons_path) > as_integer(link.to_cons_path)) {
+                            std::swap(link.from_cons_path, link.to_cons_path);
+                            std::swap(link.from_cons_name, link.to_cons_name);
                         }
-                    } else {
-                        //link.length += smoothed.get_length(h);
+                        link.jump_length = jump_length;
+                        link_path_ms.append(link);
+
+                        // reset link
+                        link.length = 0;
+                        link.from_cons_name = cons_path_ptr[as_integer(curr_consensus)];
+                        link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
+                        link.from_cons_path = curr_consensus;
+                        link.to_cons_path = curr_consensus;
+                        link.begin = step;
+                        link.end = step;
+                        link.hash = 0;
+                        link.is_rev = smoothed.get_is_reverse(smoothed.get_handle_of_step(step));
                     }
-                });
+                }
+            } else {
+                //link.length += smoothed.get_length(h);
+            }
         });
+    }
 
     link_path_ms.index(thread_count);
 
