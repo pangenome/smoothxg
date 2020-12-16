@@ -22,7 +22,7 @@ void prep(
     // first path-guided SGD
 
     // parameters that we might like to set
-    uint64_t path_sgd_iter_max = 30; //args::get(p_sgd_iter_max) ? args::get(p_sgd_iter_max) : 30;
+    uint64_t path_sgd_iter_max = 100; //args::get(p_sgd_iter_max) ? args::get(p_sgd_iter_max) : 30;
     double path_sgd_zipf_theta = 0.99; // args::get(p_sgd_zipf_theta) ? args::get(p_sgd_zipf_theta) : 0.99;
     double path_sgd_eps = 0.01; // args::get(p_sgd_eps) ? args::get(p_sgd_eps) : 0.01;
     double path_sgd_delta = 0; //args::get(p_sgd_delta) ? args::get(p_sgd_delta) : 0;
@@ -59,10 +59,10 @@ void prep(
     uint64_t sum_path_step_count = get_sum_path_step_count(path_sgd_use_paths, path_index);
     uint64_t path_sgd_min_term_updates = p_sgd_min_term_updates * sum_path_step_count;
     uint64_t max_path_step_count = get_max_path_step_count(path_sgd_use_paths, path_index);
-    uint64_t path_sgd_zipf_space = std::min((uint64_t)10000, max_path_step_count);
+    uint64_t path_sgd_zipf_space = max_path_step_count; //std::min((uint64_t)10000, max_path_step_count);
     double path_sgd_max_eta = max_path_step_count * max_path_step_count;
-    uint64_t path_sgd_zipf_space_max = 1000;
-    uint64_t path_sgd_zipf_space_quantization_step = 100;
+    uint64_t path_sgd_zipf_space_max = 10000;
+    uint64_t path_sgd_zipf_space_quantization_step = 10000;
     std::string path_sgd_seed = "pangenomic!";
 
     uint64_t path_sgd_iter_max_learning_rate = 0; // don't use this max iter stuff
