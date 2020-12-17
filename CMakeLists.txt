@@ -170,16 +170,6 @@ ExternalProject_Add(cgranges
 ExternalProject_Get_property(cgranges SOURCE_DIR)
 set(cgranges_INCLUDE "${SOURCE_DIR}/cpp")
 
-# paryfor parallel_for
-ExternalProject_Add(paryfor
-  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/paryfor"
-  UPDATE_COMMAND ""
-  INSTALL_COMMAND ""
-  BUILD_COMMAND ""
-  CONFIGURE_COMMAND "")
-ExternalProject_Get_property(paryfor SOURCE_DIR)
-set(paryfor_INCLUDE "${SOURCE_DIR}")
-
 ExternalProject_Add(libbf
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/libbf"
   CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>")
@@ -257,7 +247,6 @@ add_dependencies(smoothxg_objs tayweeargs)
 add_dependencies(smoothxg_objs gfakluge)
 add_dependencies(smoothxg_objs ips4o)
 add_dependencies(smoothxg_objs cgranges)
-add_dependencies(smoothxg_objs paryfor)
 add_dependencies(smoothxg_objs libbf)
 add_dependencies(smoothxg_objs dirtyzipf)
 add_dependencies(smoothxg_objs xoshiro)
@@ -306,7 +295,6 @@ set(smoothxg_INCLUDES
   "${hopscotch_map_INCLUDE}"
   "${sparsepp_INCLUDE}"
   "${flathashmap_INCLUDE}"
-  "${paryfor_INCLUDE}"
   "${libbf_INCLUDE}"
   "${random_dist_INCLUDE}"
   "${dirtyzipf_INCLUDE}"
