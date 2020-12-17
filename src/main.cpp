@@ -322,6 +322,7 @@ int main(int argc, char** argv) {
         ofstream out(smoothed_out_gfa.c_str());
         smoothed->to_gfa(out);
         out.close();
+        delete smoothed;
     }
 
     // do we need to build the consensus graph?
@@ -347,6 +348,7 @@ int main(int argc, char** argv) {
             ofstream o(consensus_base + "@" + std::to_string(jump_max) + ".gfa");
             consensus_graph->to_gfa(o);
             o.close();
+            delete consensus_graph;
         }
     }
 

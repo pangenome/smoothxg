@@ -15,7 +15,8 @@ void prep(
 
     // load it into an odgi
     odgi::graph_t graph;
-    odgi::gfa_to_handle(gfa_in, &graph);
+    odgi::gfa_to_handle(gfa_in, &graph, num_threads);
+    graph.set_number_of_threads(num_threads);
 
     // sort it using a short sorting pipeline equivalent to `odgi sort -p Ygs`
 
