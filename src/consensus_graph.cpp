@@ -113,32 +113,22 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
             return std::hash<std::string>{}(seq);
         };
 
-    std::vector<uint64_t> node_offset;
-    node_offset.push_back(0);
-    // FIXME Isn't this something already given in XG?
-    smoothed.for_each_handle(
-        [&](const handle_t& h) {
-            node_offset.push_back(node_offset.back()+smoothed.get_length(h));
-        });
-
-    // FIXME I thought the XG can give us these things more easily?
     auto start_in_vector =
         [&](const handle_t& h) {
             if (!smoothed.get_is_reverse(h)) {
-                return (int64_t) node_offset[smoothed.get_id(h)-1];
+                return (int64_t) smoothed.node_vector_offset(smoothed.get_id(h));
             } else {
-                return (int64_t) (node_offset[smoothed.get_id(h)-1]
+                return (int64_t) (smoothed.node_vector_offset(smoothed.get_id(h))
                                   + smoothed.get_length(h));
             }
         };
 
-    // FIXME I thought the XG can give us these things more easily?
     auto end_in_vector =
         [&](const handle_t& h) {
             if (smoothed.get_is_reverse(h)) {
-                return (int64_t) node_offset[smoothed.get_id(h)-1];
+                return (int64_t) smoothed.node_vector_offset(smoothed.get_id(h));
             } else {
-                return (int64_t) (node_offset[smoothed.get_id(h)-1]
+                return (int64_t) (smoothed.node_vector_offset(smoothed.get_id(h))
                                   + smoothed.get_length(h));
             }
         };
