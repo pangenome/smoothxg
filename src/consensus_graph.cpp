@@ -41,6 +41,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                                      const uint64_t& thread_count,
                                      const std::string& base) {
 
+    // FIXME OVERALL: https://www.acodersjourney.com/6-tips-supercharge-cpp-11-vector-performance/ -> check these things here
+
     std::vector<path_handle_t> consensus_paths;
     consensus_paths.reserve(consensus_path_names.size());
     for (auto& name : consensus_path_names) {
@@ -256,6 +258,9 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                 });
         });
 
+    // FIXME we could delete consensus_path_handles
+    // FIXME we could delete non_consensus_paths
+
     link_path_ms.index(thread_count);
 
     // collect sets of link paths that refer to the same consensus path pairs
@@ -467,6 +472,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
 
     compute_best_link(curr_links);
 
+    // FIXME we could delete curr_links
+
     link_path_ms.close_reader();
     std::remove(base_mmset.c_str());
 
@@ -569,6 +576,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         consensus.create_edge(h, j);
     }
 
+    // FIXME we could delete perfect_edges
+
     auto link_steps =
         [&](const step_handle_t& a, const step_handle_t& b) {
             handle_t from = smoothed.get_handle_of_step(a);
@@ -598,9 +607,12 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         }
     }
 
-    // validate consensus graph
-    // number of handles
-    // TODO make this optional?
+    // FIXME we could delete consensus_links
+
+    /// validate consensus graph
+    // FIXME make this optional?
+    // FIXME can we parallelize things here?
+    // FIXME it is faaar to early to validate the graph?
     smoothed.for_each_path_handle(
             [&](const path_handle_t &p) {
                 if (is_consensus[as_integer(p)]) {
@@ -640,8 +652,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                 }
             });
 
-    // TODO what is this doing?
-    // TODO this should be before the validation
+    // FIXME this should be before the validation
     consensus.for_each_path_handle(
         [&](const path_handle_t& path) {
             consensus.for_each_step_in_path(path, [&] (const step_handle_t step) {
@@ -656,15 +667,10 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
             });
         });
 
-
     // unchop the graph
+    // this unchop is necessary!
     odgi::algorithms::unchop(consensus, thread_count, false);
 
-    /*
-    ofstream o("pre_reduce.gfa");
-    consensus.to_gfa(o);
-    o.close();
-    */
     std::vector<path_handle_t> link_paths;
     for (auto& n : link_path_names) {
         link_paths.push_back(consensus.get_path_handle(n));
@@ -680,11 +686,10 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
 
     std::cerr << "[smoothxg::create_consensus_graph] cleaning up redundant link paths" << std::endl;
 
-    // TODO why is this even necessary?
     // remove paths that are contained in others
     // and add less than consensus_jump_max bp of sequence
     std::vector<path_handle_t> links_to_remove;
-    std::vector<link_range_t> links_by_start_end;
+    std::vector<link_range_t> links_by_start_end; // FIXME initialize vector by size and assign the value, don't push_back
     for (auto& link : link_paths) {
         nid_t a = consensus.get_id(consensus.get_handle_of_step(consensus.path_begin(link)));
         nid_t b = consensus.get_id(consensus.get_handle_of_step(consensus.path_back(link)));
@@ -701,6 +706,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
                              || a.start == b.end && a.end > b.end;
         });
 
+    // FIXME is this really necessary? We are just copying stuff and not clearing nor using the initial links_by_start_end
     std::vector<path_handle_t> ordered_links;
     for (auto& p : links_by_start_end) {
         ordered_links.push_back(p.path);
@@ -819,10 +825,15 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
     // removing redundant link path components, writing new link paths
     novelify(ordered_links);
 
+    // FIXME we could delete consensus_paths here
+    // FIXME we could delete consensus_paths_set here
+
+    // FIXME can this be parallelized?
     for (auto& link : links_to_remove) {
         consensus.destroy_path(link);
     }
 
+    // FIXME can this be parallelized?
     std::vector<std::string> link_path_names_to_keep;
     for (auto& g : updated_links) {
         auto& name = g.first;
@@ -834,14 +845,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         }
     }
 
-    // do it again for all links at once
-    /*
-    link_paths.clear();
-    for (auto& n : link_path_names_to_keep) {
-        link_paths.push_back(consensus.get_path_handle(n));
-    }
-    */
-
+    // FIXME can this be parallelized?
     // now remove coverage=0 nodes
     std::vector<handle_t> empty_handles;
     consensus.for_each_handle(
@@ -860,10 +864,12 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         consensus.destroy_handle(handle);
     }
 
-    odgi::algorithms::unchop(consensus, thread_count, false); // is doing this multiple times necessary?
+    // this unchop is necessary
+    odgi::algorithms::unchop(consensus, thread_count, false); // FIXME is doing this multiple times necessary?
 
     std::cerr << "[smoothxg::create_consensus_graph] removing edges connecting the path with a gap less than consensus-jump-max=" << consensus_jump_max << std::endl;
 
+    // FIXME can this be parallelized?
     // remove edges that are connecting the same path with a gap less than consensus_jump_max
     // this removes small indel edges (deletions relative to consensus paths)
     ska::flat_hash_set<edge_t> edges_to_remove;
@@ -954,6 +960,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
     }
 
     // force edges in paths
+    // FIXME find out if this step is necessary
     consensus.for_each_path_handle(
         [&](const path_handle_t& path) {
             consensus.for_each_step_in_path(path, [&] (const step_handle_t step) {
@@ -968,7 +975,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
             });
         });
 
-    odgi::algorithms::unchop(consensus, thread_count, false); // again, is this necessary?
+    // this unchop is necessary
+    odgi::algorithms::unchop(consensus, thread_count, false);
 
     std::cerr << "[smoothxg::create_consensus_graph] trimming back link paths" << std::endl;
 
@@ -981,7 +989,6 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
 
     // it is still possible that there are nodes in the consensus graph with path depth > 1
     // to fix this, for each non-consensus link path we chew back each end until its depth is 1
-
     std::vector<uint64_t> node_coverage(consensus.get_node_count()+1);
     consensus.for_each_handle(
         [&](const handle_t& handle) {
@@ -1038,7 +1045,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         consensus.destroy_path(link);
     }
 
-    odgi::algorithms::unchop(consensus, thread_count, false); // we have to run this in parallel -- unchop my life
+    // this unchop is necessary
+    odgi::algorithms::unchop(consensus, thread_count, false);
 
     link_paths.clear();
     for (auto& n : link_path_names_to_keep) {
@@ -1047,7 +1055,7 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         }
     }
 
-    // remove tips of link paths shorter than our consensus_jump_max (how were these created?)
+    // remove tips of link paths shorter than our consensus_jump_max FIXME how were these created?
     auto is_degree_1_tip =
         [&](const handle_t& h) {
             uint64_t deg_fwd = consensus.get_degree(h, false);
@@ -1098,7 +1106,8 @@ odgi::graph_t create_consensus_graph(const xg::XG &smoothed,
         consensus.destroy_handle(handle);
     }
 
-    odgi::algorithms::unchop(consensus, thread_count, false); // another one
+    // this unchop is necessary
+    odgi::algorithms::unchop(consensus, thread_count, false);
 
     uint64_t consensus_nodes = 0;
     uint64_t consensus_length = 0;
