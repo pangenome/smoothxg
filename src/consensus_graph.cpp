@@ -712,11 +712,14 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     // unchop the graph
     odgi::algorithms::unchop(*consensus, thread_count, false);
 
-    /*
+    //consensus->apply_ordering(odgi::algorithms::topological_order(
+    //                              consensus, true, true, true),
+    //                          true);
+
     ofstream o("pre_reduce.gfa");
     consensus->to_gfa(o);
     o.close();
-    */
+
     std::vector<path_handle_t> link_paths;
     for (auto& n : link_path_names) {
         link_paths.push_back(consensus->get_path_handle(n));

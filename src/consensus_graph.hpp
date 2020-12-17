@@ -9,6 +9,7 @@
 #include <deps/odgi/deps/flat_hash_map/flat_hash_map.hpp> // we are using odgi's flat_hash_map here, I suppose this is not a good idea? Maybe rather add the flat_hash_map to smoothxg itself?
 #include <mmmultiset.hpp>
 #include <xg.hpp>
+//#include "odgi/topological_sort.hpp"
 #include "paryfor.hpp"
 #include "blocks.hpp"
 #include "atomic_bitvector.hpp"
