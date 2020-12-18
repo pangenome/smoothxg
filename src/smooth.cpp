@@ -1263,8 +1263,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 assert(false); // assert that we've included all sequence in blocks
             }
             // write the path steps into the graph using the id translation
-            auto block = block_graphs[pos_range->target_graph_id];
-            auto id_trans = id_mapping[pos_range->target_graph_id];
+            auto block = block_graphs.at(pos_range->target_graph_id);
+            auto id_trans = id_mapping.at(pos_range->target_graph_id);
             bool first = true;
             block->for_each_step_in_path(
                 pos_range->target_path, [&](const step_handle_t &step) {
@@ -1284,7 +1284,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             last_step = smoothed->path_back(smoothed_path);
             last_end_pos = pos_range->end_pos;
             if (i + 1 == path_mapping.size() ||
-                path_mapping[i + 1].base_path != pos_range->base_path) {
+                path_mapping.at(i + 1).base_path != pos_range->base_path) {
                 break;
             } else {
                 ++i;
