@@ -112,6 +112,7 @@ void prep(
     std::cerr << "[smoothxg::prep] writing graph " << gfa_out << std::endl;
     std::ofstream f(gfa_out);
     graph.to_gfa(f);
+    f.close();
 
 }
 
