@@ -716,9 +716,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     //                              consensus, true, true, true),
     //                          true);
 
-    ofstream o("pre_reduce.gfa");
-    consensus->to_gfa(o);
-    o.close();
+    //ofstream o("pre_reduce.gfa");
+    //consensus->to_gfa(o);
+    //o.close();
 
     std::vector<path_handle_t> link_paths;
     for (auto& n : link_path_names) {
