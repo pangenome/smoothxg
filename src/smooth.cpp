@@ -1195,8 +1195,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         write_maf_thread.join();
     }
 
-    delete blockset;
-
     std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings"
               << std::endl;
     // sort the path range mappings by path handle id, then start position
