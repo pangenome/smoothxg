@@ -294,7 +294,7 @@ namespace smoothxg {
                     auto& curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
                     uint64_t curr_len = curr_fwd.length();
-                    double threshold = curr_len * (1 - block_group_identity);
+                    double threshold = (double) curr_len * block_group_identity;
 
                     uint64_t best_group = 0;
                     double best_id = -1;
@@ -307,34 +307,36 @@ namespace smoothxg {
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto& other = rank_and_seqs_dedup[group[k]].second;
 
-                                if (curr_len - other.length() <= threshold) {
-                                    EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                                                         edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
-
-                                    if (result.status == EDLIB_STATUS_OK
-                                        && result.editDistance >= 0) {
-                                        double id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
-                                        if (id >= block_group_identity && id > best_id) {
-                                            best_group = j;
-                                            best_id = id;
-
-                                            break; // Stop with this group
-                                        }
-                                    }
-                                    edlibFreeAlignResult(result);
-                                } else {
-                                    best_id = -2;
-
-                                    break;
+                                if (other.length() < threshold) {
+                                    continue;
                                 }
+
+                                EdlibAlignResult result = edlibAlign(
+                                        curr.c_str(), curr.size(), other.c_str(), other.size(),
+                                        edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
+                                        );
+
+                                if (result.status == EDLIB_STATUS_OK
+                                    && result.editDistance >= 0) {
+                                    double id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
+
+                                    if (id >= block_group_identity && id > best_id) {
+                                        best_group = j;
+                                        best_id = id;
+
+                                        break; // Stop with this group
+                                    }
+                                }
+
+                                edlibFreeAlignResult(result);
                             }
 
-                            if (best_id > 0 || best_id == -2) {
+                            if (best_id > 0) {
                                 break;
                             }
                         }
 
-                        if (best_id > 0 || best_id == -2) {
+                        if (best_id > 0) {
                             break;
                         }
                     }
