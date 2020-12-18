@@ -68,7 +68,7 @@ struct ranked_path_range_t {
 
 class blockset_t {
 private:
-    uint64_t _num_blocks;
+    uint64_t _num_blocks = 0;
     mmmulti::map<uint64_t, ranked_path_range_t> _blocks;
 
     std::string _path_tmp_blocks;
