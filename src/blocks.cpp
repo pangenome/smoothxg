@@ -188,7 +188,7 @@ void smoothable_blocks(
     std::stringstream blocks_banner;
     blocks_banner << "[smoothxg::smoothable_blocks] computing blocks for "
                     << graph.get_node_count() << " handles:";
-    progress_meter::ProgressMeter blocks_progress(graph.get_node_count(), blocks_banner.str());
+    auto* blocks_progress = new progress_meter::ProgressMeter(graph.get_node_count(), blocks_banner.str());
 
     uint64_t total_path_length = 0;
 
@@ -249,10 +249,10 @@ void smoothable_blocks(
 
             block_handles.push_back(handle);
 
-            blocks_progress.increment(1);
+            blocks_progress->increment(1);
         });
 
-    blocks_progress.finish();
+    delete blocks_progress;
     
     if (block.path_ranges.empty()) {
         finalize_block(block, block_handles);

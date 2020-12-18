@@ -56,7 +56,7 @@ namespace smoothxg {
 
         std::stringstream breaks_and_splits_banner;
         breaks_and_splits_banner << "[smoothxg::break_and_split_blocks] cutting and splitting " << blockset->size() << " blocks:";
-        progress_meter::ProgressMeter breaks_and_splits_progress(blockset->size(), breaks_and_splits_banner.str());
+        auto* breaks_and_splits_progress = new progress_meter::ProgressMeter(blockset->size(), breaks_and_splits_banner.str());
 
         std::atomic<uint64_t> n_cut_blocks;
         n_cut_blocks.store(0);
@@ -395,10 +395,10 @@ namespace smoothxg {
 
             block_is_ready.set(block_id);
 
-            breaks_and_splits_progress.increment(1);
+            breaks_and_splits_progress->increment(1);
         }
 
-        breaks_and_splits_progress.finish();
+        delete breaks_and_splits_progress;
 
         std::cerr << "[smoothxg::break_and_split_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
         std::cerr << "[smoothxg::break_and_split_blocks] split " << split_blocks << " blocks" << std::endl;
