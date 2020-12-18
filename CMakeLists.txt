@@ -231,8 +231,8 @@ set(abPOA_LIB "${INSTALL_DIR}/src/abPOA-build/lib")
 
 add_subdirectory(deps/edlib EXCLUDE_FROM_ALL)
 
-set(CMAKE_BUILD_TYPE Debug)
-#set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 add_library(smoothxg_objs OBJECT
   src/xg.cpp
