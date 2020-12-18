@@ -293,28 +293,31 @@ namespace smoothxg {
                 for (uint64_t i = 1; i < rank_and_seqs_dedup.size(); ++i) {
                     auto& curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
-                    uint64_t curr_len = curr_fwd.length();
-                    double threshold = (double) curr_len * block_group_identity;
+
+                    double threshold = (double) curr_fwd.length() * block_group_identity;
 
                     uint64_t best_group = 0;
                     double best_id = -1;
-                    for (auto& curr : { curr_fwd, curr_rev }) {
-                        // Start looking at from the last group
-                        for (int64_t j = groups.size() - 1; j >= 0 ; --j) {
-                            auto& group = groups[j];
 
-                            // Start looking at from the last added sequence to the group
-                            for (int64_t k = group.size() - 1; k >= 0; --k) {
-                                auto& other = rank_and_seqs_dedup[group[k]].second;
+                    // Start looking at from the last group
+                    for (int64_t j = groups.size() - 1; j >= 0 ; --j) {
+                        auto& group = groups[j];
 
-                                if (other.length() < threshold) {
-                                    continue;
-                                }
+                        // Start looking at from the last added sequence to the group
+                        for (int64_t k = group.size() - 1; k >= 0; --k) {
+                            auto& other = rank_and_seqs_dedup[group[k]].second;
 
+                            //std::cerr << block_id << "\t" << j << "\t" << k << "\t" << curr_fwd.length() << "\t" << other.length() << std::endl;
+
+                            if (other.length() < threshold) {
+                                break;
+                            }
+
+                            for (auto& curr : { curr_fwd, curr_rev }) {
                                 EdlibAlignResult result = edlibAlign(
                                         curr.c_str(), curr.size(), other.c_str(), other.size(),
                                         edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
-                                        );
+                                );
 
                                 if (result.status == EDLIB_STATUS_OK
                                     && result.editDistance >= 0) {
@@ -340,6 +343,7 @@ namespace smoothxg {
                             break;
                         }
                     }
+
                     if (best_id > 0) {
                         groups[best_group].push_back(i);
                     } else {
@@ -355,6 +359,8 @@ namespace smoothxg {
 
                     uint64_t i = 0;
                     for (auto& group : groups) {
+                        //std::cerr << block_id << "\t" << i << "\t" << rank_and_seqs_dedup[group[group.size() - 1]].second.length() << std::endl;
+
                         block_t new_block;
                         //new_block.is_split = true;
 
@@ -378,8 +384,10 @@ namespace smoothxg {
                         ready_blocks[block_id].push_back(new_block);
 
                         if (write_block_to_split_fastas){
-                            _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_", "_" + std::to_string(i++));
+                            _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_", "_" + std::to_string(i));
                         }
+
+                        ++i;
                     }
 
                     if (write_block_to_split_fastas){
