@@ -315,10 +315,9 @@ namespace smoothxg {
 
                                 EdlibAlignResult result = edlibAlign(
                                         curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                        edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
+                                        edlibNewAlignConfig(threshold + 1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
                                         );
-                                if (result.status == EDLIB_STATUS_OK
-                                    && result.editDistance >= 0) {
+                                if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
                                     id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
                                 }
                                 edlibFreeAlignResult(result);
