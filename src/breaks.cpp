@@ -322,7 +322,7 @@ namespace smoothxg {
                                 }
                                 edlibFreeAlignResult(result);
 
-                                if (id >= block_group_identity && id > best_id) {
+                                if (id >= block_group_identity/* && id > best_id*/) {
                                     best_group = j;
                                     best_id = id;
 
