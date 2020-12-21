@@ -294,6 +294,8 @@ namespace smoothxg {
                     auto& curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
 
+                    uint64_t threshold = ceil((double) curr_fwd.length() * block_group_identity);
+
                     uint64_t best_group = 0;
                     double best_id = -1;
                     for (auto& curr : { curr_fwd, curr_rev }) {
@@ -304,20 +306,28 @@ namespace smoothxg {
                             // Start looking at from the last added sequence to the group
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto& other = rank_and_seqs_dedup[group[k]].second;
-                                EdlibAlignResult result = edlibAlign(curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                                                     edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
 
-                                if (result.status == EDLIB_STATUS_OK
-                                    && result.editDistance >= 0) {
-                                    double id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
-                                    if (id >= block_group_identity && id > best_id) {
-                                        best_group = j;
-                                        best_id = id;
+                                if (other.length() < threshold) {
+                                    break;
+                                }
 
-                                        break; // Stop with this group
-                                    }
+                                double id = -1;
+
+                                EdlibAlignResult result = edlibAlign(
+                                        curr.c_str(), curr.size(), other.c_str(), other.size(),
+                                        edlibNewAlignConfig(threshold + 1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
+                                        );
+                                if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
+                                    id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
                                 }
                                 edlibFreeAlignResult(result);
+
+                                if (id >= block_group_identity/* && id > best_id*/) {
+                                    best_group = j;
+                                    best_id = id;
+
+                                    break; // Stop with this group
+                                }
                             }
 
                             if (best_id > 0) {
