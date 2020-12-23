@@ -245,8 +245,10 @@ add_library(smoothxg_objs OBJECT
   src/utils.cpp
   ${sautocorr_INCLUDE}/sautocorr.cpp
   src/maf.hpp
-        src/path_nuc_range_block_index.cpp
-  src/consensus_graph.cpp)
+  src/path_nuc_range_block_index.cpp
+  src/consensus_graph.cpp
+  src/rkmh/rkmh.cpp
+  src/murmur3/murmur3.cpp)
 
 add_dependencies(smoothxg_objs handlegraph)
 add_dependencies(smoothxg_objs sdsl-lite)
