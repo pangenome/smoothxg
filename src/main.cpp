@@ -71,34 +71,52 @@ int main(int argc, char** argv) {
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     std::vector<std::string> seq_names;
-    seq_names.emplace_back("A");
-    seq_names.emplace_back("B");
-
     vector<char *> seqs;
+    std::vector<int> seq_lengths;
+
+    seq_names.emplace_back("A1");
+    seq_names.emplace_back("A2");
     seqs.push_back("ATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATC");
     seqs.push_back("ATCGTCATCXXXXXXXXXXTCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCXXXXXXXXXXTCATCGTCATCATCGTCATCATCGXXXXXXXXXXCATCATCGTCATCATCGTCATCXXXGTCATCATCGTCATCATCGTCATCATCGXXXXXXXXXXCATCATCGTCATCATCGTCATCATCGTCATCATCGTCAXXXXXXXXXXCATCGTCATCATCGTCATCAXXXXXXXXXXCGTCATCATCGTCATXXXXXXXXXX");
-
-    std::vector<int> seq_lengths;
     seq_lengths.emplace_back(strlen(seqs[0]));
     seq_lengths.emplace_back(strlen(seqs[1]));
 
+    seq_names.emplace_back("B2");
+    seq_names.emplace_back("B2");
+    seqs.push_back("ATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATC");
+    seqs.push_back("ATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATXXXXXXXXXXXXXXXXXXXATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATC");
+    seq_lengths.emplace_back(strlen(seqs[2]));
+    seq_lengths.emplace_back(strlen(seqs[3]));
+
     double id = 0.0;
-    EdlibAlignResult result = edlibAlign(
+    EdlibAlignResult resultA = edlibAlign(
             seqs[0], strlen(seqs[0]), seqs[1], strlen(seqs[1]),
             edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
     );
-    if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
-        id = (double)(strlen(seqs[0]) - result.editDistance) / (double)(strlen(seqs[0]));
+    if (resultA.status == EDLIB_STATUS_OK && resultA.editDistance >= 0) {
+        id = (double)(strlen(seqs[0]) - resultA.editDistance) / (double)(strlen(seqs[0]));
 
-        std::cerr << "EDLIB: identity: " << to_string(id) << std::endl;
+        std::cerr << "EDLIB: identity A1 vs A2: " << to_string(id) << std::endl;
     }
-    edlibFreeAlignResult(result);
+    edlibFreeAlignResult(resultA);
+
+    EdlibAlignResult resultB = edlibAlign(
+            seqs[0], strlen(seqs[2]), seqs[3], strlen(seqs[3]),
+            edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
+    );
+    if (resultB.status == EDLIB_STATUS_OK && resultB.editDistance >= 0) {
+        id = (double)(strlen(seqs[2]) - resultB.editDistance) / (double)(strlen(seqs[2]));
+
+        std::cerr << "EDLIB: identity B1 vs B2: " << to_string(id) << std::endl;
+    }
+    edlibFreeAlignResult(resultB);
+
 
     std::vector<int> kmer;
-    kmer.emplace_back(21);
+    kmer.emplace_back(13);
 
-    std::vector<std::vector<hash_t>> seq_hashes(2);
-    std::vector<int> seq_hash_lens(2);
+    std::vector<std::vector<hash_t>> seq_hashes(4);
+    std::vector<int> seq_hash_lens(4);
 
     hash_sequences(seq_names,
                    seqs,
@@ -107,6 +125,12 @@ int main(int argc, char** argv) {
                    seq_hash_lens,
                    kmer);
 
+    std::cerr << "distance A1-A2: " << compare(seq_hashes[0], seq_hashes[1], kmer[0]) << std::endl;
+    std::cerr << "distance B1-B2: " << compare(seq_hashes[2], seq_hashes[3], kmer[0]) << std::endl;
+
+
+    // From Eric'code
+    /*
     std::vector<hash_t> intersection = hash_intersection(seq_hashes[0], seq_hashes[1]);
     std::cerr << "intersection.size " << intersection.size() << std::endl;
 
@@ -115,9 +139,7 @@ int main(int argc, char** argv) {
 
     double jaccard = (double) intersection.size() / (double) union_.size();
     std::cerr << "jaccard " << jaccard << std::endl;
-
-    double distance = -log(2 * jaccard / (1. + jaccard)) / kmer[0];
-    std::cerr << "distance " << distance << std::endl;
+    */
 
     exit(1);
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

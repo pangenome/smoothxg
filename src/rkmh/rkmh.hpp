@@ -45,4 +45,7 @@ std::vector<hash_t> hash_intersection(std::vector<hash_t> alpha, std::vector<has
 
 std::vector<hash_t> hash_union(std::vector<hash_t> alpha, std::vector<hash_t> beta);
 
+double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, int kmerSize);
+
+
 #endif //SMOOTHXG_RKMH_HPP
