@@ -22,6 +22,7 @@
 #include "odgi/odgi.hpp"
 #include "consensus_graph.hpp"
 #include "path_nuc_range_block_index.hpp"
+#include "src/rkmh/rkmh.hpp"
 
 using namespace std;
 using namespace xg;
@@ -66,6 +67,71 @@ int main(int argc, char** argv) {
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
+
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    std::vector<std::string> seq_names;
+    seq_names.emplace_back("A");
+    seq_names.emplace_back("B");
+
+    vector<char *> seqs;
+    seqs.push_back("ATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATC");
+    seqs.push_back("ATCGTCATCXXXXXXXXXXTCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCXXXXXXXXXXTCATCGTCATCATCGTCATCATCGXXXXXXXXXXCATCATCGTCATCATCGTCATCXXXGTCATCATCGTCATCATCGTCATCATCGXXXXXXXXXXCATCATCGTCATCATCGTCATCATCGTCATCATCGTCAXXXXXXXXXXCATCGTCATCATCGTCATCAXXXXXXXXXXCGTCATCATCGTCATXXXXXXXXXX");
+
+    std::vector<int> seq_lengths;
+    seq_lengths.emplace_back(strlen(seqs[0]));
+    seq_lengths.emplace_back(strlen(seqs[1]));
+
+    double id = 0.0;
+    EdlibAlignResult result = edlibAlign(
+            seqs[0], strlen(seqs[0]), seqs[1], strlen(seqs[1]),
+            edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
+    );
+    if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
+        id = (double)(strlen(seqs[0]) - result.editDistance) / (double)(strlen(seqs[0]));
+
+        std::cerr << "EDLIB: identity: " << to_string(id) << std::endl;
+    }
+    edlibFreeAlignResult(result);
+
+    std::vector<int> kmer;
+    kmer.emplace_back(21);
+
+    std::vector<std::vector<hash_t>> seq_hashes(2);
+    std::vector<int> seq_hash_lens(2);
+
+    hash_sequences(seq_names,
+                   seqs,
+                   seq_lengths,
+                   seq_hashes,
+                   seq_hash_lens,
+                   kmer);
+
+    std::vector<hash_t> intersection = hash_intersection(seq_hashes[0], seq_hashes[1]);
+    std::cerr << "intersection.size " << intersection.size() << std::endl;
+
+    std::vector<hash_t> union_ = hash_union(seq_hashes[0], seq_hashes[1]);
+    std::cerr << "union.size " << union_.size() << std::endl;
+
+    double jaccard = (double) intersection.size() / (double) union_.size();
+    std::cerr << "jaccard " << jaccard << std::endl;
+
+    double distance = -log(2 * jaccard / (1. + jaccard)) / kmer[0];
+    std::cerr << "distance " << distance << std::endl;
+
+    exit(1);
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
     try {
         parser.ParseCLI(argc, argv);
     } catch (args::Help) {
