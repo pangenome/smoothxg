@@ -124,8 +124,16 @@ void hash_sequences(std::vector<std::string> &keys,
     }
 }
 
-/* Returns the intersection of alpha and beta, including duplicates the number of
-   times they appear in both vectors */
+/* Returns a deduplicated set of kmers or hashes as a vector<T> */
+template<typename T>
+std::vector<T> v_set(std::vector<T> kmers){
+    std::unordered_set<T> s = std::unordered_set<T>(kmers.begin(), kmers.end());
+    std::vector<T> ret = std::vector<T>(s.begin(), s.end());
+    return ret;
+}
+
+
+/* Returns the intersection of alpha and beta, removing duplicates */
 std::vector<hash_t> hash_intersection(std::vector<hash_t> alpha, std::vector<hash_t> beta){
     std::vector<hash_t> ret;
     ret.reserve(alpha.size());
@@ -137,8 +145,6 @@ std::vector<hash_t> hash_intersection(std::vector<hash_t> alpha, std::vector<has
     while(beta[j] == 0){
         j++;
     }
-    std::cerr << "i " << i << std::endl;
-    std::cerr << "j " << j << std::endl;
 
     while (i < alpha.size() && j < beta.size()){
         if (alpha[i] == beta[j]){
@@ -154,16 +160,9 @@ std::vector<hash_t> hash_intersection(std::vector<hash_t> alpha, std::vector<has
         }
     }
 
-    return ret;
+    return v_set(ret);
 }
 
-/* Returns a deduplicated set of kmers or hashes as a vector<T> */
-template<typename T>
-std::vector<T> v_set(std::vector<T> kmers){
-    std::unordered_set<T> s = std::unordered_set<T>(kmers.begin(), kmers.end());
-    std::vector<T> ret = std::vector<T>(s.begin(), s.end());
-    return ret;
-}
 
 /* Returns the union of the two sets after deduplicating all duplicates */
 std::vector<hash_t> hash_union(std::vector<hash_t> alpha, std::vector<hash_t> beta){
