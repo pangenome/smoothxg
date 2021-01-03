@@ -302,8 +302,13 @@ namespace smoothxg {
                 if (min_length_mash_based_clustering > 0) {
                     // Prepare sequence pointers
                     for (auto& rank_and_seq : rank_and_seqs_dedup) {
+                        if (rank_and_seq.second.length() >= min_length_mash_based_clustering) {
+                            seqs_dedup_rev.push_back(new std::string(odgi::reverse_complement(rank_and_seq.second)));
+                        } else {
+                            seqs_dedup_rev.push_back(new std::string(""));
+                        }
+
                         seqs_dedup_fwd.push_back(&rank_and_seq.second);
-                        seqs_dedup_rev.push_back(new std::string(odgi::reverse_complement(rank_and_seq.second)));
                     }
 
                     // Calculate hashes
@@ -331,7 +336,7 @@ namespace smoothxg {
 
                     uint64_t len_threshold_for_edit_clustering = ceil((double) curr_fwd.length() * block_group_identity);
 
-                    uint64_t len_threshold_for_mash_clustering;
+                    uint64_t len_threshold_for_mash_clustering = 0;
                     if (min_length_mash_based_clustering > 0) {
                         double value = exp(-block_group_distance * kmer_size);
                         len_threshold_for_mash_clustering = ceil((double) seq_hashes_fwd[i].size() * (2 - value) / value);
@@ -350,7 +355,7 @@ namespace smoothxg {
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto& other = rank_and_seqs_dedup[group[k]].second;
 
-                                if (min_length_mash_based_clustering > 0 && curr.length() > min_length_mash_based_clustering && other.length() > min_length_mash_based_clustering){
+                                if (min_length_mash_based_clustering > 0 && curr.length() >= min_length_mash_based_clustering && other.length() >= min_length_mash_based_clustering){
                                     if (seq_hashes_fwd[group[k]].size() > len_threshold_for_mash_clustering) {
                                         // With a mash-based clustering, the sequence would be above the distance threshold
                                         break;
