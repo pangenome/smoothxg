@@ -53,7 +53,13 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "subpath-min"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "edge-jump-max"});
     //args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.1]", {'R', "min-segment-ratio"});
-    args::ValueFlag<double> _block_group_identity(parser, "N", "minimum edit-based identity to group sequences in POA [default: 0.5]", {'I', "block-id-min"});
+
+    // Block split
+    args::ValueFlag<uint64_t> _max_length_edit_based_alignment(parser, "N", "maximum sequences length to apply alignments using edit-distance for sequence clustering [default: 200, 0 to disable it ]", {'L', "max-seq-len-edit"});
+    args::ValueFlag<double> _block_group_identity(parser, "N", "minimum edit-based identity to cluster sequences [default: 0.5]", {'I', "block-id-min"});
+    args::ValueFlag<double> _block_group_distance(parser, "N", "maximum mash distance to cluster sequences [default: 0.5]", {'D', "block-dist-max"});
+    args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 11]", {'H', "kmer-size-mash-distance"});
+
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "copy-length-min"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "copy-length-max"});
     args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "poa-length-max"});
@@ -67,108 +73,6 @@ int main(int argc, char** argv) {
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
-
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    std::vector<std::string> seq_names;
-    vector<char *> seqs;
-    std::vector<int> seq_lengths;
-
-    seq_names.emplace_back("A1");
-    seq_names.emplace_back("A2");
-    seqs.push_back("ATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATC");
-    seqs.push_back("ATCGTCATCXXXXXXXXXXTCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCXXXXXXXXXXTCATCGTCATCATCGTCATCATCGXXXXXXXXXXCATCATCGTCATCATCGTCATCXXXGTCATCATCGTCATCATCGTCATCATCGXXXXXXXXXXCATCATCGTCATCATCGTCATCATCGTCATCATCGTCAXXXXXXCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCXXXXCATCGTCATCATCGTCATCAXXXXXXXXXXCGTCATCATCGTCATXXXXXXXXXX");
-    seq_lengths.emplace_back(strlen(seqs[0]));
-    seq_lengths.emplace_back(strlen(seqs[1]));
-
-    seq_names.emplace_back("B2");
-    seq_names.emplace_back("B2");
-    seqs.push_back("ATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCACATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCTCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATC");
-    seqs.push_back("ATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATXXXXXXXXXXXXXXXXXXXATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATCATCGTCATC");
-    seq_lengths.emplace_back(strlen(seqs[2]));
-    seq_lengths.emplace_back(strlen(seqs[3]));
-
-    double id = 0.0;
-    auto start_time = std::chrono::steady_clock::now();
-    EdlibAlignResult resultA = edlibAlign(
-            seqs[0], strlen(seqs[0]), seqs[1], strlen(seqs[1]),
-            edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
-    );
-    std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
-
-    if (resultA.status == EDLIB_STATUS_OK && resultA.editDistance >= 0) {
-        id = (double)(strlen(seqs[0]) - resultA.editDistance) / (double)(strlen(seqs[0]));
-    }
-    edlibFreeAlignResult(resultA);
-    std::cerr << "EDLIB: identity A1 vs A2: " << to_string(id) <<  " in " << std::to_string(elapsed_time.count())  << "s" << std::endl;
-
-    id = 0.0;
-    start_time = std::chrono::steady_clock::now();
-    EdlibAlignResult resultB = edlibAlign(
-            seqs[0], strlen(seqs[2]), seqs[3], strlen(seqs[3]),
-            edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
-    );
-    elapsed_time = std::chrono::steady_clock::now() - start_time;
-
-    if (resultB.status == EDLIB_STATUS_OK && resultB.editDistance >= 0) {
-        id = (double)(strlen(seqs[2]) - resultB.editDistance) / (double)(strlen(seqs[2]));
-    }
-    edlibFreeAlignResult(resultB);
-    std::cerr << "EDLIB: identity B1 vs B2: " << to_string(id) <<  " in " << std::to_string(elapsed_time.count())  << "s" << std::endl;
-
-    std::vector<int> kmer;
-    kmer.emplace_back(13);
-
-    std::vector<std::vector<hash_t>> seq_hashes(4);
-    std::vector<int> seq_hash_lens(4);
-
-    start_time = std::chrono::steady_clock::now();
-    hash_sequences(seq_names,
-                   seqs,
-                   seq_lengths,
-                   seq_hashes,
-                   seq_hash_lens,
-                   kmer);
-    elapsed_time = std::chrono::steady_clock::now() - start_time;
-    std::cerr << "hash_sequences: " << seqs.size() << " sequences in " << std::to_string(elapsed_time.count()) + "s" << std::endl;
-
-    double distance = 0.0;
-    start_time = std::chrono::steady_clock::now();
-    distance = compare(seq_hashes[0], seq_hashes[1], kmer[0]);
-    elapsed_time = std::chrono::steady_clock::now() - start_time;
-
-    std::cerr << "distance A1-A2: " << distance << " in " << std::to_string(elapsed_time.count()) + "s" << std::endl;
-
-    start_time = std::chrono::steady_clock::now();
-    distance = compare(seq_hashes[1], seq_hashes[2], kmer[0]);
-    elapsed_time = std::chrono::steady_clock::now() - start_time;
-
-    std::cerr << "distance B1-B2: " << distance << " in " << std::to_string(elapsed_time.count()) + "s" << std::endl;
-
-    // From Eric'code
-    /*
-    std::vector<hash_t> intersection = hash_intersection(seq_hashes[0], seq_hashes[1]);
-    std::cerr << "intersection.size " << intersection.size() << std::endl;
-
-    std::vector<hash_t> union_ = hash_union(seq_hashes[0], seq_hashes[1]);
-    std::cerr << "union.size " << union_.size() << std::endl;
-
-    double jaccard = (double) intersection.size() / (double) union_.size();
-    std::cerr << "jaccard " << jaccard << std::endl;
-    */
-
-    exit(1);
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-
-
-
-
-
 
     try {
         parser.ParseCLI(argc, argv);
@@ -232,7 +136,12 @@ int main(int argc, char** argv) {
     uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
     uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
+
+    // Block split
+    uint64_t max_length_edit_based_alignment =  _max_length_edit_based_alignment ? args::get(_max_length_edit_based_alignment) : 200;
     double block_group_identity =  _block_group_identity ? args::get(_block_group_identity) : 0.5;
+    double block_group_distance =  _block_group_distance ? args::get(_block_group_distance) : 0.5;
+    uint64_t kmer_size =  _kmer_size ? args::get(_kmer_size) : 11;
 
     if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
         std::cerr
@@ -331,7 +240,10 @@ int main(int argc, char** argv) {
 
     smoothxg::break_blocks(graph,
                            blockset,
+                           max_length_edit_based_alignment,
                            block_group_identity,
+                           block_group_distance,
+                           kmer_size,
                            max_poa_length,
                            min_copy_length,
                            max_copy_length,

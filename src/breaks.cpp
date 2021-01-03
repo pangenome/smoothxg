@@ -37,7 +37,10 @@ namespace smoothxg {
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
     void break_blocks(const xg::XG& graph,
                       blockset_t*& blockset,
+                      const uint64_t& max_length_edit_based_alignment,
                       const double& block_group_identity,
+                      const double& block_group_distance,
+                      const uint64_t& kmer_size,
                       const uint64_t& max_poa_length,
                       const uint64_t& min_copy_length,
                       const uint64_t& max_copy_length,
