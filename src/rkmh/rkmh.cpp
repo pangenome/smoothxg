@@ -45,14 +45,14 @@ inline void reverse_complement(const char *seq, char *ret, int len) {
  *      new [] operator is known threadsafe
  *      User must handle hashes and numhashes properly in calling function.
  **/
-inline void calc_hashes_(const char *seq, const int &len,
-                         const int &k, hash_t *&hashes, int &numhashes) {
+inline void calc_hashes_(const char *seq, const uint64_t &len,
+                         const uint64_t &k, hash_t *&hashes, int &numhashes) {
     char *reverse = new char[k + 1];
     uint32_t rhash[4];
     uint32_t fhash[4];
     //hash_t tmp_fwd;
     //hash_t tmp_rev;
-    numhashes = len - k;
+    numhashes = (int) (len - k);
     hashes = new hash_t[numhashes];
     for (int i = 0; i < numhashes; ++i) {
         if (canonical(seq + i, k)) {
@@ -74,7 +74,7 @@ inline void calc_hashes_(const char *seq, const int &len,
 };
 
 /* Calculate all the hashes of the kmers length k of seq */
-inline std::vector<hash_t> calc_hashes(const char *seq, int seq_length, int k) {
+inline std::vector<hash_t> calc_hashes(const char *seq, uint64_t seq_length, uint64_t k) {
     int numhashes = 0;
     hash_t *hashes;
     calc_hashes_(seq, seq_length, k, hashes, numhashes);
@@ -88,7 +88,7 @@ inline std::vector<hash_t> calc_hashes(const char *seq, int seq_length, int k) {
     return ret;
 };
 
-inline std::vector<hash_t> calc_hashes(const char *seq, const int &len, const std::vector<int> &k_sizes) {
+inline std::vector<hash_t> calc_hashes(const char *seq, const uint64_t &len, const std::vector<uint64_t> &k_sizes) {
     std::vector<hash_t> ret;
 
     for (auto k : k_sizes) {
@@ -99,17 +99,17 @@ inline std::vector<hash_t> calc_hashes(const char *seq, const int &len, const st
     return ret;
 };
 
-void hash_sequences(std::vector<std::string> &seqs,
+void hash_sequences(std::vector<std::string*> &seqs,
                     std::vector<std::vector<hash_t>> &hashes,
                     std::vector<int> &hash_lengths,
-                    std::vector<int> &kmer) {
+                    std::vector<uint64_t> &kmer) {
 
 //#pragma omp parallel for
     for (int i = 0; i < seqs.size(); i++) {
         //std::cerr << "seqs[i] " << seqs[i] << std::endl;
         //std::cerr << "lengths[i] " << lengths[i] << std::endl;
 
-        hashes[i] = calc_hashes(seqs[i].c_str(), seqs[i].length(), kmer);
+        hashes[i] = calc_hashes(seqs[i]->c_str(), seqs[i]->length(), kmer);
         hash_lengths[i] = hashes[i].size();
 
         //std::cerr << "hashes[i].size " << hashes[i].size() << std::endl;
@@ -168,7 +168,7 @@ std::vector<hash_t> hash_union(std::vector<hash_t> alpha, std::vector<hash_t> be
 }
 */
 
-double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, int kmerSize) {
+double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, uint64_t kmerSize) {
     int i = 0;
     int j = 0;
 
@@ -182,7 +182,7 @@ double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, int kmerSize
         j++;
     }
     denom = i + j;
-
+    //todo early stopping
     while (i < alpha.size() && j < beta.size()) {
         if (alpha[i] == beta[j]) {
             i++;
