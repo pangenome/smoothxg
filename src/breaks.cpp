@@ -38,7 +38,7 @@ namespace smoothxg {
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
     void break_blocks(const xg::XG& graph,
                       blockset_t*& blockset,
-                      const uint64_t& max_length_edit_based_alignment,
+                      const uint64_t& min_length_mash_based_clustering,
                       const double& block_group_identity,
                       const double& block_group_distance,
                       const uint64_t& kmer_size,
@@ -106,12 +106,6 @@ namespace smoothxg {
 
         std::vector<uint64_t> kmer;
         kmer.emplace_back(kmer_size);
-
-        std::atomic<uint64_t> skip_edit;
-        skip_edit.store(0);
-
-        std::atomic<uint64_t> skip_mash;
-        skip_mash.store(0);
 
 #pragma omp parallel for schedule(static,1) num_threads(thread_count)
         for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id){
@@ -303,7 +297,7 @@ namespace smoothxg {
                 std::vector<std::vector<hash_t>> seq_hashes_rev;
                 std::vector<int> seq_hash_lens_rev;
 
-                if (max_length_edit_based_alignment > 0) {
+                if (min_length_mash_based_clustering > 0) {
                     // Prepare sequence pointers
                     for (auto& rank_and_seq : rank_and_seqs_dedup) {
                         seqs_dedup_fwd.push_back(&rank_and_seq.second);
@@ -336,7 +330,7 @@ namespace smoothxg {
                     uint64_t len_threshold_for_edit_clustering = ceil((double) curr_fwd.length() * block_group_identity);
 
                     uint64_t len_threshold_for_mash_clustering;
-                    {
+                    if (min_length_mash_based_clustering > 0) {
                         double value = exp(-block_group_distance * kmer_size);
                         len_threshold_for_mash_clustering = ceil((double) seq_hashes_fwd[i].size() * (2 - value) / value);
                     }
@@ -354,17 +348,9 @@ namespace smoothxg {
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto& other = rank_and_seqs_dedup[group[k]].second;
 
-                                if (max_length_edit_based_alignment > 0 && curr.length() > max_length_edit_based_alignment && other.length() > max_length_edit_based_alignment){
+                                if (min_length_mash_based_clustering > 0 && curr.length() > min_length_mash_based_clustering && other.length() > min_length_mash_based_clustering){
                                     if (seq_hashes_fwd[group[k]].size() > len_threshold_for_mash_clustering) {
                                         // With a mash-based clustering, the sequence would be above the distance threshold
-                                        skip_mash++;
-                                        //std::cerr << "AVOIDED " << len_threshold_for_mash_clustering << std::endl;
-                                        //std::cerr << "fwd size " << (curr_or_rev == 0 ? seq_hashes_fwd[i].size() : seq_hashes_rev[i].size()) << std::endl;
-                                        //std::cerr << "rev size " << seq_hashes_fwd[group[k]].size() << std::endl;
-
-                                        //std::cerr << compare(curr_or_rev == 0 ? seq_hashes_fwd[i] : seq_hashes_rev[i], seq_hashes_fwd[group[k]], kmer[0]) << std::endl;
-                                        //std::cerr << "---------------" << std::endl;
-
                                         break;
                                     }
 
@@ -377,7 +363,6 @@ namespace smoothxg {
                                     }
                                 } else {
                                     if (other.length() < len_threshold_for_edit_clustering) {
-                                        skip_edit++;
                                         // With an edit-based clustering, the sequence would be below the identity threshold
                                         break;
                                     }
@@ -461,9 +446,11 @@ namespace smoothxg {
                     }
                 }
 
-                //todo free memory seqs_dedup_rev
-                //                     std::string().swap(seq);
-                //                    std::string().swap(seq_rev);
+                if (min_length_mash_based_clustering > 0) {
+                    for (auto x : seqs_dedup_rev) {
+                        delete x;
+                    }
+                }
             } else {
                 // nothing to do
                 ready_blocks[block_id].push_back(block);
@@ -473,9 +460,6 @@ namespace smoothxg {
 
             breaks_and_splits_progress->increment(1);
         }
-
-        std::cerr << "\nskip_edit " << skip_edit << std::endl;
-        std::cerr << "\nskip_mash " << skip_mash << std::endl;
 
         delete breaks_and_splits_progress;
 

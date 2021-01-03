@@ -24,7 +24,7 @@ using namespace handlegraph;
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
 void break_blocks(const xg::XG& graph,
                   blockset_t*& blockset,
-                  const uint64_t& max_length_edit_based_alignment,
+                  const uint64_t& min_length_mash_based_clustering,
                   const double& block_group_identity,
                   const double& block_group_distance,
                   const uint64_t& kmer_size,
