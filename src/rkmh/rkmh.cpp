@@ -68,7 +68,6 @@ inline void calc_hashes_(const char *seq, const uint64_t &len,
         } else {
             hashes[i] = 0;
         }
-
     }
     delete[] reverse;
 };
@@ -92,8 +91,10 @@ inline std::vector<hash_t> calc_hashes(const char *seq, const uint64_t &len, con
     std::vector<hash_t> ret;
 
     for (auto k : k_sizes) {
-        std::vector<hash_t> t = calc_hashes(seq, len, k);
-        ret.insert(ret.end(), t.begin(), t.end());
+        if (len > k) {
+            std::vector<hash_t> t = calc_hashes(seq, len, k);
+            ret.insert(ret.end(), t.begin(), t.end());
+        }
     }
 
     return ret;

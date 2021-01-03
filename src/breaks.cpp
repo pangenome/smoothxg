@@ -1,4 +1,5 @@
 #include <deps/odgi/src/odgi.hpp>
+#include <rkmh/rkmh.hpp>
 #include "breaks.hpp"
 #include "progress.hpp"
 #include "atomic_bitvector.hpp"
@@ -102,6 +103,9 @@ namespace smoothxg {
             }
         };
         std::thread write_ready_blocks_thread(write_ready_blocks_lambda);
+
+        std::vector<uint64_t> kmer;
+        kmer.emplace_back(kmer_size);
 
 #pragma omp parallel for schedule(static,1) num_threads(thread_count)
         for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id){
@@ -240,7 +244,7 @@ namespace smoothxg {
             // Splitting
             // ensure that the sequences in the block are within our identity threshold
             // if not, peel them off into splits
-            if (block_group_identity > 0 && block.path_ranges.size() > 1) {
+            if ((block_group_identity > 0 || block_group_distance < 1) && block.path_ranges.size() > 1) {
                 std::vector<std::pair<std::uint64_t, std::string>> rank_and_seqs_dedup;
                 std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
                 for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
@@ -285,10 +289,37 @@ namespace smoothxg {
                         }
                 );
 
+                std::vector<std::string*> seqs_dedup_fwd;
+                std::vector<std::string*> seqs_dedup_rev;
+
+                std::vector<std::vector<hash_t>> seq_hashes_fwd;
+                std::vector<int> seq_hash_lens_fwd;
+                std::vector<std::vector<hash_t>> seq_hashes_rev;
+                std::vector<int> seq_hash_lens_rev;
+
+                if (max_length_edit_based_alignment > 0) {
+                    // Prepare sequence pointers
+                    for (auto& rank_and_seq : rank_and_seqs_dedup) {
+                        seqs_dedup_fwd.push_back(&rank_and_seq.second);
+                        seqs_dedup_rev.push_back(new std::string(odgi::reverse_complement(rank_and_seq.second)));
+                    }
+
+                    // Calculate hashes
+                    seq_hashes_fwd.resize(rank_and_seqs_dedup.size());
+                    seq_hash_lens_fwd.resize(rank_and_seqs_dedup.size());
+
+                    seq_hashes_rev.resize(rank_and_seqs_dedup.size());
+                    seq_hash_lens_rev.resize(rank_and_seqs_dedup.size());
+
+                    hash_sequences(seqs_dedup_fwd, seq_hashes_fwd, seq_hash_lens_fwd, kmer);
+                    hash_sequences(seqs_dedup_rev, seq_hashes_rev, seq_hash_lens_rev, kmer);
+                }
+
+                //todo mash early stopping
                 auto start_time = std::chrono::steady_clock::now();
 
                 // iterate through the seqs
-                // for each sequence try to match it to a group at the given identity threshold
+                // for each sequence try to match it to a group at the given identity/distance threshold
                 // if we can't get it to match, add a new group
                 std::vector<std::vector<uint64_t>> groups;
 
@@ -297,10 +328,12 @@ namespace smoothxg {
                     auto& curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
 
-                    uint64_t threshold = ceil((double) curr_fwd.length() * block_group_identity);
+                    uint64_t len_threshold_for_edit_alignments = ceil((double) curr_fwd.length() * block_group_identity);
 
                     uint64_t best_group = 0;
-                    double best_id = -1;
+                    bool cluster_found = false;
+
+                    uint8_t curr_or_rev = 0;
                     for (auto& curr : { curr_fwd, curr_rev }) {
                         // Start looking at from the last group
                         for (int64_t j = groups.size() - 1; j >= 0 ; --j) {
@@ -310,39 +343,48 @@ namespace smoothxg {
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto& other = rank_and_seqs_dedup[group[k]].second;
 
-                                if (other.length() < threshold) {
+                                if (other.length() < len_threshold_for_edit_alignments) {
                                     break;
                                 }
 
-                                double id = -1;
+                                if (max_length_edit_based_alignment > 0 && curr.length() > max_length_edit_based_alignment && other.length() > max_length_edit_based_alignment){
+                                    double distance = compare(curr_or_rev == 0 ? seq_hashes_fwd[i] : seq_hashes_rev[i], seq_hashes_fwd[group[k]], kmer[0]);
+                                    if (distance <= block_group_distance) {
+                                        best_group = j;
+                                        cluster_found = true;
 
-                                EdlibAlignResult result = edlibAlign(
-                                        curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                        edlibNewAlignConfig(threshold + 1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
-                                        );
-                                if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
-                                    id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
-                                }
-                                edlibFreeAlignResult(result);
+                                        break; // Stop with this group
+                                    }
+                                } else {
+                                    double id = -1;
+                                    EdlibAlignResult result = edlibAlign(
+                                            curr.c_str(), curr.size(), other.c_str(), other.size(),
+                                            edlibNewAlignConfig(len_threshold_for_edit_alignments + 1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
+                                    );
+                                    if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
+                                        id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
+                                    }
+                                    edlibFreeAlignResult(result);
 
-                                if (id >= block_group_identity/* && id > best_id*/) {
-                                    best_group = j;
-                                    best_id = id;
+                                    if (id >= block_group_identity/* && id > best_id*/) {
+                                        best_group = j;
+                                        cluster_found = true;
 
-                                    break; // Stop with this group
+                                        break; // Stop with this group
+                                    }
                                 }
                             }
 
-                            if (best_id > 0) {
+                            if (cluster_found) {
                                 break;
                             }
                         }
 
-                        if (best_id > 0) {
+                        if (cluster_found) {
                             break;
                         }
                     }
-                    if (best_id > 0) {
+                    if (cluster_found) {
                         groups[best_group].push_back(i);
                     } else {
                         groups.push_back({i});
@@ -392,6 +434,10 @@ namespace smoothxg {
                                                            "_split_in_" + std::to_string(groups.size()) + "_in_" + std::to_string(elapsed_time.count()) + "s");
                     }
                 }
+
+                //todo free memory seqs_dedup_rev
+                //                     std::string().swap(seq);
+                //                    std::string().swap(seq_rev);
             } else {
                 // nothing to do
                 ready_blocks[block_id].push_back(block);

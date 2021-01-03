@@ -34,18 +34,16 @@ static char rev_arr[26] = {
 
 typedef uint64_t hash_t;
 
-void hash_sequences(std::vector<std::string> &keys,
-                    std::vector<std::string> &seqs,
-                    std::vector<int> &lengths,
+void hash_sequences(std::vector<std::string*> &seqs,
                     std::vector<std::vector<hash_t>> &hashes,
                     std::vector<int> &hash_lengths,
-                    std::vector<int> &kmer);
+                    std::vector<uint64_t> &kmer);
 
+/*
 std::vector<hash_t> hash_intersection(std::vector<hash_t> alpha, std::vector<hash_t> beta);
-
 std::vector<hash_t> hash_union(std::vector<hash_t> alpha, std::vector<hash_t> beta);
+*/
 
-double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, int kmerSize);
-
+double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, uint64_t kmerSize);
 
 #endif //SMOOTHXG_RKMH_HPP
