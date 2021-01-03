@@ -56,7 +56,9 @@ namespace smoothxg {
         const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
         std::cerr << "[smoothxg::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
-        std::cerr << std::fixed << std::setprecision(2) << "[smoothxg::break_and_split_blocks] splitting " << blockset->size() << " blocks at identity " << block_group_identity << std::endl;
+        std::cerr << std::fixed << std::setprecision(2) << "[smoothxg::break_and_split_blocks] splitting " << blockset->size() << " blocks " <<
+                    "at identity " << block_group_identity << " (edlib-based clustering) and " <<
+                    "at distance " << block_group_distance << " (mash-based clustering)" << std::endl;
 
         std::stringstream breaks_and_splits_banner;
         breaks_and_splits_banner << "[smoothxg::break_and_split_blocks] cutting and splitting " << blockset->size() << " blocks:";

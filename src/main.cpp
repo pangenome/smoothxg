@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     //args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.1]", {'R', "min-segment-ratio"});
 
     // Block split
-    args::ValueFlag<uint64_t> _max_length_edit_based_alignment(parser, "N", "maximum sequences length to apply alignments using edit-distance for sequence clustering [default: 200, 0 to disable it ]", {'L', "max-seq-len-edit"});
+    args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N", "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]", {'L', "min-seq-len-mash"});
     args::ValueFlag<double> _block_group_identity(parser, "N", "minimum edit-based identity to cluster sequences [default: 0.5]", {'I', "block-id-min"});
     args::ValueFlag<double> _block_group_distance(parser, "N", "maximum mash distance to cluster sequences [default: 0.5]", {'D', "block-dist-max"});
     args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 11]", {'H', "kmer-size-mash-distance"});
@@ -138,10 +138,18 @@ int main(int argc, char** argv) {
     uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
 
     // Block split
-    uint64_t max_length_edit_based_alignment =  _max_length_edit_based_alignment ? args::get(_max_length_edit_based_alignment) : 200;
+    uint64_t min_length_mash_based_clustering =  _min_length_mash_based_clustering ? args::get(_min_length_mash_based_clustering) : 200;
+    uint64_t kmer_size =  _kmer_size ? args::get(_kmer_size) : 11;
+    if (min_length_mash_based_clustering != 0 && min_length_mash_based_clustering < kmer_size) {
+        std::cerr
+                << "[smoothxg::main] error: the minimum sequences length to cluster sequences using mash-distance "
+                   "has to be greater than or equal to the kmer size."
+                << std::endl;
+        return 1;
+    }
+
     double block_group_identity =  _block_group_identity ? args::get(_block_group_identity) : 0.5;
     double block_group_distance =  _block_group_distance ? args::get(_block_group_distance) : 0.5;
-    uint64_t kmer_size =  _kmer_size ? args::get(_kmer_size) : 11;
 
     if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
         std::cerr
@@ -240,7 +248,7 @@ int main(int argc, char** argv) {
 
     smoothxg::break_blocks(graph,
                            blockset,
-                           max_length_edit_based_alignment,
+                           min_length_mash_based_clustering,
                            block_group_identity,
                            block_group_distance,
                            kmer_size,
@@ -302,8 +310,12 @@ int main(int argc, char** argv) {
                 " min_copy_length=" + std::to_string(min_copy_length) +
                 " max_copy_length=" + std::to_string(max_copy_length) +
                 " min_autocorr_z=" + std::to_string(min_autocorr_z) +
-                " autocorr_stride=" + std::to_string(autocorr_stride) +
-                " block_group_identity=" + std::to_string(block_group_identity) + "\n";
+                " autocorr_stride=" + std::to_string(autocorr_stride) + "\n";
+
+        // split_blocks
+        maf_header += "# block_group_identity=" + std::to_string(block_group_identity) +
+                      " min_length_mash_based_clustering=" + std::to_string(min_length_mash_based_clustering) +
+                      " block_group_distance=" + std::to_string(block_group_distance) + "\n";
     }
 
     std::vector<std::string> consensus_path_names;
