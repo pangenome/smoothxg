@@ -101,7 +101,7 @@ inline std::vector<hash_t> calc_hashes(const char *seq, const int &len, const st
 };
 
 void hash_sequences(std::vector<std::string> &keys,
-                    std::vector<char *> &seqs,
+                    std::vector<std::string> &seqs,
                     std::vector<int> &lengths,
                     std::vector<std::vector<hash_t>> &hashes,
                     std::vector<int> &hash_lengths,
@@ -113,7 +113,7 @@ void hash_sequences(std::vector<std::string> &keys,
         //std::cerr << "seqs[i] " << seqs[i] << std::endl;
         //std::cerr << "lengths[i] " << lengths[i] << std::endl;
 
-        hashes[i] = calc_hashes(seqs[i], lengths[i], kmer);
+        hashes[i] = calc_hashes(seqs[i].c_str(), lengths[i], kmer);
         hash_lengths[i] = hashes[i].size();
 
         //std::cerr << "hashes[i].size " << hashes[i].size() << std::endl;
@@ -178,7 +178,7 @@ double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, int kmerSize
     int j = 0;
 
     uint64_t common = 0;
-    uint64_t denom = 0;
+    uint64_t denom;
 
     while (alpha[i] == 0) {
         i++;

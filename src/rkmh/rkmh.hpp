@@ -35,7 +35,7 @@ static char rev_arr[26] = {
 typedef uint64_t hash_t;
 
 void hash_sequences(std::vector<std::string> &keys,
-                    std::vector<char *> &seqs,
+                    std::vector<std::string> &seqs,
                     std::vector<int> &lengths,
                     std::vector<std::vector<hash_t>> &hashes,
                     std::vector<int> &hash_lengths,
