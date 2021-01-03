@@ -57,7 +57,7 @@ namespace smoothxg {
 
         std::cerr << "[smoothxg::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
         std::cerr << std::fixed << std::setprecision(2) << "[smoothxg::break_and_split_blocks] splitting " << blockset->size() << " blocks " <<
-                    "at identity " << block_group_identity << " (edlib-based clustering) and " <<
+                    "at identity " << block_group_identity << " (edlib-based clustering) or " <<
                     "at distance " << block_group_distance << " (mash-based clustering)" << std::endl;
 
         std::stringstream breaks_and_splits_banner;
@@ -375,7 +375,7 @@ namespace smoothxg {
                                             edlibNewAlignConfig(len_threshold_for_edit_clustering + 1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
                                     );
                                     if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
-                                        id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
+                                        id = (double)((int)curr.size() - result.editDistance) / (double)(curr.size());
                                     }
                                     edlibFreeAlignResult(result);
 
