@@ -100,16 +100,13 @@ inline std::vector<hash_t> calc_hashes(const char *seq, const uint64_t &len, con
     return ret;
 };
 
-void hash_sequences(std::vector<std::string*> &seqs,
+void hash_sequences(std::vector<std::string *> &seqs,
                     std::vector<std::vector<hash_t>> &hashes,
                     std::vector<int> &hash_lengths,
                     std::vector<uint64_t> &kmer) {
 
 //#pragma omp parallel for
     for (int i = 0; i < seqs.size(); i++) {
-        //std::cerr << "seqs[i] " << seqs[i] << std::endl;
-        //std::cerr << "lengths[i] " << lengths[i] << std::endl;
-
         hashes[i] = calc_hashes(seqs[i]->c_str(), seqs[i]->length(), kmer);
         hash_lengths[i] = hashes[i].size();
 
@@ -183,6 +180,7 @@ double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, uint64_t kme
         j++;
     }
     denom = i + j;
+
     //todo early stopping
     while (i < alpha.size() && j < beta.size()) {
         if (alpha[i] == beta[j]) {
@@ -198,27 +196,27 @@ double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, uint64_t kme
         denom++;
     }
 
+    // complete the union operation
+    denom += alpha.size() - i;
+    denom += beta.size() - j;
+
     //std::cerr << "common " << common << std::endl;
     //std::cerr << "denom " << denom << std::endl;
 
     double distance;
     double jaccard = double(common) / denom;
 
-    if ( common == denom ) // avoid -0
+    if (common == denom) // avoid -0
     {
         distance = 0;
-    }
-    else if ( common == 0 ) // avoid inf
+    } else if (common == 0) // avoid inf
     {
         distance = 1.;
-    }
-    else
-    {
+    } else {
         //distance = log(double(common + 1) / (denom + 1)) / log(1. / (denom + 1));
         distance = -log(2 * jaccard / (1. + jaccard)) / kmerSize;
 
-        if ( distance > 1 )
-        {
+        if (distance > 1) {
             distance = 1;
         }
     }

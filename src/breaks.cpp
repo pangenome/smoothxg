@@ -107,6 +107,12 @@ namespace smoothxg {
         std::vector<uint64_t> kmer;
         kmer.emplace_back(kmer_size);
 
+        std::atomic<uint64_t> skip_edit;
+        skip_edit.store(0);
+
+        std::atomic<uint64_t> skip_mash;
+        skip_mash.store(0);
+
 #pragma omp parallel for schedule(static,1) num_threads(thread_count)
         for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id){
             auto block = blockset->get_block(block_id);
@@ -315,7 +321,6 @@ namespace smoothxg {
                     hash_sequences(seqs_dedup_rev, seq_hashes_rev, seq_hash_lens_rev, kmer);
                 }
 
-                //todo mash early stopping
                 auto start_time = std::chrono::steady_clock::now();
 
                 // iterate through the seqs
@@ -328,7 +333,13 @@ namespace smoothxg {
                     auto& curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
 
-                    uint64_t len_threshold_for_edit_alignments = ceil((double) curr_fwd.length() * block_group_identity);
+                    uint64_t len_threshold_for_edit_clustering = ceil((double) curr_fwd.length() * block_group_identity);
+
+                    uint64_t len_threshold_for_mash_clustering;
+                    {
+                        double value = exp(-block_group_distance * kmer_size);
+                        len_threshold_for_mash_clustering = ceil((double) seq_hashes_fwd[i].size() * (2 - value) / value);
+                    }
 
                     uint64_t best_group = 0;
                     bool cluster_found = false;
@@ -343,11 +354,20 @@ namespace smoothxg {
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto& other = rank_and_seqs_dedup[group[k]].second;
 
-                                if (other.length() < len_threshold_for_edit_alignments) {
-                                    break;
-                                }
-
                                 if (max_length_edit_based_alignment > 0 && curr.length() > max_length_edit_based_alignment && other.length() > max_length_edit_based_alignment){
+                                    if (seq_hashes_fwd[group[k]].size() > len_threshold_for_mash_clustering) {
+                                        // With a mash-based clustering, the sequence would be above the distance threshold
+                                        skip_mash++;
+                                        //std::cerr << "AVOIDED " << len_threshold_for_mash_clustering << std::endl;
+                                        //std::cerr << "fwd size " << (curr_or_rev == 0 ? seq_hashes_fwd[i].size() : seq_hashes_rev[i].size()) << std::endl;
+                                        //std::cerr << "rev size " << seq_hashes_fwd[group[k]].size() << std::endl;
+
+                                        //std::cerr << compare(curr_or_rev == 0 ? seq_hashes_fwd[i] : seq_hashes_rev[i], seq_hashes_fwd[group[k]], kmer[0]) << std::endl;
+                                        //std::cerr << "---------------" << std::endl;
+
+                                        break;
+                                    }
+
                                     double distance = compare(curr_or_rev == 0 ? seq_hashes_fwd[i] : seq_hashes_rev[i], seq_hashes_fwd[group[k]], kmer[0]);
                                     if (distance <= block_group_distance) {
                                         best_group = j;
@@ -356,10 +376,16 @@ namespace smoothxg {
                                         break; // Stop with this group
                                     }
                                 } else {
+                                    if (other.length() < len_threshold_for_edit_clustering) {
+                                        skip_edit++;
+                                        // With an edit-based clustering, the sequence would be below the identity threshold
+                                        break;
+                                    }
+
                                     double id = -1;
                                     EdlibAlignResult result = edlibAlign(
                                             curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                            edlibNewAlignConfig(len_threshold_for_edit_alignments + 1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
+                                            edlibNewAlignConfig(len_threshold_for_edit_clustering + 1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
                                     );
                                     if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
                                         id = (double)(curr.size() - result.editDistance) / (double)(curr.size());
@@ -447,6 +473,9 @@ namespace smoothxg {
 
             breaks_and_splits_progress->increment(1);
         }
+
+        std::cerr << "\nskip_edit " << skip_edit << std::endl;
+        std::cerr << "\nskip_mash " << skip_mash << std::endl;
 
         delete breaks_and_splits_progress;
 
