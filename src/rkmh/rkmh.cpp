@@ -92,7 +92,6 @@ inline std::vector<hash_t> calc_hashes(const char *seq, const int &len, const st
     std::vector<hash_t> ret;
 
     for (auto k : k_sizes) {
-        //std::cerr << "calc_hashes; k - " << k << std::endl;
         std::vector<hash_t> t = calc_hashes(seq, len, k);
         ret.insert(ret.end(), t.begin(), t.end());
     }
@@ -100,20 +99,17 @@ inline std::vector<hash_t> calc_hashes(const char *seq, const int &len, const st
     return ret;
 };
 
-void hash_sequences(std::vector<std::string> &keys,
-                    std::vector<std::string> &seqs,
-                    std::vector<int> &lengths,
+void hash_sequences(std::vector<std::string> &seqs,
                     std::vector<std::vector<hash_t>> &hashes,
                     std::vector<int> &hash_lengths,
                     std::vector<int> &kmer) {
-    //std::cerr << "hash_sequences" << std::endl;
 
 //#pragma omp parallel for
-    for (int i = 0; i < keys.size(); i++) {
+    for (int i = 0; i < seqs.size(); i++) {
         //std::cerr << "seqs[i] " << seqs[i] << std::endl;
         //std::cerr << "lengths[i] " << lengths[i] << std::endl;
 
-        hashes[i] = calc_hashes(seqs[i].c_str(), lengths[i], kmer);
+        hashes[i] = calc_hashes(seqs[i].c_str(), seqs[i].length(), kmer);
         hash_lengths[i] = hashes[i].size();
 
         //std::cerr << "hashes[i].size " << hashes[i].size() << std::endl;
@@ -125,7 +121,8 @@ void hash_sequences(std::vector<std::string> &keys,
     }
 }
 
-/* Returns a deduplicated set of kmers or hashes as a vector<T> */
+/*
+// Returns a deduplicated set of kmers or hashes as a vector<T>
 template<typename T>
 std::vector<T> v_set(std::vector<T> kmers) {
     std::unordered_set<T> s = std::unordered_set<T>(kmers.begin(), kmers.end());
@@ -133,8 +130,7 @@ std::vector<T> v_set(std::vector<T> kmers) {
     return ret;
 }
 
-
-/* Returns the intersection of alpha and beta, removing duplicates */
+// Returns the intersection of alpha and beta, removing duplicates
 std::vector<hash_t> hash_intersection(std::vector<hash_t> alpha, std::vector<hash_t> beta) {
     std::vector<hash_t> ret;
     ret.reserve(alpha.size());
@@ -162,8 +158,7 @@ std::vector<hash_t> hash_intersection(std::vector<hash_t> alpha, std::vector<has
     return ret;
 }
 
-
-/* Returns the union of the two sets after deduplicating all duplicates */
+// Returns the union of the two sets after deduplicating all duplicates
 std::vector<hash_t> hash_union(std::vector<hash_t> alpha, std::vector<hash_t> beta) {
     std::vector<hash_t> ret;
     ret.reserve(alpha.size() + beta.size());
@@ -171,7 +166,7 @@ std::vector<hash_t> hash_union(std::vector<hash_t> alpha, std::vector<hash_t> be
     ret.insert(ret.end(), beta.begin(), beta.end());
     return ret;
 }
-
+*/
 
 double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, int kmerSize) {
     int i = 0;
