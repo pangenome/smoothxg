@@ -336,7 +336,7 @@ namespace smoothxg {
                     uint64_t best_group = 0;
                     bool cluster_found = false;
 
-                    uint8_t fwd_or_rev = 0;
+                    bool fwd_or_rev = true;
                     for (auto& curr : { curr_fwd, curr_rev }) {
                         // Start looking at from the last group
                         for (int64_t j = groups.size() - 1; j >= 0 ; --j) {
@@ -347,7 +347,7 @@ namespace smoothxg {
                                 auto& other = rank_and_seqs_dedup[group[k]].second;
 
                                 if (min_length_mash_based_clustering > 0 && curr.length() >= min_length_mash_based_clustering && other.length() >= min_length_mash_based_clustering){
-                                    if (fwd_or_rev == 0) {
+                                    if (fwd_or_rev) {
                                         if (seq_hashes[group[k]].size() > len_threshold_for_mash_clustering) {
                                             // With a mash-based clustering, the sequence would be above the distance threshold
                                             break;
@@ -395,6 +395,8 @@ namespace smoothxg {
                         if (cluster_found) {
                             break;
                         }
+
+                        fwd_or_rev = false;
                     }
                     if (cluster_found) {
                         groups[best_group].push_back(i);
