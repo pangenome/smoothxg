@@ -91,10 +91,10 @@ inline std::vector<hash_t> calc_hashes(const char *seq, const uint64_t &len, con
     std::vector<hash_t> ret;
 
     for (auto k : k_sizes) {
-        if (len > k) {
+        //if (len > k) {
             std::vector<hash_t> t = calc_hashes(seq, len, k);
             ret.insert(ret.end(), t.begin(), t.end());
-        }
+        //}
     }
 
     return ret;
@@ -104,18 +104,19 @@ void hash_sequences(std::vector<std::string *> &seqs,
                     std::vector<std::vector<hash_t>> &hashes,
                     std::vector<int> &hash_lengths,
                     std::vector<uint64_t> &kmer) {
-
 //#pragma omp parallel for
     for (int i = 0; i < seqs.size(); i++) {
-        hashes[i] = calc_hashes(seqs[i]->c_str(), seqs[i]->length(), kmer);
-        hash_lengths[i] = hashes[i].size();
+        if (seqs[i] != nullptr) {
+            hashes[i] = calc_hashes(seqs[i]->c_str(), seqs[i]->length(), kmer);
+            hash_lengths[i] = hashes[i].size();
 
-        //std::cerr << "hashes[i].size " << hashes[i].size() << std::endl;
-        //for (auto x : hashes[i]) {
-        //    std::cerr << " " << x;
-        //}
-        //std::cerr << std::endl;
-        //std::cerr << "" << std::endl;
+            //std::cerr << "hashes[i].size " << hashes[i].size() << std::endl;
+            //for (auto x : hashes[i]) {
+            //    std::cerr << " " << x;
+            //}
+            //std::cerr << std::endl;
+            //std::cerr << "" << std::endl;
+        }
     }
 }
 

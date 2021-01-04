@@ -300,15 +300,14 @@ namespace smoothxg {
                 std::vector<int> seq_hash_lens_rev;
 
                 if (min_length_mash_based_clustering > 0) {
+                    seqs_dedup_fwd.resize(rank_and_seqs_dedup.size());
+                    seqs_dedup_rev.resize(rank_and_seqs_dedup.size());
                     // Prepare sequence pointers
-                    for (auto& rank_and_seq : rank_and_seqs_dedup) {
-                        if (rank_and_seq.second.length() >= min_length_mash_based_clustering) {
-                            seqs_dedup_rev.push_back(new std::string(odgi::reverse_complement(rank_and_seq.second)));
-                        } else {
-                            seqs_dedup_rev.push_back(new std::string(""));
+                    for (uint64_t i = 0; i < rank_and_seqs_dedup.size(); ++i) {
+                        if (rank_and_seqs_dedup[i].second.length() >= min_length_mash_based_clustering) {
+                            seqs_dedup_fwd[i] = &rank_and_seqs_dedup[i].second;
+                            seqs_dedup_rev[i] = new std::string(odgi::reverse_complement(rank_and_seqs_dedup[i].second));
                         }
-
-                        seqs_dedup_fwd.push_back(&rank_and_seq.second);
                     }
 
                     // Calculate hashes
@@ -454,8 +453,10 @@ namespace smoothxg {
                 }
 
                 if (min_length_mash_based_clustering > 0) {
-                    for (auto x : seqs_dedup_rev) {
-                        delete x;
+                    for (uint64_t i = 0; i < rank_and_seqs_dedup.size(); ++i) {
+                        if (rank_and_seqs_dedup[i].second.length() >= min_length_mash_based_clustering) {
+                            delete seqs_dedup_rev[i];
+                        }
                     }
                 }
             } else {
