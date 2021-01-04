@@ -291,34 +291,26 @@ namespace smoothxg {
                         }
                 );
 
-                std::vector<std::string*> seqs_dedup_fwd;
-                std::vector<std::string*> seqs_dedup_rev;
+                std::vector<std::string*> seqs_dedup;
 
-                std::vector<std::vector<hash_t>> seq_hashes_fwd;
-                std::vector<int> seq_hash_lens_fwd;
-                std::vector<std::vector<hash_t>> seq_hashes_rev;
-                std::vector<int> seq_hash_lens_rev;
+                std::vector<std::vector<hash_t>> seq_hashes;
+                std::vector<int> seq_hash_lens;
 
                 if (min_length_mash_based_clustering > 0) {
-                    seqs_dedup_fwd.resize(rank_and_seqs_dedup.size());
-                    seqs_dedup_rev.resize(rank_and_seqs_dedup.size());
+                    seqs_dedup.resize(rank_and_seqs_dedup.size());
+
                     // Prepare sequence pointers
                     for (uint64_t i = 0; i < rank_and_seqs_dedup.size(); ++i) {
                         if (rank_and_seqs_dedup[i].second.length() >= min_length_mash_based_clustering) {
-                            seqs_dedup_fwd[i] = &rank_and_seqs_dedup[i].second;
-                            seqs_dedup_rev[i] = new std::string(odgi::reverse_complement(rank_and_seqs_dedup[i].second));
+                            seqs_dedup[i] = &rank_and_seqs_dedup[i].second;
                         }
                     }
 
                     // Calculate hashes
-                    seq_hashes_fwd.resize(rank_and_seqs_dedup.size());
-                    seq_hash_lens_fwd.resize(rank_and_seqs_dedup.size());
+                    seq_hashes.resize(rank_and_seqs_dedup.size());
+                    seq_hash_lens.resize(rank_and_seqs_dedup.size());
 
-                    seq_hashes_rev.resize(rank_and_seqs_dedup.size());
-                    seq_hash_lens_rev.resize(rank_and_seqs_dedup.size());
-
-                    hash_sequences(seqs_dedup_fwd, seq_hashes_fwd, seq_hash_lens_fwd, kmer);
-                    hash_sequences(seqs_dedup_rev, seq_hashes_rev, seq_hash_lens_rev, kmer);
+                    hash_sequences(seqs_dedup, seq_hashes, seq_hash_lens, kmer);
                 }
 
                 auto start_time = std::chrono::steady_clock::now();
@@ -338,13 +330,13 @@ namespace smoothxg {
                     uint64_t len_threshold_for_mash_clustering = 0;
                     if (min_length_mash_based_clustering > 0) {
                         double value = exp(-block_group_distance * kmer_size);
-                        len_threshold_for_mash_clustering = ceil((double) seq_hashes_fwd[i].size() * (2 - value) / value);
+                        len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * (2 - value) / value);
                     }
 
                     uint64_t best_group = 0;
                     bool cluster_found = false;
 
-                    uint8_t curr_or_rev = 0;
+                    uint8_t fwd_or_rev = 0;
                     for (auto& curr : { curr_fwd, curr_rev }) {
                         // Start looking at from the last group
                         for (int64_t j = groups.size() - 1; j >= 0 ; --j) {
@@ -355,18 +347,21 @@ namespace smoothxg {
                                 auto& other = rank_and_seqs_dedup[group[k]].second;
 
                                 if (min_length_mash_based_clustering > 0 && curr.length() >= min_length_mash_based_clustering && other.length() >= min_length_mash_based_clustering){
-                                    if (seq_hashes_fwd[group[k]].size() > len_threshold_for_mash_clustering) {
-                                        // With a mash-based clustering, the sequence would be above the distance threshold
-                                        break;
-                                    }
+                                    if (fwd_or_rev == 0) {
+                                        if (seq_hashes[group[k]].size() > len_threshold_for_mash_clustering) {
+                                            // With a mash-based clustering, the sequence would be above the distance threshold
+                                            break;
+                                        }
 
-                                    double distance = compare(curr_or_rev == 0 ? seq_hashes_fwd[i] : seq_hashes_rev[i], seq_hashes_fwd[group[k]], kmer[0]);
-                                    if (distance <= block_group_distance) {
-                                        best_group = j;
-                                        cluster_found = true;
+                                        double distance = compare(seq_hashes[i], seq_hashes[group[k]], kmer[0]);
+                                        if (distance <= block_group_distance) {
+                                            best_group = j;
+                                            cluster_found = true;
 
-                                        break; // Stop with this group
-                                    }
+                                            break; // Stop with this group
+                                        }
+
+                                    } //else: With the mash distance, we already manage the strandness, and here we already tried to align the curr sequence in the other strand
                                 } else {
                                     if (other.length() < len_threshold_for_edit_clustering) {
                                         // With an edit-based clustering, the sequence would be below the identity threshold
@@ -449,14 +444,6 @@ namespace smoothxg {
                         // collect sequences
                         _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_",
                                                            "_split_in_" + std::to_string(groups.size()) + "_in_" + std::to_string(elapsed_time.count()) + "s");
-                    }
-                }
-
-                if (min_length_mash_based_clustering > 0) {
-                    for (uint64_t i = 0; i < rank_and_seqs_dedup.size(); ++i) {
-                        if (rank_and_seqs_dedup[i].second.length() >= min_length_mash_based_clustering) {
-                            delete seqs_dedup_rev[i];
-                        }
                     }
                 }
             } else {
