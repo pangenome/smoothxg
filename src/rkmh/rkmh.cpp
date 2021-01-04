@@ -5,6 +5,7 @@
 #include "rkmh.hpp"
 #include "murmur3/murmur3.hpp"
 #include <math.h>
+#include <algorithm>
 
 // Check a string (as a char*) for non-canonical DNA bases
 inline bool canonical(const char *x, int len) {
@@ -108,6 +109,7 @@ void hash_sequences(std::vector<std::string *> &seqs,
     for (int i = 0; i < seqs.size(); i++) {
         if (seqs[i] != nullptr) {
             hashes[i] = calc_hashes(seqs[i]->c_str(), seqs[i]->length(), kmer);
+            std::sort(hashes[i].begin(), hashes[i].end());
             hash_lengths[i] = hashes[i].size();
 
             //std::cerr << "hashes[i].size " << hashes[i].size() << std::endl;
@@ -163,7 +165,7 @@ std::vector<hash_t> hash_union(std::vector<hash_t> alpha, std::vector<hash_t> be
     ret.reserve(alpha.size() + beta.size());
     ret = std::vector<hash_t>(alpha.begin(), alpha.end());
     ret.insert(ret.end(), beta.begin(), beta.end());
-    return ret;
+    return v_set(ret);
 }
 */
 
