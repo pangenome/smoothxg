@@ -111,63 +111,9 @@ void hash_sequences(std::vector<std::string *> &seqs,
             hashes[i] = calc_hashes(seqs[i]->c_str(), seqs[i]->length(), kmer);
             std::sort(hashes[i].begin(), hashes[i].end());
             hash_lengths[i] = hashes[i].size();
-
-            //std::cerr << "hashes[i].size " << hashes[i].size() << std::endl;
-            //for (auto x : hashes[i]) {
-            //    std::cerr << " " << x;
-            //}
-            //std::cerr << std::endl;
-            //std::cerr << "" << std::endl;
         }
     }
 }
-
-/*
-// Returns a deduplicated set of kmers or hashes as a vector<T>
-template<typename T>
-std::vector<T> v_set(std::vector<T> kmers) {
-    std::unordered_set<T> s = std::unordered_set<T>(kmers.begin(), kmers.end());
-    std::vector<T> ret = std::vector<T>(s.begin(), s.end());
-    return ret;
-}
-
-// Returns the intersection of alpha and beta, removing duplicates
-std::vector<hash_t> hash_intersection(std::vector<hash_t> alpha, std::vector<hash_t> beta) {
-    std::vector<hash_t> ret;
-    ret.reserve(alpha.size());
-    int i = 0;
-    int j = 0;
-    while (alpha[i] == 0) {
-        i++;
-    }
-    while (beta[j] == 0) {
-        j++;
-    }
-
-    while (i < alpha.size() && j < beta.size()) {
-        if (alpha[i] == beta[j]) {
-            ret.push_back(alpha[i]);
-            i++;
-            j++;
-        } else if (alpha[i] > beta[j]) {
-            j++;
-        } else {
-            i++;
-        }
-    }
-
-    return ret;
-}
-
-// Returns the union of the two sets after deduplicating all duplicates
-std::vector<hash_t> hash_union(std::vector<hash_t> alpha, std::vector<hash_t> beta) {
-    std::vector<hash_t> ret;
-    ret.reserve(alpha.size() + beta.size());
-    ret = std::vector<hash_t>(alpha.begin(), alpha.end());
-    ret.insert(ret.end(), beta.begin(), beta.end());
-    return v_set(ret);
-}
-*/
 
 double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, uint64_t kmerSize) {
     int i = 0;

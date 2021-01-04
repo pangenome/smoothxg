@@ -39,11 +39,6 @@ void hash_sequences(std::vector<std::string*> &seqs,
                     std::vector<int> &hash_lengths,
                     std::vector<uint64_t> &kmer);
 
-/*
-std::vector<hash_t> hash_intersection(std::vector<hash_t> alpha, std::vector<hash_t> beta);
-std::vector<hash_t> hash_union(std::vector<hash_t> alpha, std::vector<hash_t> beta);
-*/
-
 double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, uint64_t kmerSize);
 
 #endif //SMOOTHXG_RKMH_HPP
