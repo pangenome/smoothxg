@@ -186,10 +186,10 @@ int main(int argc, char** argv) {
     float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
     std::cerr << "[smoothxg::main] loading graph" << std::endl;
-    XG graph;
+    auto graph = std::make_unique<XG>();
     if (!args::get(xg_in).empty()) {
         std::ifstream in(args::get(xg_in));
-        graph.deserialize(in);
+        graph->deserialize(in);
     } else if (!args::get(gfa_in).empty()) {
         // prep the graph by default
         std::string gfa_in_name;
@@ -205,7 +205,7 @@ int main(int argc, char** argv) {
             gfa_in_name = args::get(gfa_in);
         }
         std::cerr << "[smoothxg::main] building xg index" << std::endl;
-        graph.from_gfa(gfa_in_name, args::get(validate),
+        graph->from_gfa(gfa_in_name, args::get(validate),
                        args::get(base).empty() ? gfa_in_name : args::get(base));
         if (!args::get(keep_temp) && !args::get(no_prep)) {
             std::remove(gfa_in_name.c_str());
@@ -213,19 +213,19 @@ int main(int argc, char** argv) {
     }
 
     auto* blockset = new smoothxg::blockset_t("blocks");
-    smoothxg::smoothable_blocks(graph,
-                              *blockset,
-                              max_block_weight,
-                              max_block_jump,
-                              min_subpath,
-                              max_edge_jump,
-                              order_paths_from_longest,
-                              num_threads);
+    smoothxg::smoothable_blocks(*graph,
+                                *blockset,
+                                max_block_weight,
+                                max_block_jump,
+                                min_subpath,
+                                max_edge_jump,
+                                order_paths_from_longest,
+                                num_threads);
 
     uint64_t min_autocorr_z = 5;
     uint64_t autocorr_stride = 50;
 
-    smoothxg::break_blocks(graph,
+    smoothxg::break_blocks(*graph,
                            blockset,
                            block_group_identity,
                            max_poa_length,
@@ -259,7 +259,7 @@ int main(int argc, char** argv) {
 
         maf_header += "##maf version=1\n";
         maf_header += "# smoothxg\n";
-        maf_header += "# input=" + filename + " sequences=" + std::to_string(graph.get_path_count()) + "\n";
+        maf_header += "# input=" + filename + " sequences=" + std::to_string(graph->get_path_count()) + "\n";
 
         // Merge mode
         maf_header += "# merge_blocks=";
@@ -292,7 +292,7 @@ int main(int argc, char** argv) {
 
     std::vector<std::string> consensus_path_names;
     {
-        auto smoothed = smoothxg::smooth_and_lace(graph,
+        auto smoothed = smoothxg::smooth_and_lace(*graph,
                                                   blockset,
                                                   poa_m,
                                                   poa_n,

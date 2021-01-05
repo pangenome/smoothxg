@@ -79,7 +79,7 @@ public:
         std::remove(_path_tmp_blocks.c_str());
 
         _num_blocks = 0;
-        _blocks = new mmmulti::map<uint64_t, ranked_path_range_t>(_path_tmp_blocks);
+        _blocks = new mmmulti::map<uint64_t, ranked_path_range_t>(_path_tmp_blocks, {0});
         //_blocks.set_base_filename(
 
         _blocks->open_writer();
