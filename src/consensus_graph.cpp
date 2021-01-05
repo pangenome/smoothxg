@@ -81,24 +81,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         });
     }
 
-    /*// TODO make this an SDSL bitvector so we can infer the rank in O(1) saving space in our consensus_path_handles vector
-    std::string consensus_string = "Consensus";
-    smoothed.for_each_handle([&](const handle_t &h) {
-        // Why is there no "for_each_path_handle_on_handle"?! :(
-        smoothed.for_each_step_on_handle(h, [&](const step_handle_t step) {
-            path_handle_t path = smoothed.get_path_handle_of_step(step);
-            std::string path_name = smoothed.get_path_name(path);
-            if (path_name.find(consensus_string, 0) == 0) {
-                // we found a consensus path!
-                nid_t node_id = smoothed.get_id(h);
-                handle_is_consensus[node_id - 1] = true;
-                consensus_path_handles[node_id - 1] = path;
-                // TODO abort mission here but should work anyhow because we only have at most one consensus path per node
-                // return;
-            }
-        });
-    });*/
-
     std::vector<path_handle_t> non_consensus_paths;
     non_consensus_paths.reserve(smoothed.get_path_count()+1-consensus_paths.size());
     smoothed.for_each_path_handle(
@@ -162,8 +144,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 
     // consensus path -> consensus path : link_path_t
     std::string base_mmset = base + ".link_path_ms";
-    mmmulti::set<link_path_t> link_path_ms(base_mmset);
-    link_path_ms.open_writer();
+    auto link_path_ms = std::make_unique<mmmulti::set<link_path_t>>(base_mmset);
+    link_path_ms->open_writer();
 
     // TODO: parallelize over path ranges that tend to have around the same max length
     // determine the ranges based on a map of the consensus path set
@@ -196,17 +178,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         on_consensus = true;
                         curr_consensus = consensus_path_handles[node_id - 1];
                     }
-                    /*
-                    smoothed.for_each_step_on_handle(
-                        h,
-                        [&](const step_handle_t& s) {
-                            path_handle_t p = smoothed.get_path_handle_of_step(s);
-                            if (is_consensus[as_integer(p)]) {
-                                on_consensus = true;
-                                curr_consensus = p;
-                            }
-                        });
-                    */
                     // if we're on the consensus
                     if (on_consensus) {
                         // we haven't seen any consensus before?
@@ -223,12 +194,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                             seen_consensus = true;
                             last_seen_consensus = curr_consensus;
                         } else {
-                            /*
-                            if (last_seen_consensus != consensus) {
-                                std::cerr << "path " << smoothed.get_path_name(path) << " switched from " << smoothed.get_path_name(last_seen_consensus) << " to " << smoothed.get_path_name(consensus) << std::endl;
-                                last_seen_consensus = consensus;
-                            }
-                            */
 
                             // we've seen a consensus before, and it's the same
                             // and the direction of movement is correct
@@ -270,7 +235,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                     std::swap(link.from_cons_name, link.to_cons_name);
                                 }
                                 link.jump_length = jump_length;
-                                link_path_ms.append(link);
+                                link_path_ms->append(link);
 
                                 // reset link
                                 link.length = 0;
@@ -290,7 +255,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                 });
         });
 
-    link_path_ms.index(thread_count);
+    link_path_ms->index(thread_count);
 
     // collect sets of link paths that refer to the same consensus path pairs
     // and pick which one to keep in the consensus graph
@@ -477,7 +442,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     //
     // could this run in parallel?
     // yes probably but we need to either lock the consensus path vectors or write into a multiset
-    link_path_ms.for_each_value(
+    link_path_ms->for_each_value(
         [&](const link_path_t& v) {
             //std::cerr << "on " << v << " with count " << c << std::endl;
             if (curr_links.empty()) {
@@ -500,7 +465,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 
     compute_best_link(curr_links);
 
-    link_path_ms.close_reader();
+    link_path_ms->close_reader();
     std::remove(base_mmset.c_str());
 
     // create new consensus graph which only has the consensus and link paths in it
@@ -887,14 +852,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
             consensus->append_step(path, handle);
         }
     }
-
-    // do it again for all links at once
-    /*
-    link_paths.clear();
-    for (auto& n : link_path_names_to_keep) {
-        link_paths.push_back(consensus->get_path_handle(n));
-    }
-    */
 
     // now remove coverage=0 nodes
     std::vector<handle_t> empty_handles;
