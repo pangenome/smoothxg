@@ -1321,8 +1321,6 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     print_graph();
 #endif
 
-    std::cerr << "seriously at the end" << std::endl;
-
 }
 
 void XG::print_graph() const {
