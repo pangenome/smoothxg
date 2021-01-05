@@ -325,6 +325,7 @@ namespace smoothxg {
                     auto& curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
 
+                    //todo relax thresholds' contraint (I want to find at most X% of the shortest sequence in the biggest one)
                     uint64_t len_threshold_for_edit_clustering = ceil((double) curr_fwd.length() * block_group_identity);
 
                     uint64_t len_threshold_for_mash_clustering = 0;

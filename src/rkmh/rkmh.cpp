@@ -153,6 +153,8 @@ double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, uint64_t kme
     //std::cerr << "denom " << denom << std::endl;
 
     double distance;
+
+    //todo put a flag for denom: take the smallest between alpha.size, beta.size
     double jaccard = double(common) / denom;
 
     if (common == denom) // avoid -0
