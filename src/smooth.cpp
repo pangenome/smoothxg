@@ -694,7 +694,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     // record the start and end points of all the path ranges and the consensus
     //
     std::vector<odgi::graph_t*> block_graphs;
-    block_graphs.resize(blockset->size());
+    block_graphs.resize(blockset->size(), nullptr);
 
     std::vector<path_position_range_t> path_mapping;
     std::vector<path_position_range_t> consensus_mapping;
@@ -1473,6 +1473,13 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 });
             }
         }
+
+        // cleanup our block graphs
+#pragma omp parallel for schedule(static,1)
+        for (auto block : block_graphs) {
+            delete block;
+        }
+
         // now for each consensus path that's not been merged, and for each merged consensus path...
         // record our path handles for later use in consensus graph generation
 
