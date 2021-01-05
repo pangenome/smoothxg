@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD 17)
 # Use all standard-compliant optimizations
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -mcx16 -g")
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mcx16 -g")
+#set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O -mcx16 -g -fsanitize=address")
+#set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O -mcx16 -g -fsanitize=address")
 
 #set(THREADS_PREFER_PTHREAD_FLAG ON)
 #find_package(Threads REQUIRED)
@@ -126,7 +128,7 @@ ExternalProject_Add(atomicqueue
   BUILD_COMMAND ""
   CONFIGURE_COMMAND "")
 ExternalProject_Get_property(atomicqueue SOURCE_DIR)
-set(atomicqueue_INCLUDE "${SOURCE_DIR}")
+set(atomicqueue_INCLUDE "${SOURCE_DIR}/include/atomic_queue")
 
 # atomic bitvector class
 ExternalProject_Add(atomicbitvector
@@ -229,10 +231,20 @@ set(abPOA_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/include")
 # set(abPOA_src_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/src")
 set(abPOA_LIB "${INSTALL_DIR}/src/abPOA-build/lib")
 
+#add_subdirectory(deps/mmmulti/deps/mio)
+ExternalProject_Add(mio
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mmmulti/deps/mio"
+        UPDATE_COMMAND ""
+        INSTALL_COMMAND ""
+        BUILD_COMMAND ""
+        CONFIGURE_COMMAND "")
+ExternalProject_Get_property(mio SOURCE_DIR)
+set(mio_INCLUDE "${SOURCE_DIR}/include")
+
 add_subdirectory(deps/edlib EXCLUDE_FROM_ALL)
 
-#set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_BUILD_TYPE Release)
 
 add_library(smoothxg_objs OBJECT
   src/xg.cpp
@@ -266,6 +278,7 @@ add_dependencies(smoothxg_objs dirtyzipf)
 add_dependencies(smoothxg_objs xoshiro)
 add_dependencies(smoothxg_objs sautocorr)
 add_dependencies(smoothxg_objs abPOA)
+add_dependencies(smoothxg_objs mio)
 
 
 set_target_properties(smoothxg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
@@ -298,6 +311,7 @@ set(smoothxg_INCLUDES
   "${sdsl-lite-divsufsort_INCLUDE}"
   "${tayweeargs_INCLUDE}"
   "${ips4o_INCLUDE}"
+  "${mio_INCLUDE}"
   "${mmmulti_INCLUDE}"
   "${atomicqueue_INCLUDE}"
   "${atomicbitvector_INCLUDE}"
@@ -327,7 +341,9 @@ set(smoothxg_LIBS
   "${handlegraph_LIB}/libhandlegraph.a"
   "${odgi_LIB}/libodgi.a"
   "${abPOA_LIB}/libabpoa.a"
-  "-latomic")
+  "-latomic"
+  )
+
 
 target_include_directories(smoothxg_objs PUBLIC ${smoothxg_INCLUDES})
 

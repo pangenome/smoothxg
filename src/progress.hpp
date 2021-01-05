@@ -19,14 +19,13 @@ public:
     std::atomic<uint64_t> completed;
     std::chrono::time_point<std::chrono::steady_clock> start_time;
     std::thread logger;
-    ProgressMeter(void) = delete;
     ProgressMeter(uint64_t _total, const std::string& _banner)
         : total(_total), banner(_banner) {
         start_time = std::chrono::steady_clock::now();
         completed = 0;
-        bool has_ever_printed = false;
         logger = std::thread(
             [&](void) {
+                bool has_ever_printed = false;
                 while (completed < total) {
                     if (completed > 0) {
                         do_print();
@@ -40,12 +39,6 @@ public:
                 }
             });
     };
-    ~ProgressMeter(void) {
-        completed.store(total);
-        logger.join();
-        do_print();
-        std::cerr << std::endl;
-    }
     void do_print(void) {
         auto curr = std::chrono::steady_clock::now();
         std::chrono::duration<double> elapsed_seconds = curr-start_time;
@@ -62,6 +55,15 @@ public:
                   << std::setw(4) << std::scientific << rate << "/s "
                   << "elapsed: " << print_time(elapsed_seconds.count()) << " "
                   << "remain: " << print_time(seconds_to_completion);
+    }
+    void finish(void) {
+        completed.store(total);
+        logger.join();
+        do_print();
+        std::cerr << std::endl;
+    }
+    ~ProgressMeter(void) {
+        if (logger.joinable()) finish();
     }
     std::string print_time(const double& _seconds) {
         int days = 0, hours = 0, minutes = 0, seconds = 0;
