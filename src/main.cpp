@@ -22,7 +22,7 @@
 #include "odgi/odgi.hpp"
 #include "consensus_graph.hpp"
 #include "path_nuc_range_block_index.hpp"
-#include "src/rkmh/rkmh.hpp"
+#include "rkmh.hpp"
 
 using namespace std;
 using namespace xg;

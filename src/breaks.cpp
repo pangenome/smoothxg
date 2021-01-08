@@ -1,9 +1,9 @@
 #include <deps/odgi/src/odgi.hpp>
-#include <rkmh/rkmh.hpp>
 #include "breaks.hpp"
 #include "progress.hpp"
 #include "atomic_bitvector.hpp"
 #include "smooth.hpp"
+#include "rkmh.hpp"
 
 namespace smoothxg {
 
@@ -13,8 +13,8 @@ namespace smoothxg {
     void _prepare_and_write_fasta_for_block(const xg::XG &graph,
                                             const block_t &block,
                                             const uint64_t &block_id,
-                                            const std::string& prefix,
-                                            const std::string& suffix = ""){
+                                            const std::string &prefix,
+                                            const std::string &suffix = "") {
         std::vector<std::string> seqs;
         std::vector<std::string> names;
         for (auto &path_range : block.path_ranges) {
@@ -36,32 +36,36 @@ namespace smoothxg {
 
 // break the path ranges at likely VNTR boundaries
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
-    void break_blocks(const xg::XG& graph,
-                      blockset_t*& blockset,
-                      const uint64_t& min_length_mash_based_clustering,
-                      const double& block_group_identity,
-                      const double& block_group_distance,
-                      const uint64_t& kmer_size,
-                      const uint64_t& max_poa_length,
-                      const uint64_t& min_copy_length,
-                      const uint64_t& max_copy_length,
-                      const uint64_t& min_autocorr_z,
-                      const uint64_t& autocorr_stride,
-                      const bool& order_paths_from_longest,
-                      const bool& break_repeats,
-                      const uint64_t& thread_count,
-                      const bool& consensus_graph,
-                      const bool& write_block_to_split_fastas
+    void break_blocks(const xg::XG &graph,
+                      blockset_t *&blockset,
+                      const uint64_t &min_length_mash_based_clustering,
+                      const double &block_group_identity,
+                      const double &block_group_distance,
+                      const uint64_t &kmer_size,
+                      const uint64_t &max_poa_length,
+                      const uint64_t &min_copy_length,
+                      const uint64_t &max_copy_length,
+                      const uint64_t &min_autocorr_z,
+                      const uint64_t &autocorr_stride,
+                      const bool &order_paths_from_longest,
+                      const bool &break_repeats,
+                      const uint64_t &thread_count,
+                      const bool &consensus_graph,
+                      const bool &write_block_to_split_fastas
     ) {
-        const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
+        const VectorizableHandleGraph &vec_graph = dynamic_cast<const VectorizableHandleGraph &>(graph);
 
-        std::cerr << "[smoothxg::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length (" << max_poa_length << ")" << std::endl;
-        std::cerr << std::fixed << std::setprecision(2) << "[smoothxg::break_and_split_blocks] splitting " << blockset->size() << " blocks " <<
-                    "at identity " << block_group_identity << " (edlib-based clustering) or " <<
-                    "at distance " << block_group_distance << " (mash-based clustering)" << std::endl;
+        std::cerr
+                << "[smoothxg::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length ("
+                << max_poa_length << ")" << std::endl;
+        std::cerr << std::fixed << std::setprecision(2) << "[smoothxg::break_and_split_blocks] splitting "
+                  << blockset->size() << " blocks " <<
+                  "at identity " << block_group_identity << " (edlib-based clustering) or " <<
+                  "at distance " << block_group_distance << " (mash-based clustering)" << std::endl;
 
         std::stringstream breaks_and_splits_banner;
-        breaks_and_splits_banner << "[smoothxg::break_and_split_blocks] cutting and splitting " << blockset->size() << " blocks:";
+        breaks_and_splits_banner << "[smoothxg::break_and_split_blocks] cutting and splitting " << blockset->size()
+                                 << " blocks:";
         progress_meter::ProgressMeter breaks_and_splits_progress(blockset->size(), breaks_and_splits_banner.str());
 
         std::atomic<uint64_t> n_cut_blocks;
@@ -76,7 +80,7 @@ namespace smoothxg {
         atomicbitvector::atomic_bv_t block_is_ready(blockset->size());
         std::vector<std::vector<block_t>> ready_blocks(blockset->size());
 
-        auto* broken_blockset = new smoothxg::blockset_t("blocks.broken");
+        auto *broken_blockset = new smoothxg::blockset_t("blocks.broken");
 
         auto write_ready_blocks_lambda = [&]() {
             uint64_t num_blocks = block_is_ready.size();
@@ -106,17 +110,17 @@ namespace smoothxg {
         };
         std::thread write_ready_blocks_thread(write_ready_blocks_lambda);
 
-        std::vector<uint64_t> kmer;
-        kmer.emplace_back(kmer_size);
+        std::vector<int> kmer;
+        kmer.emplace_back((int) kmer_size);
 
-#pragma omp parallel for schedule(static,1) num_threads(thread_count)
-        for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id){
+#pragma omp parallel for schedule(static, 1) num_threads(thread_count)
+        for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id) {
             auto block = blockset->get_block(block_id);
 
             // Cutting
             // check if we have sequences that are too long
             bool to_break = false;
-            for (auto& path_range : block.path_ranges) {
+            for (auto &path_range : block.path_ranges) {
                 if (path_range.length > max_poa_length) {
                     to_break = true;
                     break;
@@ -130,7 +134,7 @@ namespace smoothxg {
                 // find if there is a repeat
                 if (break_repeats) {
                     std::vector<sautocorr::repeat_t> repeats;
-                    for (auto& path_range : block.path_ranges) {
+                    for (auto &path_range : block.path_ranges) {
                         // steps in id space
                         std::string seq;
                         std::string name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
@@ -139,7 +143,7 @@ namespace smoothxg {
                              step = graph.get_next_step(step)) {
                             seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
                         }
-                        if (seq.length() >= 2*min_copy_length){
+                        if (seq.length() >= 2 * min_copy_length) {
                             //std::cerr << "on " << name << "\t" << seq.length() << std::endl;
                             std::vector<uint8_t> vec(seq.begin(), seq.end());
                             sautocorr::repeat_t result = sautocorr::repeat(vec,
@@ -158,7 +162,7 @@ namespace smoothxg {
                     // if there is, set the cut length to some fraction of it
                     std::vector<double> lengths;
                     double max_z = 0;
-                    for (auto& repeat : repeats) {
+                    for (auto &repeat : repeats) {
                         if (repeat.length > 0) {
                             lengths.push_back(repeat.length);
                             max_z = std::max(repeat.z_score, max_z);
@@ -176,7 +180,7 @@ namespace smoothxg {
                     }
                 }
                 std::vector<path_range_t> chopped_ranges;
-                for (auto& path_range : block.path_ranges) {
+                for (auto &path_range : block.path_ranges) {
                     if (!found_repeat && path_range.length < cut_length) {
                         chopped_ranges.push_back(path_range);
                         continue;
@@ -221,13 +225,13 @@ namespace smoothxg {
                         block.path_ranges.begin(), block.path_ranges.end(),
                         order_paths_from_longest
                         ?
-                        [](const path_range_t& a,
-                           const path_range_t& b) {
+                        [](const path_range_t &a,
+                           const path_range_t &b) {
                             return a.length > b.length;
                         }
                         :
-                        [](const path_range_t& a,
-                           const path_range_t& b) {
+                        [](const path_range_t &a,
+                           const path_range_t &b) {
                             return a.length < b.length;
                         }
                 );
@@ -237,7 +241,7 @@ namespace smoothxg {
             // prepare the path_ranges_t for a consensus graph if necessary
             // we do this here, because it works in parallel
             if (consensus_graph) {
-                for (auto& path_range : block.path_ranges) {
+                for (auto &path_range : block.path_ranges) {
                     path_range.nuc_begin = graph.get_position_of_step(path_range.begin);
                     path_range.nuc_end = graph.get_position_of_step(path_range.end);
                 }
@@ -250,7 +254,7 @@ namespace smoothxg {
                 std::vector<std::pair<std::uint64_t, std::string>> rank_and_seqs_dedup;
                 std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
                 for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
-                    auto& path_range = block.path_ranges[rank];
+                    auto &path_range = block.path_ranges[rank];
 
                     std::string seq;
                     for (step_handle_t step = path_range.begin;
@@ -262,7 +266,7 @@ namespace smoothxg {
 
                     bool new_seq = true;
                     for (uint64_t j = 0; j < rank_and_seqs_dedup.size(); ++j) {
-                        auto& seqs_dedup = rank_and_seqs_dedup[j].second;
+                        auto &seqs_dedup = rank_and_seqs_dedup[j].second;
 
                         if (seq == seqs_dedup || seq_rev == seqs_dedup) {
                             seqs_dedup_original_ranks[j].push_back(rank);
@@ -272,7 +276,7 @@ namespace smoothxg {
                     }
 
                     if (new_seq) {
-                        rank_and_seqs_dedup.push_back({ rank_and_seqs_dedup.size(), seq });
+                        rank_and_seqs_dedup.push_back({rank_and_seqs_dedup.size(), seq});
 
                         seqs_dedup_original_ranks.emplace_back();
                         seqs_dedup_original_ranks.back().push_back(rank);
@@ -285,15 +289,16 @@ namespace smoothxg {
                 // Sort by length and lexicographically, to have similar sequences close to each other in the order
                 std::sort(
                         rank_and_seqs_dedup.begin(), rank_and_seqs_dedup.end(),
-                        [](const std::pair<std::uint64_t, std::string>& a,
-                           const std::pair<std::uint64_t, std::string>& b) {
-                            return std::make_tuple(a.second.size(), std::ref(a.second)) < std::make_tuple(b.second.size(), std::ref(b.second));
+                        [](const std::pair<std::uint64_t, std::string> &a,
+                           const std::pair<std::uint64_t, std::string> &b) {
+                            return std::make_tuple(a.second.size(), std::ref(a.second)) <
+                                   std::make_tuple(b.second.size(), std::ref(b.second));
                         }
                 );
 
-                std::vector<std::string*> seqs_dedup;
+                std::vector<std::string *> seqs_dedup;
 
-                std::vector<std::vector<hash_t>> seq_hashes;
+                std::vector<std::vector<mkmh::hash_t>> seq_hashes;
                 std::vector<int> seq_hash_lens;
 
                 if (min_length_mash_based_clustering > 0) {
@@ -322,11 +327,12 @@ namespace smoothxg {
 
                 groups.push_back({0}); // seed with the first sequence
                 for (uint64_t i = 1; i < rank_and_seqs_dedup.size(); ++i) {
-                    auto& curr_fwd = rank_and_seqs_dedup[i].second;
+                    auto &curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
 
                     //todo relax thresholds' contraint (I want to find at most X% of the shortest sequence in the biggest one)
-                    uint64_t len_threshold_for_edit_clustering = ceil((double) curr_fwd.length() * block_group_identity);
+                    uint64_t len_threshold_for_edit_clustering = ceil(
+                            (double) curr_fwd.length() * block_group_identity);
 
                     uint64_t len_threshold_for_mash_clustering = 0;
                     if (min_length_mash_based_clustering > 0) {
@@ -338,16 +344,18 @@ namespace smoothxg {
                     bool cluster_found = false;
 
                     bool fwd_or_rev = true;
-                    for (auto& curr : { curr_fwd, curr_rev }) {
+                    for (auto &curr : {curr_fwd, curr_rev}) {
                         // Start looking at from the last group
-                        for (int64_t j = groups.size() - 1; j >= 0 ; --j) {
-                            auto& group = groups[j];
+                        for (int64_t j = groups.size() - 1; j >= 0; --j) {
+                            auto &group = groups[j];
 
                             // Start looking at from the last added sequence to the group
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
-                                auto& other = rank_and_seqs_dedup[group[k]].second;
+                                auto &other = rank_and_seqs_dedup[group[k]].second;
 
-                                if (min_length_mash_based_clustering > 0 && curr.length() >= min_length_mash_based_clustering && other.length() >= min_length_mash_based_clustering){
+                                if (min_length_mash_based_clustering > 0 &&
+                                    curr.length() >= min_length_mash_based_clustering &&
+                                    other.length() >= min_length_mash_based_clustering) {
                                     if (fwd_or_rev) {
                                         if (seq_hashes[group[k]].size() > len_threshold_for_mash_clustering) {
                                             // With a mash-based clustering, the sequence would be above the distance threshold
@@ -372,10 +380,12 @@ namespace smoothxg {
                                     double id = -1;
                                     EdlibAlignResult result = edlibAlign(
                                             curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                            edlibNewAlignConfig(len_threshold_for_edit_clustering + 1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0)
+                                            edlibNewAlignConfig(len_threshold_for_edit_clustering + 1, EDLIB_MODE_NW,
+                                                                EDLIB_TASK_DISTANCE, NULL, 0)
                                     );
                                     if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
-                                        id = (double)((int)curr.size() - result.editDistance) / (double)(curr.size());
+                                        id = (double) ((int) curr.size() - result.editDistance) /
+                                             (double) (curr.size());
                                     }
                                     edlibFreeAlignResult(result);
 
@@ -413,7 +423,7 @@ namespace smoothxg {
                     ++split_blocks;
 
                     uint64_t i = 0;
-                    for (auto& group : groups) {
+                    for (auto &group : groups) {
                         block_t new_block;
                         //new_block.is_split = true;
 
@@ -423,9 +433,9 @@ namespace smoothxg {
                         std::cerr << std::endl;
                         */
 
-                        for (auto& j : group) {
+                        for (auto &j : group) {
                             // Take the original path_ranges following their original order in the block
-                            for (auto& jj : seqs_dedup_original_ranks[rank_and_seqs_dedup[j].first]) {
+                            for (auto &jj : seqs_dedup_original_ranks[rank_and_seqs_dedup[j].first]) {
                                 new_block.path_ranges.push_back(block.path_ranges[jj]);
                             }
                         }
@@ -436,17 +446,19 @@ namespace smoothxg {
 
                         ready_blocks[block_id].push_back(new_block);
 
-                        if (write_block_to_split_fastas){
-                            _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_", "_" + std::to_string(i++));
+                        if (write_block_to_split_fastas) {
+                            _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_",
+                                                               "_" + std::to_string(i++));
                         }
                     }
 
-                    if (write_block_to_split_fastas){
+                    if (write_block_to_split_fastas) {
                         std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
 
                         // collect sequences
                         _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_",
-                                                           "_split_in_" + std::to_string(groups.size()) + "_in_" + std::to_string(elapsed_time.count()) + "s");
+                                                           "_split_in_" + std::to_string(groups.size()) + "_in_" +
+                                                           std::to_string(elapsed_time.count()) + "s");
                     }
                 }
             } else {
@@ -461,7 +473,8 @@ namespace smoothxg {
 
         breaks_and_splits_progress.finish();
 
-        std::cerr << "[smoothxg::break_and_split_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks << " had repeats" << std::endl;
+        std::cerr << "[smoothxg::break_and_split_blocks] cut " << n_cut_blocks << " blocks of which " << n_repeat_blocks
+                  << " had repeats" << std::endl;
         std::cerr << "[smoothxg::break_and_split_blocks] split " << split_blocks << " blocks" << std::endl;
 
         write_ready_blocks_thread.join();

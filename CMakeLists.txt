@@ -241,6 +241,16 @@ ExternalProject_Add(mio
 ExternalProject_Get_property(mio SOURCE_DIR)
 set(mio_INCLUDE "${SOURCE_DIR}/include")
 
+# mkmh
+ExternalProject_Add(mkmh
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mkmh"
+        UPDATE_COMMAND ""
+        INSTALL_COMMAND ""
+        BUILD_COMMAND ""
+        CONFIGURE_COMMAND "")
+ExternalProject_Get_property(mkmh SOURCE_DIR)
+set(mkmh_INCLUDE "${SOURCE_DIR}")
+
 add_subdirectory(deps/edlib EXCLUDE_FROM_ALL)
 
 set(CMAKE_BUILD_TYPE Debug)
@@ -252,6 +262,8 @@ add_library(smoothxg_objs OBJECT
   src/prep.cpp
   src/cleanup.cpp
   src/blocks.cpp
+  ${mkmh_INCLUDE}/murmur3/murmur3.cpp
+  src/rkmh.cpp
   src/breaks.cpp
   src/smooth.cpp
   src/utils.cpp
@@ -259,8 +271,7 @@ add_library(smoothxg_objs OBJECT
   src/maf.hpp
   src/path_nuc_range_block_index.cpp
   src/consensus_graph.cpp
-  src/rkmh/rkmh.cpp
-  src/murmur3/murmur3.cpp)
+)
 
 add_dependencies(smoothxg_objs handlegraph)
 add_dependencies(smoothxg_objs sdsl-lite)
@@ -279,7 +290,7 @@ add_dependencies(smoothxg_objs xoshiro)
 add_dependencies(smoothxg_objs sautocorr)
 add_dependencies(smoothxg_objs abPOA)
 add_dependencies(smoothxg_objs mio)
-
+add_dependencies(smoothxg_objs mkmh)
 
 set_target_properties(smoothxg_objs PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
 
@@ -332,6 +343,7 @@ set(smoothxg_INCLUDES
   "${abPOA_INCLUDE}"
   "${abPOA_src_INCLUDE}"
   "${bbhash_INCLUDE}"
+  "${mkmh_INCLUDE}"
   "deps/edlib/edlib/include")
 
 set(smoothxg_LIBS

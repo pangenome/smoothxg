@@ -49,3 +49,6 @@
 [submodule "deps/edlib"]
 	path = deps/edlib
 	url = https://github.com/Martinsos/edlib.git
+[submodule "deps/mkmh"]
+	path = deps/mkmh
+	url = https://github.com/AndreaGuarracino/mkmh.git
