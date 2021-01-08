@@ -1474,12 +1474,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             }
         }
 
-        // cleanup our block graphs
-#pragma omp parallel for schedule(static,1)
-        for (auto block : block_graphs) {
-            delete block;
-        }
-
         // now for each consensus path that's not been merged, and for each merged consensus path...
         // record our path handles for later use in consensus graph generation
 
@@ -1506,6 +1500,12 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         for (auto &path : consensus_paths) {
             consensus_path_names.push_back(smoothed->get_path_name(path));
         }
+    }
+
+    // cleanup our block graphs
+#pragma omp parallel for schedule(static,1)
+    for (auto block : block_graphs) {
+        delete block;
     }
 
     std::stringstream embed_banner;
