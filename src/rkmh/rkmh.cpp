@@ -93,8 +93,8 @@ inline std::vector<hash_t> calc_hashes(const char *seq, const uint64_t &len, con
 
     for (auto k : k_sizes) {
         //if (len > k) {
-            std::vector<hash_t> t = calc_hashes(seq, len, k);
-            ret.insert(ret.end(), t.begin(), t.end());
+        std::vector<hash_t> t = calc_hashes(seq, len, k);
+        ret.insert(ret.end(), t.begin(), t.end());
         //}
     }
 
@@ -122,10 +122,10 @@ double compare(std::vector<hash_t> alpha, std::vector<hash_t> beta, uint64_t kme
     uint64_t common = 0;
     uint64_t denom;
 
-    while (alpha[i] == 0) {
+    while (i < alpha.size() && alpha[i] == 0) {
         i++;
     }
-    while (beta[j] == 0) {
+    while (j < beta.size() && beta[j] == 0) {
         j++;
     }
     denom = i + j;
