@@ -315,7 +315,7 @@ namespace smoothxg {
                     seq_hashes.resize(rank_and_seqs_dedup.size());
                     seq_hash_lens.resize(rank_and_seqs_dedup.size());
 
-                    hash_sequences(seqs_dedup, seq_hashes, seq_hash_lens, kmer);
+                    rkmh::hash_sequences(seqs_dedup, seq_hashes, seq_hash_lens, kmer);
                 }
 
                 auto start_time = std::chrono::steady_clock::now();
@@ -362,7 +362,7 @@ namespace smoothxg {
                                             break;
                                         }
 
-                                        double distance = compare(seq_hashes[i], seq_hashes[group[k]], kmer[0]);
+                                        double distance = rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer[0]);
                                         if (distance <= block_group_distance) {
                                             best_group = j;
                                             cluster_found = true;

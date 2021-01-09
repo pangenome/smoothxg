@@ -263,7 +263,6 @@ add_library(smoothxg_objs OBJECT
   src/cleanup.cpp
   src/blocks.cpp
   ${mkmh_INCLUDE}/murmur3/murmur3.cpp
-  src/rkmh.cpp
   src/breaks.cpp
   src/smooth.cpp
   src/utils.cpp
