@@ -110,9 +110,6 @@ namespace smoothxg {
         };
         std::thread write_ready_blocks_thread(write_ready_blocks_lambda);
 
-        std::vector<int> kmer;
-        kmer.emplace_back((int) kmer_size);
-
 #pragma omp parallel for schedule(static, 1) num_threads(thread_count)
         for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id) {
             auto block = blockset->get_block(block_id);
@@ -315,7 +312,7 @@ namespace smoothxg {
                     seq_hashes.resize(rank_and_seqs_dedup.size());
                     seq_hash_lens.resize(rank_and_seqs_dedup.size());
 
-                    rkmh::hash_sequences(seqs_dedup, seq_hashes, seq_hash_lens, kmer);
+                    rkmh::hash_sequences(seqs_dedup, seq_hashes, seq_hash_lens, kmer_size);
                 }
 
                 auto start_time = std::chrono::steady_clock::now();
@@ -362,7 +359,7 @@ namespace smoothxg {
                                             break;
                                         }
 
-                                        double distance = rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer[0]);
+                                        double distance = rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer_size);
                                         if (distance <= block_group_distance) {
                                             best_group = j;
                                             cluster_found = true;
