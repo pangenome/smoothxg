@@ -43,6 +43,7 @@ namespace smoothxg {
                       const double &block_group_est_identity,
                       const uint64_t &kmer_size,
                       const uint64_t& min_dedup_depth_for_mash_clustering,
+                      const double& short_long_seq_lengths_ratio,
                       const uint64_t &max_poa_length,
                       const uint64_t &min_copy_length,
                       const uint64_t &max_copy_length,
@@ -344,6 +345,8 @@ namespace smoothxg {
                         len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * (2 - value) / value);
                     }
 
+                    bool use_containment_metric = short_long_seq_lengths_ratio > 0;
+
                     uint64_t best_group = 0;
                     bool cluster_found = false;
 
@@ -366,7 +369,7 @@ namespace smoothxg {
                                             break;
                                         }
 
-                                        double est_identity = 1 - rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer_size);
+                                        double est_identity = 1 - rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer_size, use_containment_metric);
                                         if (est_identity >= block_group_est_identity) {
                                             best_group = j;
                                             cluster_found = true;

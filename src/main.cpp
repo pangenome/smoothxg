@@ -60,6 +60,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<double> _block_group_est_identity(parser, "N", "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]", {'E', "block-est-id-max"});
     args::ValueFlag<uint64_t> _min_dedup_depth_for_mash_clustering(parser, "N", "minimum (deduplicated) block depth for applying the mash-based clustering [default: 10000, 0 to disable it]", {'D', "min-block-depth-mash"});
     args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]", {'H', "kmer-size-mash-distance"});
+    args::ValueFlag<double> _short_long_seq_lengths_ratio(parser, "N", "minimum short length / long length ratio to compare sequences for the containment metric in the clustering [default: 0, that is, not activated]", {'H', "kmer-size-mash-distance"});
 
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "copy-length-min"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "copy-length-max"});
@@ -162,6 +163,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    double short_long_seq_lengths_ratio = _short_long_seq_lengths_ratio ? args::get(_short_long_seq_lengths_ratio) : 0;
+
     int poa_m = 2;
     int poa_n = 4;
     int poa_g = 4;
@@ -255,6 +258,7 @@ int main(int argc, char** argv) {
                            block_group_est_identity,
                            kmer_size,
                            min_dedup_depth_for_mash_clustering,
+                           short_long_seq_lengths_ratio,
                            max_poa_length,
                            min_copy_length,
                            max_copy_length,
