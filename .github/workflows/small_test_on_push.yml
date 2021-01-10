@@ -22,8 +22,6 @@ jobs:
       - name: Init and update submodules
         run: git submodule update --init --recursive
       - name: Build smoothxg
-        run: sed -i 's/CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -mcx16 -g/CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O -mcx16 -g -fsanitize=address/g' CMakeLists.txt \
-          && sed -i 's/CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mcx16 -g/CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O -mcx16 -g -fsanitize=address/g' CMakeLists.txt \
-          && cmake -H. -Bbuild && cmake --build build -- -j 2
+        run: sed -i 's/CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -mcx16 -g/CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O -mcx16 -g -fsanitize=address/g' CMakeLists.txt && sed -i 's/CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mcx16 -g/CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O -mcx16 -g -fsanitize=address/g' CMakeLists.txt && cmake -H. -Bbuild && cmake --build build -- -j 2
       - name: Run a test on the DRB1-3123 dataset
         run: ASAN_OPTIONS=detect_leaks=1:symbolize=1 LSAN_OPTIONS=verbosity=1:log_threads=1 /bin/smoothxg -t 2 -g test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.seqwish.gfa -w 10000 -j 5000 -e 5000 -l 10000 -m test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.maf -s test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.consensus -a -C 10,100,1000,10000 -o test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.gfa
