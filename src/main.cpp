@@ -57,8 +57,8 @@ int main(int argc, char** argv) {
     // Block split
     args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N", "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]", {'L', "min-seq-len-mash"});
     args::ValueFlag<double> _block_group_identity(parser, "N", "minimum edit-based identity to cluster sequences [default: 0.5]", {'I', "block-id-min"});
-    args::ValueFlag<double> _block_group_distance(parser, "N", "maximum mash distance to cluster sequences [default: 0.5]", {'D', "block-dist-max"});
-    args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 11]", {'H', "kmer-size-mash-distance"});
+    args::ValueFlag<double> _block_group_est_identity(parser, "N", "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]", {'E', "block-est-id-max"});
+    args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]", {'H', "kmer-size-mash-distance"});
 
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "copy-length-min"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "copy-length-max"});
@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
 
     // Block split
     uint64_t min_length_mash_based_clustering =  _min_length_mash_based_clustering ? args::get(_min_length_mash_based_clustering) : 200;
-    uint64_t kmer_size =  _kmer_size ? args::get(_kmer_size) : 11;
+    uint64_t kmer_size =  _kmer_size ? args::get(_kmer_size) : 17;
     if (min_length_mash_based_clustering != 0 && min_length_mash_based_clustering < kmer_size) {
         std::cerr
                 << "[smoothxg::main] error: the minimum sequences length to cluster sequences using mash-distance "
@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
     }
 
     double block_group_identity =  _block_group_identity ? args::get(_block_group_identity) : 0.5;
-    double block_group_distance =  _block_group_distance ? args::get(_block_group_distance) : 0.5;
+    double block_group_est_identity =  _block_group_est_identity ? args::get(_block_group_est_identity) : block_group_identity;
 
     if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
         std::cerr
@@ -250,7 +250,7 @@ int main(int argc, char** argv) {
                            blockset,
                            min_length_mash_based_clustering,
                            block_group_identity,
-                           block_group_distance,
+                           block_group_est_identity,
                            kmer_size,
                            max_poa_length,
                            min_copy_length,
@@ -315,7 +315,7 @@ int main(int argc, char** argv) {
         // split_blocks
         maf_header += "# block_group_identity=" + std::to_string(block_group_identity) +
                       " min_length_mash_based_clustering=" + std::to_string(min_length_mash_based_clustering) +
-                      " block_group_distance=" + std::to_string(block_group_distance) + "\n";
+                      " block_group_est_identity=" + std::to_string(block_group_est_identity) + "\n";
     }
 
     std::vector<std::string> consensus_path_names;

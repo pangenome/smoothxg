@@ -40,7 +40,7 @@ namespace smoothxg {
                       blockset_t *&blockset,
                       const uint64_t &min_length_mash_based_clustering,
                       const double &block_group_identity,
-                      const double &block_group_distance,
+                      const double &block_group_est_identity,
                       const uint64_t &kmer_size,
                       const uint64_t &max_poa_length,
                       const uint64_t &min_copy_length,
@@ -58,10 +58,10 @@ namespace smoothxg {
         std::cerr
                 << "[smoothxg::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length ("
                 << max_poa_length << ")" << std::endl;
-        std::cerr << std::fixed << std::setprecision(2) << "[smoothxg::break_and_split_blocks] splitting "
+        std::cerr << std::fixed << std::setprecision(3) << "[smoothxg::break_and_split_blocks] splitting "
                   << blockset->size() << " blocks " <<
                   "at identity " << block_group_identity << " (edlib-based clustering) or " <<
-                  "at distance " << block_group_distance << " (mash-based clustering)" << std::endl;
+                  "at estimated-identity " << block_group_est_identity << " (mash-based clustering)" << std::endl;
 
         std::stringstream breaks_and_splits_banner;
         breaks_and_splits_banner << "[smoothxg::break_and_split_blocks] cutting and splitting " << blockset->size()
@@ -247,7 +247,7 @@ namespace smoothxg {
             // Splitting
             // ensure that the sequences in the block are within our identity threshold
             // if not, peel them off into splits
-            if ((block_group_identity > 0 || block_group_distance < 1) && block.path_ranges.size() > 1) {
+            if ((block_group_identity > 0 || block_group_est_identity > 0) && block.path_ranges.size() > 1) {
                 std::vector<std::pair<std::uint64_t, std::string>> rank_and_seqs_dedup;
                 std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
                 for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
@@ -333,7 +333,7 @@ namespace smoothxg {
 
                     uint64_t len_threshold_for_mash_clustering = 0;
                     if (min_length_mash_based_clustering > 0) {
-                        double value = exp(-block_group_distance * kmer_size);
+                        double value = exp(-(1 - block_group_est_identity) * kmer_size);
                         len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * (2 - value) / value);
                     }
 
@@ -359,8 +359,8 @@ namespace smoothxg {
                                             break;
                                         }
 
-                                        double distance = rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer_size);
-                                        if (distance <= block_group_distance) {
+                                        double est_identity = 1 - rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer_size);
+                                        if (est_identity >= block_group_est_identity) {
                                             best_group = j;
                                             cluster_found = true;
 
@@ -386,7 +386,7 @@ namespace smoothxg {
                                     }
                                     edlibFreeAlignResult(result);
 
-                                    if (id >= block_group_identity/* && id > best_id*/) {
+                                    if (id >= block_group_identity) {
                                         best_group = j;
                                         cluster_found = true;
 
