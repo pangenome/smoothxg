@@ -42,6 +42,7 @@ namespace smoothxg {
                       const double &block_group_identity,
                       const double &block_group_est_identity,
                       const uint64_t &kmer_size,
+                      const uint64_t& min_dedup_depth_for_mash_clustering,
                       const uint64_t &max_poa_length,
                       const uint64_t &min_copy_length,
                       const uint64_t &max_copy_length,
@@ -250,6 +251,8 @@ namespace smoothxg {
             if ((block_group_identity > 0 || block_group_est_identity > 0) && block.path_ranges.size() > 1) {
                 std::vector<std::pair<std::uint64_t, std::string>> rank_and_seqs_dedup;
                 std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
+
+                // Deduplication
                 for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
                     auto &path_range = block.path_ranges[rank];
 
@@ -298,7 +301,11 @@ namespace smoothxg {
                 std::vector<std::vector<mkmh::hash_t>> seq_hashes;
                 std::vector<int> seq_hash_lens;
 
-                if (min_length_mash_based_clustering > 0) {
+                bool mash_based_clustering_enabled = min_length_mash_based_clustering > 0 &&
+                        (min_dedup_depth_for_mash_clustering == 0 ||
+                        block.path_ranges.size() >= min_dedup_depth_for_mash_clustering);
+
+                if (mash_based_clustering_enabled) {
                     seqs_dedup.resize(rank_and_seqs_dedup.size());
 
                     // Prepare sequence pointers
@@ -332,7 +339,7 @@ namespace smoothxg {
                             (double) curr_fwd.length() * block_group_identity);
 
                     uint64_t len_threshold_for_mash_clustering = 0;
-                    if (min_length_mash_based_clustering > 0) {
+                    if (mash_based_clustering_enabled) {
                         double value = exp(-(1 - block_group_est_identity) * kmer_size);
                         len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * (2 - value) / value);
                     }
@@ -350,7 +357,7 @@ namespace smoothxg {
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto &other = rank_and_seqs_dedup[group[k]].second;
 
-                                if (min_length_mash_based_clustering > 0 &&
+                                if (mash_based_clustering_enabled &&
                                     curr.length() >= min_length_mash_based_clustering &&
                                     other.length() >= min_length_mash_based_clustering) {
                                     if (fwd_or_rev) {

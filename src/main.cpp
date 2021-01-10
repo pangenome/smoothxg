@@ -58,6 +58,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N", "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]", {'L', "min-seq-len-mash"});
     args::ValueFlag<double> _block_group_identity(parser, "N", "minimum edit-based identity to cluster sequences [default: 0.5]", {'I', "block-id-min"});
     args::ValueFlag<double> _block_group_est_identity(parser, "N", "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]", {'E', "block-est-id-max"});
+    args::ValueFlag<uint64_t> _min_dedup_depth_for_mash_clustering(parser, "N", "minimum (deduplicated) block depth for applying the mash-based clustering [default: 10000, 0 to disable it]", {'D', "min-block-depth-mash"});
     args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]", {'H', "kmer-size-mash-distance"});
 
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "copy-length-min"});
@@ -150,6 +151,7 @@ int main(int argc, char** argv) {
 
     double block_group_identity =  _block_group_identity ? args::get(_block_group_identity) : 0.5;
     double block_group_est_identity =  _block_group_est_identity ? args::get(_block_group_est_identity) : block_group_identity;
+    uint64_t min_dedup_depth_for_mash_clustering =  _min_dedup_depth_for_mash_clustering ? args::get(_min_dedup_depth_for_mash_clustering) : 10000;
 
     if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
         std::cerr
@@ -252,6 +254,7 @@ int main(int argc, char** argv) {
                            block_group_identity,
                            block_group_est_identity,
                            kmer_size,
+                           min_dedup_depth_for_mash_clustering,
                            max_poa_length,
                            min_copy_length,
                            max_copy_length,
