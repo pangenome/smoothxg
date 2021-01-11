@@ -50,7 +50,6 @@ int main(int argc, char** argv) {
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "block-weight-max"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "path-jump-max"});
-    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "subpath-min"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "edge-jump-max"});
     //args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.1]", {'R', "min-segment-ratio"});
 
@@ -59,7 +58,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<double> _block_group_identity(parser, "N", "minimum edit-based identity to cluster sequences [default: 0.5]", {'I', "block-id-min"});
     args::ValueFlag<double> _block_group_est_identity(parser, "N", "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]", {'E', "block-est-id-max"});
     args::ValueFlag<uint64_t> _min_dedup_depth_for_mash_clustering(parser, "N", "minimum (deduplicated) block depth for applying the mash-based clustering [default: 10000, 0 to disable it]", {'D', "min-block-depth-mash"});
-    args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]", {'H', "kmer-size-mash-distance"});
+    args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]", {'k', "kmer-size-mash-distance"});
     args::ValueFlag<double> _short_long_seq_lengths_ratio(parser, "N", "minimum short length / long length ratio to compare sequences for the containment metric in the clustering [default: 0, no containment metric]", {'F', "ratio-containment-metric"});
 
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "copy-length-min"});
@@ -103,12 +102,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (_min_subpath && write_consensus_graph) {
-        std::cerr << "[smoothxg::main] error: Please only use the -s/--write-consensus-graph parameter without"
-                   "the -k/--subpath option." << std::endl;
-        return 1;
-    }
-
     if (!args::get(merge_blocks) && (_contiguous_path_jaccard || _preserve_unmerged_consensus)) {
         std::cerr << "[smoothxg::main] error: Please specify -M/--merge-blocks option to use the "
                      "-J/--contiguous-path-jaccard and/or the -N/--preserve-unmerged-consensus option." << std::endl;
@@ -133,7 +126,6 @@ int main(int argc, char** argv) {
 
     uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
     uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 5000;
-    uint64_t min_subpath = _min_subpath ? args::get(_min_subpath) : 0;
     uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 5000;
     uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
@@ -243,7 +235,6 @@ int main(int argc, char** argv) {
                                 *blockset,
                                 max_block_weight,
                                 max_block_jump,
-                                min_subpath,
                                 max_edge_jump,
                                 order_paths_from_longest,
                                 num_threads);
@@ -309,7 +300,6 @@ int main(int argc, char** argv) {
         // create_blocks
         maf_header += "# max_block_weight=" + std::to_string(max_block_weight) +
                 " max_block_jump=" + std::to_string(max_block_jump) +
-                " min_subpath=" + std::to_string(min_subpath) +
                 " max_edge_jump=" + std::to_string(max_edge_jump) + "\n";
 
         // break_blocks
