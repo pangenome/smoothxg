@@ -149,7 +149,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 
     // TODO: parallelize over path ranges that tend to have around the same max length
     // determine the ranges based on a map of the consensus path set
-    
+
+    std::atomic<bool> is_there_something(false);
+
     // TODO: this could reflect the haplotype frequencies (from GBWT) to preserve variation > some freq
     paryfor::parallel_for<uint64_t>(
         0, non_consensus_paths.size(), thread_count,
@@ -236,6 +238,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                 }
                                 link.jump_length = jump_length;
                                 link_path_ms->append(link);
+                                is_there_something.store(true);
 
                                 // reset link
                                 link.length = 0;
@@ -255,7 +258,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                 });
         });
 
-    link_path_ms->index(thread_count);
+    if (is_there_something.load()){
+        link_path_ms->index(thread_count);
+    }
 
     // collect sets of link paths that refer to the same consensus path pairs
     // and pick which one to keep in the consensus graph
