@@ -304,7 +304,7 @@ namespace smoothxg {
 
                 bool mash_based_clustering_enabled = min_length_mash_based_clustering > 0 &&
                         (min_dedup_depth_for_mash_clustering == 0 ||
-                        block.path_ranges.size() >= min_dedup_depth_for_mash_clustering);
+                        rank_and_seqs_dedup.size() >= min_dedup_depth_for_mash_clustering);
 
                 if (mash_based_clustering_enabled) {
                     seqs_dedup.resize(rank_and_seqs_dedup.size());
