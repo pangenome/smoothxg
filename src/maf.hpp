@@ -7,18 +7,18 @@
 
 struct maf_row_t {
     std::string path_name;
-    uint64_t record_start;
-    uint64_t seq_size;
-    bool is_reversed;
-    uint64_t path_length;
+    uint64_t record_start = 0;
+    uint64_t seq_size = 0;
+    bool is_reversed = false;
+    uint64_t path_length = 0;
     std::string aligned_seq;
 };
 
 struct maf_partial_row_t {
-    uint64_t record_start;
-    uint64_t seq_size;
-    bool is_reversed;
-    uint64_t path_length;
+    uint64_t record_start = 0;
+    uint64_t seq_size = 0;
+    bool is_reversed = false;
+    uint64_t path_length = 0;
     std::string aligned_seq;
 };
 
