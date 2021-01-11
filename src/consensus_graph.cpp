@@ -236,7 +236,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                             std::swap(link.from_cons_name, link.to_cons_name);
                         }
                         link.jump_length = jump_length;
-                        link_path_ms.append(link);
+                        link_path_ms->append(link);
 
                         // reset link
                         link.length = 0;

@@ -359,6 +359,7 @@ int main(int argc, char** argv) {
         smoothed->to_gfa(out);
         out.close();
         delete smoothed;
+        delete blockset;
     }
 
     // do we need to write the consensus path names?
@@ -408,7 +409,8 @@ int main(int argc, char** argv) {
                                  args::get(base).empty() ? smoothed_out_gfa : args::get(base));
         }
         for (auto jump_max : jump_maxes) {
-            odgi::graph_t* consensus_graph = smoothxg::create_consensus_graph(r
+            auto t_start = std::chrono::steady_clock::now();
+            odgi::graph_t* consensus_graph = smoothxg::create_consensus_graph(
                 smoothed_xg, consensus_path_names, jump_max, n_threads,
                 args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
             ofstream o(consensus_base + "@" + std::to_string(jump_max) + ".gfa");
@@ -428,8 +430,6 @@ int main(int argc, char** argv) {
             delete consensus_graph;
         }
     }
-
-    delete blockset;
 
     return 0;
 }
