@@ -22,8 +22,8 @@ inline uint64_t step_rank(const step_handle_t& step) {
 }
 
 struct path_range_t {
-    step_handle_t begin{};
-    step_handle_t end{};
+    step_handle_t begin = { 0, 0 };
+    step_handle_t end = { 0, 0 };
     uint64_t length = 0;
     uint64_t nuc_begin = 0;
     uint64_t nuc_end = 0;
@@ -68,8 +68,8 @@ struct ranked_path_range_t {
 
 class blockset_t {
 private:
-    uint64_t _num_blocks;
-    mmmulti::map<uint64_t, ranked_path_range_t> _blocks;
+    uint64_t _num_blocks = 0;
+    mmmulti::map<uint64_t, ranked_path_range_t>* _blocks = nullptr;
 
     std::string _path_tmp_blocks;
 
@@ -79,14 +79,16 @@ public:
         std::remove(_path_tmp_blocks.c_str());
 
         _num_blocks = 0;
-        _blocks.set_base_filename(_path_tmp_blocks);
+        _blocks = new mmmulti::map<uint64_t, ranked_path_range_t>(_path_tmp_blocks, {0});
+        //_blocks.set_base_filename(
 
-        _blocks.open_writer();
+        _blocks->open_writer();
     }
 
     ~blockset_t(){
-        _blocks.close_writer();
-        _blocks.close_reader();
+        //_blocks.close_writer();
+        //_blocks.close_reader();
+        delete _blocks;
         std::remove(_path_tmp_blocks.c_str());
     }
 
@@ -98,20 +100,20 @@ public:
         _num_blocks += 1;
 
         for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
-            _blocks.append(
-                    block_id + 1,
-                    {rank, block.path_ranges[rank]}
+            _blocks->append(
+                block_id + 1,
+                {rank, block.path_ranges[rank]}
             );
         }
     }
 
     void index(const uint64_t num_threads) {
-        _blocks.index(num_threads, _num_blocks);
+        _blocks->index(num_threads, _num_blocks);
     }
 
     [[nodiscard]] block_t get_block(uint64_t block_id) const {
         block_t block;
-        for (auto& ranked_path_range : _blocks.values(block_id + 1)){
+        for (auto& ranked_path_range : _blocks->values(block_id + 1)){
             block.path_ranges.push_back(ranked_path_range.path_range);
         }
         return block;

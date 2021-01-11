@@ -5,7 +5,10 @@
 #include <atomic>
 #include <thread>
 #include <chrono>
+#include <cmath>
 #include <iomanip>
+
+namespace smoothxg {
 
 namespace progress_meter {
 
@@ -22,11 +25,17 @@ public:
         completed = 0;
         logger = std::thread(
             [&](void) {
+                bool has_ever_printed = false;
                 while (completed < total) {
                     if (completed > 0) {
                         do_print();
+                        has_ever_printed = true;
                     }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+                    if (has_ever_printed && completed < total) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+                    } else {
+                        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
+                    }
                 }
             });
     };
@@ -53,6 +62,9 @@ public:
         do_print();
         std::cerr << std::endl;
     }
+    ~ProgressMeter(void) {
+        if (logger.joinable()) finish();
+    }
     std::string print_time(const double& _seconds) {
         int days = 0, hours = 0, minutes = 0, seconds = 0;
         distribute_seconds(days, hours, minutes, seconds, _seconds);
@@ -78,5 +90,7 @@ public:
         completed += incr;
     }
 };
+
+}
 
 }
