@@ -250,6 +250,8 @@ namespace smoothxg {
             // ensure that the sequences in the block are within our identity threshold
             // if not, peel them off into splits
             if ((block_group_identity > 0 || block_group_est_identity > 0) && block.path_ranges.size() > 1) {
+                bool use_containment_metric = short_long_seq_lengths_ratio > 0;
+
                 std::vector<std::pair<std::uint64_t, std::string>> rank_and_seqs_dedup;
                 std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
 
@@ -335,17 +337,18 @@ namespace smoothxg {
                     auto &curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
 
-                    //todo relax thresholds' contraint (I want to find at most X% of the shortest sequence in the biggest one)
-                    uint64_t len_threshold_for_edit_clustering = ceil(
-                            (double) curr_fwd.length() * block_group_identity);
+                    uint64_t len_threshold_for_edit_clustering = use_containment_metric ?
+                            // For the containment metric, the limit is the ration short/long length
+                            numeric_limits<uint64_t>::max() :
+                            ceil(block_group_identity * (double) curr_fwd.length());
 
                     uint64_t len_threshold_for_mash_clustering = 0;
                     if (mash_based_clustering_enabled) {
-                        double value = exp(-(1 - block_group_est_identity) * kmer_size);
-                        len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * (2 - value) / value);
+                        double value = exp((block_group_est_identity - 1) * kmer_size);
+                        len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * value / (2 - (2 - value)));
                     }
 
-                    bool use_containment_metric = short_long_seq_lengths_ratio > 0;
+                    const EdlibAlignMode edlib_align_mode = use_containment_metric ? EDLIB_MODE_HW : EDLIB_MODE_NW;
 
                     uint64_t best_group = 0;
                     bool cluster_found = false;
@@ -360,11 +363,17 @@ namespace smoothxg {
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto &other = rank_and_seqs_dedup[group[k]].second;
 
+                                if (use_containment_metric &&
+                                    ((double) other.length() / (double) curr.length() < short_long_seq_lengths_ratio)) {
+                                    // The curr_len/other_len is too low
+                                    break;
+                                }
+
                                 if (mash_based_clustering_enabled &&
                                     curr.length() >= min_length_mash_based_clustering &&
                                     other.length() >= min_length_mash_based_clustering) {
                                     if (fwd_or_rev) {
-                                        if (seq_hashes[group[k]].size() > len_threshold_for_mash_clustering) {
+                                        if (seq_hashes[group[k]].size() < len_threshold_for_mash_clustering) {
                                             // With a mash-based clustering, the sequence would be above the distance threshold
                                             break;
                                         }
@@ -387,12 +396,17 @@ namespace smoothxg {
                                     double id = -1;
                                     EdlibAlignResult result = edlibAlign(
                                             curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                            edlibNewAlignConfig(len_threshold_for_edit_clustering + 1, EDLIB_MODE_NW,
+                                            edlibNewAlignConfig(len_threshold_for_edit_clustering + 1, edlib_align_mode,
                                                                 EDLIB_TASK_DISTANCE, NULL, 0)
                                     );
                                     if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
-                                        id = (double) ((int) curr.size() - result.editDistance) /
-                                             (double) (curr.size());
+                                        //curr.size() >= other.size() by design
+
+                                        if (use_containment_metric) {
+                                            id = (double) ((int) other.size() - result.editDistance) / (double) (other.size());
+                                        } else {
+                                            id = (double) ((int) curr.size() - result.editDistance) / (double) (curr.size());
+                                        }
                                     }
                                     edlibFreeAlignResult(result);
 
