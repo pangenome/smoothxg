@@ -347,8 +347,11 @@ int main(int argc, char** argv) {
 
         // split_blocks
         maf_header += "# block_group_identity=" + std::to_string(block_group_identity) +
+                      " block_group_estimated_identity=" + std::to_string(block_group_est_identity) +
                       " min_length_mash_based_clustering=" + std::to_string(min_length_mash_based_clustering) +
-                      " block_group_est_identity=" + std::to_string(block_group_est_identity) + "\n";
+                      " min_dedup_depth_for_mash_clustering=" + std::to_string(min_dedup_depth_for_mash_clustering) +
+                      " kmer_size=" + std::to_string(_kmer_size) +
+                      " short_long_seq_lengths_ratio=" + std::to_string(short_long_seq_lengths_ratio) + "\n";
     }
 
     {
