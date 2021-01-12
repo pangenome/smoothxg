@@ -21,6 +21,7 @@
 #include "utils.hpp"
 #include "odgi/odgi.hpp"
 #include "consensus_graph.hpp"
+#include "rkmh.hpp"
 #include <chrono>
 
 using namespace std;
@@ -62,7 +63,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
     args::ValueFlag<std::string> _write_consensus_path_names(parser, "FILE", "write the consensus path names to this file", {'f', "write-consensus-path-names"});
-    args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE", "read the consensus path names from this file", {'D', "read-consensus-path-names"});
+    args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE", "read the consensus path names from this file", {'H', "read-consensus-path-names"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
     args::ValueFlag<std::string> _consensus_jump_max(parser, "jump_max[,jump_max]*", "preserve all divergences from the consensus paths greater than this length, with multiples allowed [default: 100]", {'C', "consensus-jump-max"});
 
@@ -78,10 +79,16 @@ int main(int argc, char** argv) {
     args::Flag no_prep(parser, "bool", "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)", {'n', "no-prep"});
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "block-weight-max"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "path-jump-max"});
-    args::ValueFlag<uint64_t> _min_subpath(parser, "N", "minimum length of a subpath to include in partial order alignment [default: 0 / no filter]", {'k', "subpath-min"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "edge-jump-max"});
-    //args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.1]", {'R', "min-segment-ratio"});
-    args::ValueFlag<double> _block_group_identity(parser, "N", "minimum edit-based identity to group sequences in POA [default: 0.5]", {'I', "block-id-min"});
+
+    // Block split
+    args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N", "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]", {'L', "min-seq-len-mash"});
+    args::ValueFlag<double> _block_group_identity(parser, "N", "minimum edit-based identity to cluster sequences [default: 0.5]", {'I', "block-id-min"});
+    args::ValueFlag<double> _block_group_est_identity(parser, "N", "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]", {'E', "block-est-id-max"});
+    args::ValueFlag<uint64_t> _min_dedup_depth_for_mash_clustering(parser, "N", "minimum (deduplicated) block depth for applying the mash-based clustering [default: 12000, 0 to disable it]", {'D', "min-block-depth-mash"});
+    args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]", {'k', "kmer-size-mash-distance"});
+    args::ValueFlag<double> _short_long_seq_lengths_ratio(parser, "N", "minimum short length / long length ratio to compare sequences for the containment metric in the clustering [default: 0, no containment metric]", {'R', "ratio-containment-metric"});
+
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "copy-length-min"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "copy-length-max"});
     args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]", {'l', "poa-length-max"});
@@ -95,6 +102,7 @@ int main(int argc, char** argv) {
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
     args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
+
     try {
         parser.ParseCLI(argc, argv);
     } catch (args::Help) {
@@ -130,12 +138,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (_min_subpath && write_consensus_graph) {
-        std::cerr << "[smoothxg::main] error: Please only use the -s/--write-consensus-graph parameter without"
-                   "the -k/--subpath option." << std::endl;
-        return 1;
-    }
-
     if (!args::get(merge_blocks) && (_contiguous_path_jaccard || _preserve_unmerged_consensus)) {
         std::cerr << "[smoothxg::main] error: Please specify -M/--merge-blocks option to use the "
                      "-J/--contiguous-path-jaccard and/or the -N/--preserve-unmerged-consensus option." << std::endl;
@@ -160,12 +162,25 @@ int main(int argc, char** argv) {
 
     uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
     uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 5000;
-    uint64_t min_subpath = _min_subpath ? args::get(_min_subpath) : 0;
     uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 5000;
     uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
     uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
+
+    // Block split
+    uint64_t min_length_mash_based_clustering =  _min_length_mash_based_clustering ? args::get(_min_length_mash_based_clustering) : 200;
+    uint64_t kmer_size =  _kmer_size ? args::get(_kmer_size) : 17;
+    if (min_length_mash_based_clustering != 0 && min_length_mash_based_clustering < kmer_size) {
+        std::cerr
+                << "[smoothxg::main] error: the minimum sequences length to cluster sequences using mash-distance "
+                   "has to be greater than or equal to the kmer size."
+                << std::endl;
+        return 1;
+    }
+
     double block_group_identity =  _block_group_identity ? args::get(_block_group_identity) : 0.5;
+    double block_group_est_identity =  _block_group_est_identity ? args::get(_block_group_est_identity) : block_group_identity;
+    uint64_t min_dedup_depth_for_mash_clustering =  _min_dedup_depth_for_mash_clustering ? args::get(_min_dedup_depth_for_mash_clustering) : 12000;
 
     if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
         std::cerr
@@ -175,6 +190,8 @@ int main(int argc, char** argv) {
                 << std::endl;
         return 1;
     }
+
+    double short_long_seq_lengths_ratio = _short_long_seq_lengths_ratio ? args::get(_short_long_seq_lengths_ratio) : 0;
 
     int poa_m = 2;
     int poa_n = 4;
@@ -254,7 +271,6 @@ int main(int argc, char** argv) {
                                 *blockset,
                                 max_block_weight,
                                 max_block_jump,
-                                min_subpath,
                                 max_edge_jump,
                                 order_paths_from_longest,
                                 num_threads);
@@ -264,7 +280,12 @@ int main(int argc, char** argv) {
 
     smoothxg::break_blocks(*graph,
                            blockset,
+                           min_length_mash_based_clustering,
                            block_group_identity,
+                           block_group_est_identity,
+                           kmer_size,
+                           min_dedup_depth_for_mash_clustering,
+                           short_long_seq_lengths_ratio,
                            max_poa_length,
                            min_copy_length,
                            max_copy_length,
@@ -315,7 +336,6 @@ int main(int argc, char** argv) {
         // create_blocks
         maf_header += "# max_block_weight=" + std::to_string(max_block_weight) +
                 " max_block_jump=" + std::to_string(max_block_jump) +
-                " min_subpath=" + std::to_string(min_subpath) +
                 " max_edge_jump=" + std::to_string(max_edge_jump) + "\n";
 
         // break_blocks
@@ -323,8 +343,15 @@ int main(int argc, char** argv) {
                 " min_copy_length=" + std::to_string(min_copy_length) +
                 " max_copy_length=" + std::to_string(max_copy_length) +
                 " min_autocorr_z=" + std::to_string(min_autocorr_z) +
-                " autocorr_stride=" + std::to_string(autocorr_stride) +
-                " block_group_identity=" + std::to_string(block_group_identity) + "\n";
+                " autocorr_stride=" + std::to_string(autocorr_stride) + "\n";
+
+        // split_blocks
+        maf_header += "# block_group_identity=" + std::to_string(block_group_identity) +
+                      " block_group_estimated_identity=" + std::to_string(block_group_est_identity) +
+                      " min_length_mash_based_clustering=" + std::to_string(min_length_mash_based_clustering) +
+                      " min_dedup_depth_for_mash_clustering=" + std::to_string(min_dedup_depth_for_mash_clustering) +
+                      " kmer_size=" + std::to_string(_kmer_size) +
+                      " short_long_seq_lengths_ratio=" + std::to_string(short_long_seq_lengths_ratio) + "\n";
     }
 
     {
@@ -359,8 +386,9 @@ int main(int argc, char** argv) {
         smoothed->to_gfa(out);
         out.close();
         delete smoothed;
-        delete blockset;
     }
+
+    delete blockset;
 
     // do we need to write the consensus path names?
     if (_write_consensus_path_names) {
@@ -375,7 +403,7 @@ int main(int argc, char** argv) {
     // end !_read_consenus_path_names
     } else {
         if (!_smoothed_in_gfa) {
-            std::cerr << "[smoothxg::main] error: Please only use the -D/--read-consensus-path-names parameter"
+            std::cerr << "[smoothxg::main] error: Please only use the -H/--read-consensus-path-names parameter"
                          " together with the -F/--smoothed-in option." << std::endl;
         return 1;
         }
