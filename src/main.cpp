@@ -409,24 +409,12 @@ int main(int argc, char** argv) {
                                  args::get(base).empty() ? smoothed_out_gfa : args::get(base));
         }
         for (auto jump_max : jump_maxes) {
-            auto t_start = std::chrono::steady_clock::now();
             odgi::graph_t* consensus_graph = smoothxg::create_consensus_graph(
                 smoothed_xg, consensus_path_names, jump_max, n_threads,
                 args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
             ofstream o(consensus_base + "@" + std::to_string(jump_max) + ".gfa");
             consensus_graph->to_gfa(o);
             o.close();
-            auto t_end = std::chrono::steady_clock::now();
-            std::chrono::duration<double> elapsed_seconds = t_end-t_start;
-            std::cerr << "[smooothxg::main] construction and writing of consensus graph with consensus-jump-max=" << jump_max
-                << " took "
-                << std::defaultfloat
-                  << std::setfill(' ')
-                  << std::setw(5)
-                  << std::fixed
-                  << std::setprecision(2)
-                  << std::setw(4) << std::scientific
-                  << elapsed_seconds.count() << " seconds." << std::endl;
             delete consensus_graph;
         }
     }
