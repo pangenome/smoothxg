@@ -345,7 +345,7 @@ namespace smoothxg {
                     double one_minus_block_group_id = 1.0 - block_group_identity;
 
                     // Not for the containment metric
-                    uint64_t max_distance_for_edit_clustering = ceil(one_minus_block_group_id * (double) curr_fwd.length());
+                    uint64_t max_distance_for_edit_clustering = floor(one_minus_block_group_id * (double) curr_fwd.length()) + 1;
 
                     uint64_t len_threshold_for_mash_clustering = 0;
                     if (mash_based_clustering_enabled) {
@@ -403,7 +403,7 @@ namespace smoothxg {
                                             curr.c_str(), curr.size(), other.c_str(), other.size(),
                                             edlibNewAlignConfig(
                                                     use_containment_metric ?
-                                                    ceil(one_minus_block_group_id * (double) other.length()) :
+                                                    floor(one_minus_block_group_id * (double) other.length()) + 1 :
                                                     max_distance_for_edit_clustering,
                                                     edlib_align_mode,
                                                     EDLIB_TASK_DISTANCE, NULL, 0
