@@ -337,9 +337,7 @@ namespace smoothxg {
                     auto &curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
 
-                    uint64_t len_threshold_for_edit_clustering = use_containment_metric ?
-                            // For the containment metric, the limit is the ratio short/long length
-                            numeric_limits<uint64_t>::max() :
+                    uint64_t len_threshold_for_edit_clustering = use_containment_metric ? 0 :
                             ceil(block_group_identity * (double) curr_fwd.length());
 
                     double one_minus_block_group_id = 1.0 - block_group_identity;
@@ -348,9 +346,9 @@ namespace smoothxg {
                     uint64_t max_distance_for_edit_clustering = floor(one_minus_block_group_id * (double) curr_fwd.length()) + 1;
 
                     uint64_t len_threshold_for_mash_clustering = 0;
-                    if (mash_based_clustering_enabled) {
-                        double value = exp((block_group_est_identity - 1) * kmer_size);
-                        len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * value / (2 - (2 - value)));
+                    if (mash_based_clustering_enabled && !use_containment_metric) {
+                        double value = exp(-one_minus_block_group_id * kmer_size);
+                        len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * value / (2.0 - value));
                     }
 
                     const EdlibAlignMode edlib_align_mode = use_containment_metric ? EDLIB_MODE_HW : EDLIB_MODE_NW;
@@ -393,7 +391,7 @@ namespace smoothxg {
 
                                     } //else: With the mash distance, we already manage the strandness, and here we already tried to align the curr sequence in the other strand
                                 } else {
-                                    if (!use_containment_metric && other.length() < len_threshold_for_edit_clustering) {
+                                    if (other.length() < len_threshold_for_edit_clustering) {
                                         // With an edit-based clustering, the identity would be below the threshold
                                         break;
                                     }
