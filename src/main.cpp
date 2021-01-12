@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
     args::ValueFlag<std::string> _write_consensus_path_names(parser, "FILE", "write the consensus path names to this file", {'f', "write-consensus-path-names"});
-    args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE", "read the consensus path names from this file", {'D', "read-consensus-path-names"});
+    args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE", "read the consensus path names from this file", {'H', "read-consensus-path-names"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
     args::ValueFlag<std::string> _consensus_jump_max(parser, "jump_max[,jump_max]*", "preserve all divergences from the consensus paths greater than this length, with multiples allowed [default: 100]", {'C', "consensus-jump-max"});
 
@@ -80,7 +80,6 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]", {'w', "block-weight-max"});
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "path-jump-max"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "edge-jump-max"});
-    //args::ValueFlag<double> _min_segment_ratio(parser, "N", "split out segments in a block that are less than this fraction of the length of the longest path range in the block [default: 0.1]", {'R', "min-segment-ratio"});
 
     // Block split
     args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N", "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]", {'L', "min-seq-len-mash"});
@@ -88,7 +87,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<double> _block_group_est_identity(parser, "N", "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]", {'E', "block-est-id-max"});
     args::ValueFlag<uint64_t> _min_dedup_depth_for_mash_clustering(parser, "N", "minimum (deduplicated) block depth for applying the mash-based clustering [default: 10000, 0 to disable it]", {'D', "min-block-depth-mash"});
     args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]", {'k', "kmer-size-mash-distance"});
-    args::ValueFlag<double> _short_long_seq_lengths_ratio(parser, "N", "minimum short length / long length ratio to compare sequences for the containment metric in the clustering [default: 0, no containment metric]", {'F', "ratio-containment-metric"});
+    args::ValueFlag<double> _short_long_seq_lengths_ratio(parser, "N", "minimum short length / long length ratio to compare sequences for the containment metric in the clustering [default: 0, no containment metric]", {'R', "ratio-containment-metric"});
 
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]", {'c', "copy-length-min"});
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N", "maximum repeat length to attempt to detect [default: 20000]", {'W', "copy-length-max"});
@@ -401,7 +400,7 @@ int main(int argc, char** argv) {
     // end !_read_consenus_path_names
     } else {
         if (!_smoothed_in_gfa) {
-            std::cerr << "[smoothxg::main] error: Please only use the -D/--read-consensus-path-names parameter"
+            std::cerr << "[smoothxg::main] error: Please only use the -H/--read-consensus-path-names parameter"
                          " together with the -F/--smoothed-in option." << std::endl;
         return 1;
         }
