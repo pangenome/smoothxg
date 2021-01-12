@@ -338,7 +338,7 @@ namespace smoothxg {
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
 
                     uint64_t len_threshold_for_edit_clustering = use_containment_metric ?
-                            // For the containment metric, the limit is the ration short/long length
+                            // For the containment metric, the limit is the ratio short/long length
                             numeric_limits<uint64_t>::max() :
                             ceil(block_group_identity * (double) curr_fwd.length());
 
@@ -374,7 +374,7 @@ namespace smoothxg {
                                     other.length() >= min_length_mash_based_clustering) {
                                     if (fwd_or_rev) {
                                         if (seq_hashes[group[k]].size() < len_threshold_for_mash_clustering) {
-                                            // With a mash-based clustering, the sequence would be above the distance threshold
+                                            // With a mash-based clustering, the identity would be above the threshold
                                             break;
                                         }
 
@@ -388,8 +388,8 @@ namespace smoothxg {
 
                                     } //else: With the mash distance, we already manage the strandness, and here we already tried to align the curr sequence in the other strand
                                 } else {
-                                    if (other.length() < len_threshold_for_edit_clustering) {
-                                        // With an edit-based clustering, the sequence would be below the identity threshold
+                                    if (!use_containment_metric && other.length() < len_threshold_for_edit_clustering) {
+                                        // With an edit-based clustering, the identity would be below the threshold
                                         break;
                                     }
 
