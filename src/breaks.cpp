@@ -13,8 +13,8 @@ namespace smoothxg {
     void _prepare_and_write_fasta_for_block(const xg::XG &graph,
                                             const block_t &block,
                                             const uint64_t &block_id,
-                                            const std::string &prefix,
-                                            const std::string &suffix = "") {
+                                            const std::string& prefix,
+                                            const std::string& suffix = ""){
         std::vector<std::string> seqs;
         std::vector<std::string> names;
         for (auto &path_range : block.path_ranges) {
@@ -55,7 +55,7 @@ namespace smoothxg {
                       const bool &consensus_graph,
                       const bool &write_block_to_split_fastas
     ) {
-        const VectorizableHandleGraph &vec_graph = dynamic_cast<const VectorizableHandleGraph &>(graph);
+        const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
         std::cerr
                 << "[smoothxg::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length ("
@@ -119,7 +119,7 @@ namespace smoothxg {
             // Cutting
             // check if we have sequences that are too long
             bool to_break = false;
-            for (auto &path_range : block.path_ranges) {
+            for (auto& path_range : block.path_ranges) {
                 if (path_range.length > max_poa_length) {
                     to_break = true;
                     break;
@@ -133,7 +133,7 @@ namespace smoothxg {
                 // find if there is a repeat
                 if (break_repeats) {
                     std::vector<sautocorr::repeat_t> repeats;
-                    for (auto &path_range : block.path_ranges) {
+                    for (auto& path_range : block.path_ranges) {
                         // steps in id space
                         std::string seq;
                         std::string name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
@@ -161,7 +161,7 @@ namespace smoothxg {
                     // if there is, set the cut length to some fraction of it
                     std::vector<double> lengths;
                     double max_z = 0;
-                    for (auto &repeat : repeats) {
+                    for (auto& repeat : repeats) {
                         if (repeat.length > 0) {
                             lengths.push_back(repeat.length);
                             max_z = std::max(repeat.z_score, max_z);
@@ -179,7 +179,7 @@ namespace smoothxg {
                     }
                 }
                 std::vector<path_range_t> chopped_ranges;
-                for (auto &path_range : block.path_ranges) {
+                for (auto& path_range : block.path_ranges) {
                     if (!found_repeat && path_range.length < cut_length) {
                         chopped_ranges.push_back(path_range);
                         continue;
@@ -224,26 +224,18 @@ namespace smoothxg {
                         block.path_ranges.begin(), block.path_ranges.end(),
                         order_paths_from_longest
                         ?
-                        [](const path_range_t &a,
-                           const path_range_t &b) {
+                        [](const path_range_t& a,
+                           const path_range_t& b) {
                             return a.length > b.length;
                         }
                         :
-                        [](const path_range_t &a,
-                           const path_range_t &b) {
+                        [](const path_range_t& a,
+                           const path_range_t& b) {
                             return a.length < b.length;
                         }
                 );
                 //block.broken = true;
                 //block.is_repeat = found_repeat;
-            }
-            // prepare the path_ranges_t for a consensus graph if necessary
-            // we do this here, because it works in parallel
-            if (consensus_graph) {
-                for (auto &path_range : block.path_ranges) {
-                    path_range.nuc_begin = graph.get_position_of_step(path_range.begin);
-                    path_range.nuc_end = graph.get_position_of_step(path_range.end);
-                }
             }
 
             // Splitting
@@ -257,7 +249,7 @@ namespace smoothxg {
 
                 // Deduplication
                 for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
-                    auto &path_range = block.path_ranges[rank];
+                    auto& path_range = block.path_ranges[rank];
 
                     std::string seq;
                     for (step_handle_t step = path_range.begin;
@@ -269,7 +261,7 @@ namespace smoothxg {
 
                     bool new_seq = true;
                     for (uint64_t j = 0; j < rank_and_seqs_dedup.size(); ++j) {
-                        auto &seqs_dedup = rank_and_seqs_dedup[j].second;
+                        auto& seqs_dedup = rank_and_seqs_dedup[j].second;
 
                         if (seq == seqs_dedup || seq_rev == seqs_dedup) {
                             seqs_dedup_original_ranks[j].push_back(rank);
@@ -292,10 +284,9 @@ namespace smoothxg {
                 // Sort by length and lexicographically, to have similar sequences close to each other in the order
                 std::sort(
                         rank_and_seqs_dedup.begin(), rank_and_seqs_dedup.end(),
-                        [](const std::pair<std::uint64_t, std::string> &a,
-                           const std::pair<std::uint64_t, std::string> &b) {
-                            return std::make_tuple(a.second.size(), std::ref(a.second)) <
-                                   std::make_tuple(b.second.size(), std::ref(b.second));
+                        [](const std::pair<std::uint64_t, std::string>& a,
+                           const std::pair<std::uint64_t, std::string>& b) {
+                            return std::make_tuple(a.second.size(), std::ref(a.second)) < std::make_tuple(b.second.size(), std::ref(b.second));
                         }
                 );
 
@@ -334,7 +325,7 @@ namespace smoothxg {
 
                 groups.push_back({0}); // seed with the first sequence
                 for (uint64_t i = 1; i < rank_and_seqs_dedup.size(); ++i) {
-                    auto &curr_fwd = rank_and_seqs_dedup[i].second;
+                    auto& curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
 
                     uint64_t len_threshold_for_edit_clustering = use_containment_metric ? 0 :
