@@ -342,6 +342,9 @@ namespace smoothxg {
                             numeric_limits<uint64_t>::max() :
                             ceil(block_group_identity * (double) curr_fwd.length());
 
+                    // Not for the containment metric
+                    uint64_t max_distance_for_edit_clustering = ceil((1 - block_group_identity) * (double) curr_fwd.length());
+
                     uint64_t len_threshold_for_mash_clustering = 0;
                     if (mash_based_clustering_enabled) {
                         double value = exp((block_group_est_identity - 1) * kmer_size);
@@ -396,8 +399,14 @@ namespace smoothxg {
                                     double id = -1;
                                     EdlibAlignResult result = edlibAlign(
                                             curr.c_str(), curr.size(), other.c_str(), other.size(),
-                                            edlibNewAlignConfig(len_threshold_for_edit_clustering + 1, edlib_align_mode,
-                                                                EDLIB_TASK_DISTANCE, NULL, 0)
+                                            edlibNewAlignConfig(
+                                                    (use_containment_metric ?
+                                                        ceil((1 - block_group_identity) * (double) other.length()) :
+                                                        max_distance_for_edit_clustering
+                                                    ) + 1,
+                                                    edlib_align_mode,
+                                                    EDLIB_TASK_DISTANCE, NULL, 0
+                                                    )
                                     );
                                     if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
                                         //curr.size() >= other.size() by design
