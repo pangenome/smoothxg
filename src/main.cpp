@@ -384,8 +384,9 @@ int main(int argc, char** argv) {
         smoothed->to_gfa(out);
         out.close();
         delete smoothed;
-        delete blockset;
     }
+
+    delete blockset;
 
     // do we need to write the consensus path names?
     if (_write_consensus_path_names) {
