@@ -225,14 +225,6 @@ namespace smoothxg {
                 //block.broken = true;
                 //block.is_repeat = found_repeat;
             }
-            // prepare the path_ranges_t for a consensus graph if necessary
-            // we do this here, because it works in parallel
-            if (consensus_graph) {
-                for (auto& path_range : block.path_ranges) {
-                    path_range.nuc_begin = graph.get_position_of_step(path_range.begin);
-                    path_range.nuc_end = graph.get_position_of_step(path_range.end);
-                }
-            }
 
             // Splitting
             // ensure that the sequences in the block are within our identity threshold

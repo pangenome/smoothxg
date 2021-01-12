@@ -25,8 +25,6 @@ struct path_range_t {
     step_handle_t begin = { 0, 0 };
     step_handle_t end = { 0, 0 };
     uint64_t length = 0;
-    uint64_t nuc_begin = 0;
-    uint64_t nuc_end = 0;
 };
 
 struct block_t {
@@ -54,8 +52,6 @@ struct ranked_path_range_t {
         path_range.begin = pr.path_range.begin;
         path_range.end = pr.path_range.end;
         path_range.length = pr.path_range.length;
-        path_range.nuc_begin = pr.path_range.nuc_begin;
-        path_range.nuc_end = pr.path_range.nuc_end;
 
         rank = pr.rank;
 
