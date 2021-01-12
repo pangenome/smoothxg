@@ -21,11 +21,37 @@
 #include "utils.hpp"
 #include "odgi/odgi.hpp"
 #include "consensus_graph.hpp"
-#include "path_nuc_range_block_index.hpp"
 #include "rkmh.hpp"
+#include <chrono>
 
 using namespace std;
 using namespace xg;
+
+/*
+std::string print_time(const double &_seconds) {
+    int days = 0, hours = 0, minutes = 0, seconds = 0;
+    distribute_seconds(days, hours, minutes, seconds, _seconds);
+    std::stringstream buffer;
+    buffer << std::setfill('0') << std::setw(2) << days << ":"
+           << std::setfill('0') << std::setw(2) << hours << ":"
+           << std::setfill('0') << std::setw(2) << minutes << ":"
+           << std::setfill('0') << std::setw(2) << seconds;
+    return buffer.str();
+}
+
+void distribute_seconds(int &days, int &hours, int &minutes, int &seconds, const double &input_seconds) {
+    const int cseconds_in_day = 86400;
+    const int cseconds_in_hour = 3600;
+    const int cseconds_in_minute = 60;
+    const int cseconds = 1;
+    days = std::floor(input_seconds / cseconds_in_day);
+    hours = std::floor(((int) input_seconds % cseconds_in_day) / cseconds_in_hour);
+    minutes = std::floor((((int) input_seconds % cseconds_in_day) % cseconds_in_hour) / cseconds_in_minute);
+    seconds = ((((int) input_seconds % cseconds_in_day) % cseconds_in_hour) % cseconds_in_minute) /
+              cseconds;
+}
+ */
+
 
 int main(int argc, char** argv) {
     args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator");
@@ -33,8 +59,11 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> gfa_in(parser, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
     args::ValueFlag<std::string> smoothed_out(parser, "FILE", "write GFA to this file (not /dev/stdout if consensus graph is made)", {'o', "smoothed-out"});
+    args::ValueFlag<std::string> _smoothed_in_gfa(parser, "FILE", "read GFA from this file", {'F', "smoothed-in"});
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
+    args::ValueFlag<std::string> _write_consensus_path_names(parser, "FILE", "write the consensus path names to this file", {'f', "write-consensus-path-names"});
+    args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE", "read the consensus path names from this file", {'D', "read-consensus-path-names"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
     args::ValueFlag<std::string> _consensus_jump_max(parser, "jump_max[,jump_max]*", "preserve all divergences from the consensus paths greater than this length, with multiples allowed [default: 100]", {'C', "consensus-jump-max"});
 
@@ -90,6 +119,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    size_t n_threads = num_threads ? args::get(num_threads) : 1;
+    omp_set_num_threads(n_threads);
+
+    std::string smoothed_out_gfa = args::get(smoothed_out);
+    std::vector<std::string> consensus_path_names;
+
+    if (!_read_consensus_path_names) {
+
     if (args::get(merge_blocks) && (!write_msa_in_maf_format && !args::get(add_consensus))) {
         std::cerr << "[smoothxg::main] error: Please specify -m/--write-msa-in-maf-format and/or -a/--add-consensus "
                      "to use the -M/--merge-blocks option." << std::endl;
@@ -114,14 +151,14 @@ int main(int argc, char** argv) {
     }
 
     if (!smoothed_out) {
-        std::cerr << "[smoothxg::main] error: Please specify an output file with -o/--smoothed-out" << std::endl;
+        std::cerr << "[smoothxg::main] error: Please specify an output file with -o/--smoothed-out." << std::endl;
         return 1;
     }
-    std::string smoothed_out_gfa = args::get(smoothed_out);
 
-    size_t n_threads = num_threads ? args::get(num_threads) : 1;
-    omp_set_num_threads(n_threads);
-
+    if (_write_consensus_path_names && !add_consensus) {
+        std::cerr << "[smoothxg::main] error: Please use -f/--write-consensus-path-names only with -a/--add-consensus." << std::endl;
+        return 1;
+    }
     double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 
     uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
@@ -198,7 +235,7 @@ int main(int argc, char** argv) {
         }
 
     }
-    
+
     bool order_paths_from_longest = args::get(use_spoa);
     float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
     float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
@@ -315,7 +352,6 @@ int main(int argc, char** argv) {
                       " block_group_est_identity=" + std::to_string(block_group_est_identity) + "\n";
     }
 
-    std::vector<std::string> consensus_path_names;
     {
         auto smoothed = smoothxg::smooth_and_lace(*graph,
                                                   blockset,
@@ -348,6 +384,26 @@ int main(int argc, char** argv) {
         smoothed->to_gfa(out);
         out.close();
         delete smoothed;
+        delete blockset;
+    }
+
+    // do we need to write the consensus path names?
+    if (_write_consensus_path_names) {
+        std::string write_consensus_path_names = args::get(_write_consensus_path_names);
+        std::ofstream consensus_path_names_out(write_consensus_path_names);
+        for (auto& consensus_path_name : consensus_path_names) {
+            consensus_path_names_out << consensus_path_name << std::endl;
+        }
+        consensus_path_names_out.close();
+    }
+
+    // end !_read_consenus_path_names
+    } else {
+        if (!_smoothed_in_gfa) {
+            std::cerr << "[smoothxg::main] error: Please only use the -D/--read-consensus-path-names parameter"
+                         " together with the -F/--smoothed-in option." << std::endl;
+        return 1;
+        }
     }
 
     // do we need to build the consensus graph?
@@ -364,8 +420,19 @@ int main(int argc, char** argv) {
         }
         std::cerr << "[smoothxg::main] building xg index from smoothed graph" << std::endl;
         XG smoothed_xg;
-        smoothed_xg.from_gfa(smoothed_out_gfa, args::get(validate),
-                             args::get(base).empty() ? smoothed_out_gfa : args::get(base));
+        if (_read_consensus_path_names) {
+            std::string smoothed_in_gfa = args::get(_smoothed_in_gfa);
+            smoothed_xg.from_gfa(smoothed_in_gfa, args::get(validate),
+                                 args::get(base).empty() ? smoothed_in_gfa : args::get(base));
+            std::ifstream file(args::get(_read_consensus_path_names));
+            std::string path_name;
+            while (std::getline(file, path_name)) {
+                consensus_path_names.push_back(path_name);
+            }
+        } else {
+            smoothed_xg.from_gfa(smoothed_out_gfa, args::get(validate),
+                                 args::get(base).empty() ? smoothed_out_gfa : args::get(base));
+        }
         for (auto jump_max : jump_maxes) {
             odgi::graph_t* consensus_graph = smoothxg::create_consensus_graph(
                 smoothed_xg, consensus_path_names, jump_max, n_threads,
@@ -376,8 +443,6 @@ int main(int argc, char** argv) {
             delete consensus_graph;
         }
     }
-
-    delete blockset;
 
     return 0;
 }
