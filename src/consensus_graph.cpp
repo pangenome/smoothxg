@@ -257,218 +257,219 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         });
     }
 
-    if (is_there_something.load()){
-        link_path_ms->index(thread_count);
-    }
-
-    // collect sets of link paths that refer to the same consensus path pairs
-    // and pick which one to keep in the consensus graph
-
     std::vector<link_path_t> consensus_links;
-    std::vector<link_path_t> curr_links;
-
-    path_handle_t curr_from_cons_path;
-    path_handle_t curr_to_cons_path;
-
-    auto novel_sequence_length =
-        [&](const step_handle_t begin,
-            const step_handle_t end,
-            ska::flat_hash_set<uint64_t> seen_nodes, // by copy
-            const xg::XG& graph) {
-            uint64_t novel_bp = 0;
-            for (auto s = begin;
-                 s != end; s = graph.get_next_step(s)) {
-                handle_t h = graph.get_handle_of_step(s);
-                uint64_t i = graph.get_id(h);
-                if (!seen_nodes.count(i)) {
-                    novel_bp += graph.get_length(h);
-                    seen_nodes.insert(i);
-                }
-            }
-            return novel_bp;
-        };
-
-    auto mark_seen_nodes =
-        [&](const step_handle_t begin,
-            const step_handle_t end,
-            ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
-            const xg::XG& graph) {
-            for (auto s = begin;
-                 s != end; s = graph.get_next_step(s)) {
-                handle_t h = graph.get_handle_of_step(s);
-                uint64_t i = graph.get_id(h);
-                if (!seen_nodes.count(i)) {
-                    seen_nodes.insert(i);
-                }
-            }
-        };
-
     std::vector<std::pair<handle_t, handle_t>> perfect_edges;
-    // FIXME can we parallelize this?
-    auto compute_best_link =
-        [&](const std::vector<link_path_t>& links) {
-            std::map<uint64_t, uint64_t> hash_counts;
-            std::vector<link_path_t> unique_links;
-            uint64_t link_rank = 0;
-            for (auto& link : links) {
-                //std::cerr << link << std::endl;
-                auto& c = hash_counts[link.hash];
-                if (c == 0) {
-                    unique_links.push_back(link);
-                }
-                ++c;
-            }
-            std::map<uint64_t, uint64_t> hash_lengths;
-            for (auto& link : links) {
-                hash_lengths[link.hash] = link.length;
-            }
-            uint64_t best_count = 0;
-            uint64_t best_hash;
-            for (auto& c : hash_counts) {
-                if (c.second > best_count) {
-                    best_hash = c.first;
-                    best_count = c.second;
-                }
-            }
-            //std::cerr << "best hash be " << best_hash << std::endl;
-            // save the best link path
-            link_path_t most_frequent_link;
-            for (auto& link : unique_links) {
-                if (link.hash == best_hash) {
-                    most_frequent_link = link;
-                    break;
-                }
-            }
 
-            // if we have a 0-length link between consensus ends, add it
-            handle_t from_end_fwd
-                = smoothed.get_handle_of_step(
-                    smoothed.path_back(
-                        most_frequent_link.from_cons_path));
-            handle_t to_begin_fwd
-                = smoothed.get_handle_of_step(
-                    smoothed.path_begin(
-                        most_frequent_link.to_cons_path));
-            handle_t from_end_rev = smoothed.flip(to_begin_fwd);
-            handle_t to_begin_rev = smoothed.flip(from_end_fwd);
+    if (is_there_something.load()) {
+        link_path_ms->index(thread_count);
 
-            handle_t from_begin_fwd
-                = smoothed.get_handle_of_step(
-                    smoothed.path_begin(
-                        most_frequent_link.from_cons_path));
-            handle_t to_end_fwd
-                = smoothed.get_handle_of_step(
-                    smoothed.path_back(
-                        most_frequent_link.to_cons_path));
-            handle_t from_begin_rev = smoothed.flip(from_begin_fwd);
-            handle_t to_end_rev = smoothed.flip(to_end_fwd);
+        // collect sets of link paths that refer to the same consensus path pairs
+        // and pick which one to keep in the consensus graph
 
-            // if we can walk forward on the last handle of consensus a and reach consensus b
-            // we should add a link and say we're perfect
+        std::vector<link_path_t> curr_links;
 
-            bool has_perfect_edge = false;
-            bool has_perfect_link = false;
-            link_path_t perfect_link;
+        path_handle_t curr_from_cons_path;
+        path_handle_t curr_to_cons_path;
 
-            if (smoothed.has_edge(from_end_fwd, to_begin_fwd)) {
-                auto p = std::make_pair(from_end_fwd, to_begin_fwd);
-                perfect_edges.push_back(p);
-                has_perfect_edge = true;
-            } else if (smoothed.has_edge(to_end_fwd, from_begin_fwd)) {
-                auto p = std::make_pair(to_end_fwd, from_begin_fwd);
-                perfect_edges.push_back(p);
-                has_perfect_edge = true;
-            } else {
-                for (auto& link : unique_links) {
-                    //path_handle_t from_cons;
-                    //path_handle_t to_cons;
-                    // are we just stepping from the end of one to the beginning of the other?
-                    for (step_handle_t s = link.begin;
-                         s != link.end; s = smoothed.get_next_step(s)) {
-                        step_handle_t next = smoothed.get_next_step(s);
-                        handle_t b = smoothed.get_handle_of_step(s);
-                        handle_t e = smoothed.get_handle_of_step(next);
-                        if (b == from_end_fwd && e == to_begin_fwd
-                            || b == from_end_rev && e == to_begin_rev
-                            || b == to_begin_fwd && e == from_end_fwd
-                            || b == to_begin_rev && e == from_end_rev) {
-                            has_perfect_link = true;
-                            perfect_link = link;
+        auto novel_sequence_length =
+                [&](const step_handle_t begin,
+                    const step_handle_t end,
+                    ska::flat_hash_set<uint64_t> seen_nodes, // by copy
+                    const xg::XG &graph) {
+                    uint64_t novel_bp = 0;
+                    for (auto s = begin;
+                         s != end; s = graph.get_next_step(s)) {
+                        handle_t h = graph.get_handle_of_step(s);
+                        uint64_t i = graph.get_id(h);
+                        if (!seen_nodes.count(i)) {
+                            novel_bp += graph.get_length(h);
+                            seen_nodes.insert(i);
+                        }
+                    }
+                    return novel_bp;
+                };
+
+        auto mark_seen_nodes =
+                [&](const step_handle_t begin,
+                    const step_handle_t end,
+                    ska::flat_hash_set<uint64_t> &seen_nodes, // by ref
+                    const xg::XG &graph) {
+                    for (auto s = begin;
+                         s != end; s = graph.get_next_step(s)) {
+                        handle_t h = graph.get_handle_of_step(s);
+                        uint64_t i = graph.get_id(h);
+                        if (!seen_nodes.count(i)) {
+                            seen_nodes.insert(i);
+                        }
+                    }
+                };
+
+        // FIXME can we parallelize this?
+        auto compute_best_link =
+                [&](const std::vector<link_path_t> &links) {
+                    std::map<uint64_t, uint64_t> hash_counts;
+                    std::vector<link_path_t> unique_links;
+                    uint64_t link_rank = 0;
+                    for (auto &link : links) {
+                        //std::cerr << link << std::endl;
+                        auto &c = hash_counts[link.hash];
+                        if (c == 0) {
+                            unique_links.push_back(link);
+                        }
+                        ++c;
+                    }
+                    std::map<uint64_t, uint64_t> hash_lengths;
+                    for (auto &link : links) {
+                        hash_lengths[link.hash] = link.length;
+                    }
+                    uint64_t best_count = 0;
+                    uint64_t best_hash;
+                    for (auto &c : hash_counts) {
+                        if (c.second > best_count) {
+                            best_hash = c.first;
+                            best_count = c.second;
+                        }
+                    }
+                    //std::cerr << "best hash be " << best_hash << std::endl;
+                    // save the best link path
+                    link_path_t most_frequent_link;
+                    for (auto &link : unique_links) {
+                        if (link.hash == best_hash) {
+                            most_frequent_link = link;
                             break;
                         }
                     }
-                    if (has_perfect_link) {
-                        break;
+
+                    // if we have a 0-length link between consensus ends, add it
+                    handle_t from_end_fwd
+                            = smoothed.get_handle_of_step(
+                                    smoothed.path_back(
+                                            most_frequent_link.from_cons_path));
+                    handle_t to_begin_fwd
+                            = smoothed.get_handle_of_step(
+                                    smoothed.path_begin(
+                                            most_frequent_link.to_cons_path));
+                    handle_t from_end_rev = smoothed.flip(to_begin_fwd);
+                    handle_t to_begin_rev = smoothed.flip(from_end_fwd);
+
+                    handle_t from_begin_fwd
+                            = smoothed.get_handle_of_step(
+                                    smoothed.path_begin(
+                                            most_frequent_link.from_cons_path));
+                    handle_t to_end_fwd
+                            = smoothed.get_handle_of_step(
+                                    smoothed.path_back(
+                                            most_frequent_link.to_cons_path));
+                    handle_t from_begin_rev = smoothed.flip(from_begin_fwd);
+                    handle_t to_end_rev = smoothed.flip(to_end_fwd);
+
+                    // if we can walk forward on the last handle of consensus a and reach consensus b
+                    // we should add a link and say we're perfect
+
+                    bool has_perfect_edge = false;
+                    bool has_perfect_link = false;
+                    link_path_t perfect_link;
+
+                    if (smoothed.has_edge(from_end_fwd, to_begin_fwd)) {
+                        auto p = std::make_pair(from_end_fwd, to_begin_fwd);
+                        perfect_edges.push_back(p);
+                        has_perfect_edge = true;
+                    } else if (smoothed.has_edge(to_end_fwd, from_begin_fwd)) {
+                        auto p = std::make_pair(to_end_fwd, from_begin_fwd);
+                        perfect_edges.push_back(p);
+                        has_perfect_edge = true;
+                    } else {
+                        for (auto &link : unique_links) {
+                            //path_handle_t from_cons;
+                            //path_handle_t to_cons;
+                            // are we just stepping from the end of one to the beginning of the other?
+                            for (step_handle_t s = link.begin;
+                                 s != link.end; s = smoothed.get_next_step(s)) {
+                                step_handle_t next = smoothed.get_next_step(s);
+                                handle_t b = smoothed.get_handle_of_step(s);
+                                handle_t e = smoothed.get_handle_of_step(next);
+                                if (b == from_end_fwd && e == to_begin_fwd
+                                    || b == from_end_rev && e == to_begin_rev
+                                    || b == to_begin_fwd && e == from_end_fwd
+                                    || b == to_begin_rev && e == from_end_rev) {
+                                    has_perfect_link = true;
+                                    perfect_link = link;
+                                    break;
+                                }
+                            }
+                            if (has_perfect_link) {
+                                break;
+                            }
+                        }
                     }
-                }
-            }
-                
-            ska::flat_hash_set<uint64_t> seen_nodes;
 
-            // this part attempts to preserve connectivity between consensus sequences
-            // we're preserving the consensus graph topology
-            if (has_perfect_edge) {
-                // nothing to do
-            } else if (has_perfect_link) {
-                // nb: should be no nodes to mark
-                mark_seen_nodes(perfect_link.begin, perfect_link.end, seen_nodes, smoothed);
-                perfect_link.rank = link_rank++;
-                consensus_links.push_back(perfect_link);
-            } else {
-                if (most_frequent_link.from_cons_path != most_frequent_link.to_cons_path) {
-                    most_frequent_link.rank = link_rank++;
-                    consensus_links.push_back(most_frequent_link);
-                    mark_seen_nodes(most_frequent_link.begin, most_frequent_link.end, seen_nodes, smoothed);
-                }
-            }
+                    ska::flat_hash_set<uint64_t> seen_nodes;
 
-            // this part collects sequences that diverge from a consensus for the
-            // consensus_jump_max which is the "variant scale factor" of the algorithm
-            // this preserves novel non-consensus sequences greater than this length
-            // TODO: this could be made to respect allele frequency
-            for (auto& link : unique_links) {
-                if (link.hash == best_hash) {
-                    continue;
-                }
-                uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
-                if (link.jump_length >= consensus_jump_max
-                    || novel_bp >= consensus_jump_max) {
-                    link.rank = link_rank++;
-                    consensus_links.push_back(link);
-                    mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);
-                }
-            }
-            // TODO when adding we need to break the paths up --- ?
-        };
+                    // this part attempts to preserve connectivity between consensus sequences
+                    // we're preserving the consensus graph topology
+                    if (has_perfect_edge) {
+                        // nothing to do
+                    } else if (has_perfect_link) {
+                        // nb: should be no nodes to mark
+                        mark_seen_nodes(perfect_link.begin, perfect_link.end, seen_nodes, smoothed);
+                        perfect_link.rank = link_rank++;
+                        consensus_links.push_back(perfect_link);
+                    } else {
+                        if (most_frequent_link.from_cons_path != most_frequent_link.to_cons_path) {
+                            most_frequent_link.rank = link_rank++;
+                            consensus_links.push_back(most_frequent_link);
+                            mark_seen_nodes(most_frequent_link.begin, most_frequent_link.end, seen_nodes, smoothed);
+                        }
+                    }
 
-    std::cerr << "[smoothxg::create_consensus_graph] finding consensus links" << std::endl;
-    // collect edges by node
-    //
-    // could this run in parallel?
-    // FIXME this is already paralellized now, right?
-    // yes probably but we need to either lock the consensus path vectors or write into a multiset
-    link_path_ms->for_each_value(
-        [&](const link_path_t& v) {
-            //std::cerr << "on " << v << " with count " << c << std::endl;
-            if (curr_links.empty()) {
-                curr_from_cons_path = v.from_cons_path;
-                curr_to_cons_path = v.to_cons_path;
-                curr_links.push_back(v);
-            } else if (curr_from_cons_path != v.from_cons_path
-                       || curr_to_cons_path != v.to_cons_path) {
-                // compute the best link in the set of curr_links
-                compute_best_link(curr_links);
-                // reset the links
-                curr_links.clear();
-                curr_from_cons_path = v.from_cons_path;
-                curr_to_cons_path = v.to_cons_path;
-                curr_links.push_back(v);
-            } else {
-                curr_links.push_back(v);
-            }
-        });
+                    // this part collects sequences that diverge from a consensus for the
+                    // consensus_jump_max which is the "variant scale factor" of the algorithm
+                    // this preserves novel non-consensus sequences greater than this length
+                    // TODO: this could be made to respect allele frequency
+                    for (auto &link : unique_links) {
+                        if (link.hash == best_hash) {
+                            continue;
+                        }
+                        uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
+                        if (link.jump_length >= consensus_jump_max
+                            || novel_bp >= consensus_jump_max) {
+                            link.rank = link_rank++;
+                            consensus_links.push_back(link);
+                            mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);
+                        }
+                    }
+                    // TODO when adding we need to break the paths up --- ?
+                };
 
-    compute_best_link(curr_links);
+        std::cerr << "[smoothxg::create_consensus_graph] finding consensus links" << std::endl;
+        // collect edges by node
+        //
+        // could this run in parallel?
+        // FIXME this is already paralellized now, right?
+        // yes probably but we need to either lock the consensus path vectors or write into a multiset
+        link_path_ms->for_each_value(
+                [&](const link_path_t &v) {
+                    //std::cerr << "on " << v << " with count " << c << std::endl;
+                    if (curr_links.empty()) {
+                        curr_from_cons_path = v.from_cons_path;
+                        curr_to_cons_path = v.to_cons_path;
+                        curr_links.push_back(v);
+                    } else if (curr_from_cons_path != v.from_cons_path
+                               || curr_to_cons_path != v.to_cons_path) {
+                        // compute the best link in the set of curr_links
+                        compute_best_link(curr_links);
+                        // reset the links
+                        curr_links.clear();
+                        curr_from_cons_path = v.from_cons_path;
+                        curr_to_cons_path = v.to_cons_path;
+                        curr_links.push_back(v);
+                    } else {
+                        curr_links.push_back(v);
+                    }
+                });
+
+        compute_best_link(curr_links);
+    }
 
     link_path_ms->close_reader();
     std::remove(base_mmset.c_str());
