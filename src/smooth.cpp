@@ -98,6 +98,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
+    std::size_t max_sequence_size = 0;
     for (auto &path_range : block.path_ranges) {
         seqs.emplace_back();
         auto &seq = seqs.back();
@@ -110,6 +111,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                       graph.get_path_handle_of_step(path_range.begin))
                << "_" << graph.get_position_of_step(path_range.begin);
         names.push_back(namess.str());
+
+        max_sequence_size = std::max(max_sequence_size, seq.size());
     }
 
     //#ifdef SMOOTH_WRITE_BLOCKS_FASTA
@@ -121,11 +124,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     // set up POA
     // done...
     // run POA
-    std::size_t max_sequence_size = 0;
-    for (auto &seq : seqs) {
-        max_sequence_size = std::max(max_sequence_size, seq.size());
-    }
-
     auto* output_graph = new odgi::graph_t();
     // if the graph would be empty, bail out
     if (max_sequence_size == 0) {
@@ -372,9 +370,11 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
             poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
 
     auto poa_graph = spoa::createGraph();
+
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
+    std::size_t max_sequence_size = 0;
     for (auto &path_range : block.path_ranges) {
         seqs.emplace_back();
         auto &seq = seqs.back();
@@ -387,6 +387,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                       graph.get_path_handle_of_step(path_range.begin))
                << "_" << graph.get_position_of_step(path_range.begin);
         names.push_back(namess.str());
+
+        max_sequence_size = std::max(max_sequence_size, seq.size());
     }
 
     if (save_block_fastas) {
@@ -406,10 +408,6 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
     // set up POA
     // done...
     // run POA
-    std::size_t max_sequence_size = 0;
-    for (auto &seq : seqs) {
-        max_sequence_size = std::max(max_sequence_size, seq.size());
-    }
     auto* output_graph = new odgi::graph_t();
     // if the graph would be empty, bail out
     if (max_sequence_size == 0) {
