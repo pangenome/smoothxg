@@ -115,16 +115,12 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
 
-    //#ifdef SMOOTH_WRITE_BLOCKS_FASTA
     if (save_block_fastas) {
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
     }
-//#endif
 
-    // set up POA
-    // done...
-    // run POA
     auto* output_graph = new odgi::graph_t();
+
     // if the graph would be empty, bail out
     if (max_sequence_size == 0) {
         return output_graph;
@@ -164,7 +160,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     // collect sequence length, transform ACGT to 0123
     int n_seqs = seqs.size();
     int *seq_lens = (int *)malloc(sizeof(int) * n_seqs);
-    uint8_t **bseqs = (uint8_t **)malloc(sizeof(uint8_t *) * n_seqs);
+    auto **bseqs = (uint8_t **)malloc(sizeof(uint8_t *) * n_seqs);
     for (int i = 0; i < n_seqs; ++i) {
         seq_lens[i] = seqs[i].size();
         bseqs[i] = (uint8_t *)malloc(sizeof(uint8_t) * seq_lens[i]);
@@ -175,17 +171,18 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     }
 
     // variables to store result
-    uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n=0;
-    uint8_t **msa_seq; int msa_l=0;
+    uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n = 0;
+    uint8_t **msa_seq; int msa_l = 0;
 
     int i, tot_n = n_seqs;
-    uint8_t *is_rc = (uint8_t *)_err_malloc(n_seqs * sizeof(uint8_t));
+    auto *is_rc = (uint8_t *)_err_malloc(n_seqs * sizeof(uint8_t));
+
     abpoa_reset_graph(ab, abpt, seq_lens[0]);
 
     std::vector<bool> aln_is_reverse;
     for (i = 0; i < n_seqs; ++i) {
         abpoa_res_t res;
-        res.graph_cigar = 0, res.n_cigar = 0, res.is_rc = 0;
+        res.graph_cigar = nullptr, res.n_cigar = 0, res.is_rc = 0;
         res.traceback_ok = 1;
         abpt->rev_cigar = 0;
         bool aligned = -1 != abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
@@ -203,7 +200,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     }
 
     if (maf != nullptr){
-        abpoa_generate_rc_msa(ab, abpt, NULL, is_rc, tot_n, NULL, &msa_seq, &msa_l);
+        abpoa_generate_rc_msa(ab, abpt, nullptr, is_rc, tot_n, NULL, &msa_seq, &msa_l);
     }
 
    /*fprintf(stdout, ">Multiple_sequence_alignment\n");
@@ -387,20 +384,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_spoa");
     }
 
-    /*
-    std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
-    std::ofstream fasta(s.c_str());
-    for (uint64_t i = 0; i < seqs.size(); ++i) {
-        fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
-              << seqs[i] << std::endl;
-    }
-    fasta.close();
-    */
-
-    // set up POA
-    // done...
-    // run POA
     auto* output_graph = new odgi::graph_t();
+
     // if the graph would be empty, bail out
     if (max_sequence_size == 0) {
         return output_graph;
