@@ -169,11 +169,10 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     uint8_t **msa_seq; int msa_l = 0;
 
     int i, tot_n = n_seqs;
-    auto *is_rc = (uint8_t *)_err_malloc(n_seqs * sizeof(uint8_t));
+    auto *is_rc = (uint8_t *)_err_malloc((n_seqs + (generate_consensus ? 1 : 0)) * sizeof(uint8_t));
 
     abpoa_reset_graph(ab, abpt, seq_lens[0]);
 
-    std::vector<bool> aln_is_reverse;
     for (i = 0; i < n_seqs; ++i) {
         abpoa_res_t res;
         res.graph_cigar = nullptr, res.n_cigar = 0, res.is_rc = 0;
@@ -183,11 +182,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         // nb: we should check if we should do anything special when !res->traceback_ok
         abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i, n_seqs);
         is_rc[i] = res.is_rc;
-        if (res.is_rc) {
-            aln_is_reverse.push_back(true);
-        } else {
-            aln_is_reverse.push_back(false);
-        }
         if (res.n_cigar) {
             free(res.graph_cigar);
         }
@@ -206,13 +200,12 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
    }*/
 
     if (generate_consensus) {
-        abpoa_generate_consensus(ab, abpt, tot_n, NULL, &cons_seq, &cons_cov, &cons_l, &cons_n);
+        abpoa_generate_consensus(ab, abpt, tot_n, nullptr, &cons_seq, &cons_cov, &cons_l, &cons_n);
         if (ab->abg->is_called_cons == 0) {
-            // TODO Abort mission here?
             err_printf("ERROR: no consensus sequence generated.\n");
             exit(1);
         }
-        aln_is_reverse.push_back(false);
+        is_rc[n_seqs] = 0;
 
         /*fprintf(stdout, "=== output to variables ===\n");
         for (int i = 0; i < cons_n; ++i) {
@@ -247,7 +240,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                 // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
                 uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
                 auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
-                record_start = aln_is_reverse[seq_rank] ?
+                record_start = is_rc[seq_rank] ?
                                (path_length - graph.get_position_of_step(last_step) -
                                 graph.get_length(graph.get_handle_of_step(last_step))) :
                                path_range_begin;
@@ -287,7 +280,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                 path_name,
                 record_start,
                 seq_size,
-                aln_is_reverse[seq_rank],
+                is_rc[seq_rank] == 1,
                 path_length,
                 aligned_seq
             });
@@ -298,7 +291,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     }
 
     // free memory
-    free(is_rc);
     if (cons_n) {
         for (i = 0; i < cons_n; ++i) {
             free(cons_seq[i]);
@@ -320,8 +312,9 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(bseqs);
     free(seq_lens);
 
-    build_odgi_abPOA(ab, abpt, output_graph, names, aln_is_reverse, consensus_name, generate_consensus);
+    build_odgi_abPOA(ab, abpt, output_graph, names, is_rc, consensus_name, generate_consensus);
 
+    free(is_rc);
     abpoa_free(ab, abpt);
     abpoa_free_para(abpt);
 
@@ -1585,7 +1578,7 @@ void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
 
 void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::vector<std::string> &sequence_names,
-                      const std::vector<bool> &aln_is_reverse,
+                      const uint8_t* aln_is_reverse,
                       const std::string &consensus_name,
                       bool include_consensus) {
     // std::cerr << "ENTERED build_odgi_abPOA" << std::endl;
