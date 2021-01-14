@@ -1659,14 +1659,11 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
         path_handle_t p;
         std::vector<handle_t> steps;
         std::uint32_t node_id;
-        if (!sequence_names.empty()) {
-            // fprintf(stdout, "P\t%s\t", sequence_names[i]);
-            // std::cerr << "P\t" << sequence_names[i] << "\t";
-            p = output->create_path_handle(sequence_names[i]);
-        } else {
-            // fprintf(stdout, "P\t%d\t", i+1);
-            p = output->create_path_handle(std::to_string(i + 1));
-        }
+
+        // fprintf(stdout, "P\t%s\t", sequence_names[i]);
+        // std::cerr << "P\t" << sequence_names[i] << "\t";
+        p = output->create_path_handle(sequence_names[i]);
+
         if (aln_is_reverse[i]) {
             for (j = read_path_i[i] - 1; j >= 0; --j) {
                 // fprintf(stdout, "%d-", read_paths[i][j]);
