@@ -340,7 +340,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     //auto graph_copy = output_graph;
     if (!odgi::algorithms::unchop(*output_graph)) {
         std::cerr << "[smoothxg::smooth_abpoa] error: unchop failure, saving before/after graph to disk" << std::endl;
-        std::ofstream a("smoothxg_unchop_failure_before.gfa");
+        //std::ofstream a("smoothxg_unchop_failure_before.gfa");
         //graph_copy.to_gfa(a);
         //a.close();
         std::ofstream b("smoothxg_unchop_failure_after.gfa");
