@@ -1614,19 +1614,19 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
             // "ACGTN"[abg->node[cur_id].base]); add node to output graph
             std::string seq = std::string(1, "ACGTN"[abg->node[cur_id].base]);
             // std::cerr << "seq: " << seq << std::endl;
-            output->create_handle(seq, cur_id - 1);
+            output->create_handle(seq, cur_id);
             // std::cerr << "cur_id: " << (cur_id - 1) << std::endl;
             // output all links based pre_ids
             for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
                 pre_id = abg->node[cur_id].in_id[i];
                 if (pre_id != ABPOA_SRC_NODE_ID) {
                     // output edge
-                    // fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id - 1,
-                    // cur_id - 1); std::cerr << "cur_id edge: " << (cur_id
-                    // - 1) << std::endl; std::cerr << "pre_id edge: " <<
-                    // (pre_id - 1) << std::endl;
-                    output->create_edge(output->get_handle(pre_id - 1),
-                                        output->get_handle(cur_id - 1));
+                    // fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id,
+                    // cur_id); std::cerr << "cur_id edge: " << (cur_id)
+                    // << std::endl; std::cerr << "pre_id edge: " <<
+                    // pre_id << std::endl;
+                    output->create_edge(output->get_handle(pre_id),
+                                        output->get_handle(cur_id));
                 }
             }
             // add node id to read path
@@ -1638,7 +1638,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                 while (num) {
                     tmp = num & -num;
                     read_id = ilog2_64(abpt, tmp);
-                    read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id - 1;
+                    read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id;
                     num ^= tmp;
                 }
                 b += 64;
@@ -1700,14 +1700,14 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
         // we already did that!
         // abpoa_generate_consensus(ab, abpt, seq_n, NULL, NULL, NULL, NULL,
         // NULL);
-        int id = abg->node[ABPOA_SRC_NODE_ID].max_out_id;
+        int max_out_id = abg->node[ABPOA_SRC_NODE_ID].max_out_id;
         // fprintf(stdout, "P\tConsensus_sequence\t");
         path_handle_t p = output->create_path_handle(consensus_name);
         while (true) {
             // fprintf(stdout, "%d+", id-1);
-            output->append_step(p, output->get_handle(id - 1));
-            id = abg->node[id].max_out_id;
-            if (id == ABPOA_SINK_NODE_ID) {
+            output->append_step(p, output->get_handle(max_out_id));
+            max_out_id = abg->node[max_out_id].max_out_id;
+            if (max_out_id == ABPOA_SINK_NODE_ID) {
                 break;
             }
             /*
