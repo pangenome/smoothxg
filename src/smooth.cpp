@@ -363,14 +363,6 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                           const std::string &consensus_name,
                           bool save_block_fastas) {
 
-    std::uint8_t spoa_algorithm = local_alignment ? 0 : 1;
-    std::unique_ptr<spoa::AlignmentEngine> alignment_engine
-        = spoa::createAlignmentEngine(
-            static_cast<spoa::AlignmentType>(spoa_algorithm),
-            poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
-
-    auto poa_graph = spoa::createGraph();
-
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
@@ -413,6 +405,15 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
     if (max_sequence_size == 0) {
         return output_graph;
     }
+
+    std::uint8_t spoa_algorithm = local_alignment ? 0 : 1;
+    std::unique_ptr<spoa::AlignmentEngine> alignment_engine
+            = spoa::createAlignmentEngine(
+                    static_cast<spoa::AlignmentType>(spoa_algorithm),
+                    poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
+
+    auto poa_graph = spoa::createGraph();
+
     // preallocation does not seem to help, and it consumes a lot of memory
     // relative to progressive allocation
     // alignment_engine->prealloc(max_sequence_size, 4);
