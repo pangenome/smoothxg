@@ -152,11 +152,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     // finalize parameters
     abpoa_post_set_para(abpt);
 
-    std::vector<char *> seqs_;
-    // transform so that we have an interface between C++ and C
-    std::transform(seqs.begin(), seqs.end(), std::back_inserter(seqs_),
-                   [](const std::string& s) { return (char*)s.c_str();});
-
     // collect sequence length, transform ACGT to 0123
     int n_seqs = seqs.size();
     int *seq_lens = (int *)malloc(sizeof(int) * n_seqs);
@@ -165,8 +160,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         seq_lens[i] = seqs[i].size();
         bseqs[i] = (uint8_t *)malloc(sizeof(uint8_t) * seq_lens[i]);
         for (int j = 0; j < seq_lens[i]; ++j) {
-            bseqs[i][j] =
-                nst_nt4_table[(int)seqs_[i][j]]; // TODO we make a c_str for every char in the string
+            bseqs[i][j] = nst_nt4_table[(int)seqs[i][j]];
         }
     }
 
