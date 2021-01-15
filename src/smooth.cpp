@@ -1745,12 +1745,6 @@ void build_odgi(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
                 const std::string &consensus_name, bool include_consensus) {
 
     auto &nodes = graph->nodes();
-    std::vector<std::int32_t> in_consensus(nodes.size(), -1);
-    std::int32_t rank = 0;
-    auto consensus = graph->consensus();
-    for (const auto &id : consensus) {
-        in_consensus[id] = rank++;
-    }
 
     for (std::uint32_t i = 0; i < nodes.size(); ++i) {
         std::string seq =
