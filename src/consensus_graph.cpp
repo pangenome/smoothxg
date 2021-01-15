@@ -431,14 +431,21 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                             continue;
                         }
                         uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
-                        if (link.jump_length >= consensus_jump_max
-                            || novel_bp >= consensus_jump_max) {
+                        // this filters out novel seqs that jump between different consensi
+                        // in practice including these tends to introduce artifacts downstream
+                        // specifically, we tend to generate looping regions made of link paths
+                        // which occur usually in repetitive sequences and have many SNPs and small indels between them
+                        // these are then preserved in the output graph, violating our expectations about the scale factor
+                        // but testing suggests that they can be removed relatively safely
+                        // TODO: evaluate ways of adding these safely, such as using mash dist clustering
+                        if (link.from_cons_path == link.to_cons_path
+                            && (link.jump_length >= consensus_jump_max
+                                || novel_bp >= consensus_jump_max)) {
                             link.rank = link_rank++;
                             consensus_links.push_back(link);
                             mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);
                         }
                     }
-                    // TODO when adding we need to break the paths up --- ?
                 };
 
         std::cerr << "[smoothxg::create_consensus_graph] finding consensus links" << std::endl;

@@ -186,6 +186,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             free(res.graph_cigar);
         }
     }
+    abpoa_topological_sort(ab->abg, abpt);
+
 
     if (maf != nullptr){
         abpoa_generate_rc_msa(ab, abpt, nullptr, is_rc, tot_n, NULL, &msa_seq, &msa_l);
