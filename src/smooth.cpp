@@ -312,7 +312,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(bseqs);
     free(seq_lens);
 
-    build_odgi_abPOA(ab, abpt, output_graph, names, is_rc, consensus_name, generate_consensus);
+    odgi::graph_t block_graph;
+    build_odgi_abPOA(ab, abpt, &block_graph, names, is_rc, consensus_name, generate_consensus);
 
     free(is_rc);
     abpoa_free(ab, abpt);
@@ -320,19 +321,61 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 
     // normalize the representation, allowing for nodes > 1bp
     //auto graph_copy = output_graph;
-    if (!odgi::algorithms::unchop(*output_graph)) {
+    if (!odgi::algorithms::unchop(block_graph)) {
         std::cerr << "[smoothxg::smooth_abpoa] error: unchop failure, saving before/after graph to disk" << std::endl;
         //std::ofstream a("smoothxg_unchop_failure_before.gfa");
         //graph_copy.to_gfa(a);
         //a.close();
         std::ofstream b("smoothxg_unchop_failure_after.gfa");
-        output_graph->to_gfa(b);
+        block_graph.to_gfa(b);
         b.close();
         exit(1);
     }
 
     // order the graph
-    output_graph->apply_ordering(odgi::algorithms::topological_order(output_graph), true);
+    block_graph.apply_ordering(odgi::algorithms::topological_order(&block_graph), true);
+
+    // copy the now-compacted graph to our output_graph
+    block_graph.for_each_handle(
+        [&](const handle_t& old_handle) {
+            output_graph->create_handle(
+                block_graph.get_sequence(old_handle),
+                block_graph.get_id(old_handle));
+        });
+
+    block_graph.for_each_handle(
+        [&](const handle_t& curr) {
+            block_graph.follow_edges(
+                curr, false,
+                [&](const handle_t& next) {
+                    output_graph->create_edge(
+                        output_graph->get_handle(block_graph.get_id(curr),
+                                                 block_graph.get_is_reverse(curr)),
+                        output_graph->get_handle(block_graph.get_id(next),
+                                                 block_graph.get_is_reverse(next)));
+                });
+            block_graph.follow_edges(
+                curr, true,
+                [&](const handle_t& prev) {
+                    output_graph->create_edge(
+                        output_graph->get_handle(block_graph.get_id(prev),
+                                                 block_graph.get_is_reverse(prev)),
+                        output_graph->get_handle(block_graph.get_id(curr),
+                                                 block_graph.get_is_reverse(curr)));
+                });
+        });
+
+    block_graph.for_each_path_handle(
+        [&](const path_handle_t& old_path) {
+            path_handle_t new_path = output_graph->create_path_handle(block_graph.get_path_name(old_path));
+            block_graph.for_each_step_in_path(old_path, [&](const step_handle_t& step) {
+                    handle_t old_handle = block_graph.get_handle_of_step(step);
+                    handle_t new_handle = output_graph->get_handle(
+                        block_graph.get_id(old_handle),
+                        block_graph.get_is_reverse(old_handle));
+                    output_graph->append_step(new_path, new_handle);
+                });
+        });
 
     // output_graph.to_gfa(std::cout);
     return output_graph;
