@@ -1592,67 +1592,69 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
     int *in_degree = (int *)_err_malloc(abg->node_n * sizeof(int));
     int **read_paths = (int **)_err_malloc(seq_n * sizeof(int *)),
         *read_path_i = (int *)_err_calloc(seq_n, sizeof(int));
-    int i, j, cur_id, pre_id, out_id, *id;
+    int i, j, cur_id, pre_id, out_id;
     for (i = 0; i < abg->node_n; ++i)
         in_degree[i] = abg->node[i].in_edge_n;
     for (i = 0; i < seq_n; ++i)
         read_paths[i] = (int *)_err_malloc(abg->node_n * sizeof(int));
 
-    kdq_int_t *q = kdq_init_int();
-
     // Breadth-First-Search
+    std::vector<int> stack_node_ids;
+
     for (i = 0; i < abg->node[ABPOA_SRC_NODE_ID].out_edge_n; ++i) {
         out_id = abg->node[ABPOA_SRC_NODE_ID].out_id[i];
         if (--in_degree[out_id] == 0) {
-            kdq_push_int(q, out_id);
+            stack_node_ids.push_back(out_id);
         }
     }
-    while ((id = kdq_shift_int(q)) != 0 && (*id != ABPOA_SINK_NODE_ID)) {
-        cur_id = *id;
+    while (!stack_node_ids.empty()) {
+        cur_id = stack_node_ids.back();
+        stack_node_ids.pop_back();
 
-        // output node
-        // fprintf(stdout, "S\t%d\t%c\n", cur_id - 1,
-        // "ACGTN"[abg->node[cur_id].base]); add node to output graph
-        std::string seq = std::string(1, "ACGTN"[abg->node[cur_id].base]);
-        // std::cerr << "seq: " << seq << std::endl;
-        output->create_handle(seq, cur_id);
-        // std::cerr << "cur_id: " << cur_id << std::endl;
-        // output all links based pre_ids
-        for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
-            pre_id = abg->node[cur_id].in_id[i];
-            if (pre_id != ABPOA_SRC_NODE_ID) {
-                // output edge
-                // fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id,
-                // cur_id); std::cerr << "cur_id edge: " << cur_id
-                // << std::endl; std::cerr << "pre_id edge: " <<
-                // pre_id << std::endl;
-                output->create_edge(output->get_handle(pre_id),
-                                    output->get_handle(cur_id));
+        if (cur_id != ABPOA_SINK_NODE_ID) {
+            // output node
+            // fprintf(stdout, "S\t%d\t%c\n", cur_id - 1,
+            // "ACGTN"[abg->node[cur_id].base]); add node to output graph
+            std::string seq = std::string(1, "ACGTN"[abg->node[cur_id].base]);
+            // std::cerr << "seq: " << seq << std::endl;
+            output->create_handle(seq, cur_id);
+            // std::cerr << "cur_id: " << cur_id << std::endl;
+            // output all links based pre_ids
+            for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
+                pre_id = abg->node[cur_id].in_id[i];
+                if (pre_id != ABPOA_SRC_NODE_ID) {
+                    // output edge
+                    // fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id,
+                    // cur_id); std::cerr << "cur_id edge: " << cur_id
+                    // << std::endl; std::cerr << "pre_id edge: " <<
+                    // pre_id << std::endl;
+                    output->create_edge(output->get_handle(pre_id),
+                                        output->get_handle(cur_id));
+                }
             }
-        }
-        // add node id to read path
-        int b, read_id;
-        uint64_t num, tmp;
-        b = 0;
-        for (i = 0; i < abg->node[cur_id].read_ids_n; ++i) {
-            num = abg->node[cur_id].read_ids[i];
-            while (num) {
-                tmp = num & -num;
-                read_id = ilog2_64(abpt, tmp);
-                read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id;
-                num ^= tmp;
+            // add node id to read path
+            int b, read_id;
+            uint64_t num, tmp;
+            b = 0;
+            for (i = 0; i < abg->node[cur_id].read_ids_n; ++i) {
+                num = abg->node[cur_id].read_ids[i];
+                while (num) {
+                    tmp = num & -num;
+                    read_id = ilog2_64(abpt, tmp);
+                    read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id;
+                    num ^= tmp;
+                }
+                b += 64;
             }
-            b += 64;
-        }
 
-        for (i = 0; i < abg->node[cur_id].out_edge_n; ++i) {
-            out_id = abg->node[cur_id].out_id[i];
-            if (--in_degree[out_id] == 0) {
-                kdq_push_int(q, out_id);
+            for (i = 0; i < abg->node[cur_id].out_edge_n; ++i) {
+                out_id = abg->node[cur_id].out_id[i];
+                if (--in_degree[out_id] == 0) {
+                    stack_node_ids.push_back(out_id);
+                }
             }
         }
     }
-    kdq_destroy_int(q);
 
     // output read paths
     for (i = 0; i < seq_n; ++i) {
