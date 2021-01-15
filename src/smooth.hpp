@@ -39,7 +39,7 @@ void write_fasta_for_block(const xg::XG &graph,
                          const std::string& prefix,
                          const std::string& suffix = "");
 
-odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
+odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, uint64_t block_id,
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
                            bool local_alignment,
@@ -48,8 +48,7 @@ odgi::graph_t smooth_abpoa(const xg::XG &graph, const block_t &block, const uint
                            const std::string &consensus_name = "",
                            bool save_block_fastas = false);
 
-odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block,
-                          const uint64_t &block_id,
+odgi::graph_t smooth_spoa(const xg::XG &graph, const block_t &block, uint64_t block_id,
                           std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                           bool local_alignment,
@@ -83,7 +82,7 @@ void build_odgi(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
 
 void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::vector<std::string> &sequence_names,
-                      const std::vector<bool> &aln_is_reverse,
+                      const uint8_t* aln_is_reverse,
                       const std::string &consensus_name,
                       bool include_consensus = true);
 } // namespace smoothxg

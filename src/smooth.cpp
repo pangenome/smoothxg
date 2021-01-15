@@ -86,7 +86,7 @@ void write_fasta_for_block(const xg::XG &graph,
     fasta.close();
 }
 
-odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t &block_id,
+odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t block_id,
                            int poa_m, int poa_n, int poa_g,
                            int poa_e, int poa_q, int poa_c,
                            bool local_alignment,
@@ -98,6 +98,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
+    std::size_t max_sequence_size = 0;
     for (auto &path_range : block.path_ranges) {
         seqs.emplace_back();
         auto &seq = seqs.back();
@@ -110,23 +111,16 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                       graph.get_path_handle_of_step(path_range.begin))
                << "_" << graph.get_position_of_step(path_range.begin);
         names.push_back(namess.str());
-    }
 
-    //#ifdef SMOOTH_WRITE_BLOCKS_FASTA
-    if (save_block_fastas) {
-        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
-    }
-//#endif
-
-    // set up POA
-    // done...
-    // run POA
-    std::size_t max_sequence_size = 0;
-    for (auto &seq : seqs) {
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
 
+    if (save_block_fastas) {
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
+    }
+
     auto* output_graph = new odgi::graph_t();
+
     // if the graph would be empty, bail out
     if (max_sequence_size == 0) {
         return output_graph;
@@ -158,54 +152,44 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     // finalize parameters
     abpoa_post_set_para(abpt);
 
-    std::vector<char *> seqs_;
-    // transform so that we have an interface between C++ and C
-    std::transform(seqs.begin(), seqs.end(), std::back_inserter(seqs_),
-                   [](const std::string& s) { return (char*)s.c_str();});
-
     // collect sequence length, transform ACGT to 0123
     int n_seqs = seqs.size();
     int *seq_lens = (int *)malloc(sizeof(int) * n_seqs);
-    uint8_t **bseqs = (uint8_t **)malloc(sizeof(uint8_t *) * n_seqs);
+    auto **bseqs = (uint8_t **)malloc(sizeof(uint8_t *) * n_seqs);
     for (int i = 0; i < n_seqs; ++i) {
         seq_lens[i] = seqs[i].size();
         bseqs[i] = (uint8_t *)malloc(sizeof(uint8_t) * seq_lens[i]);
         for (int j = 0; j < seq_lens[i]; ++j) {
-            bseqs[i][j] =
-                nst_nt4_table[(int)seqs_[i][j]]; // TODO we make a c_str for every char in the string
+            bseqs[i][j] = nst_nt4_table[(int)seqs[i][j]];
         }
     }
 
     // variables to store result
-    uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n=0;
-    uint8_t **msa_seq; int msa_l=0;
+    uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n = 0;
+    uint8_t **msa_seq; int msa_l = 0;
 
     int i, tot_n = n_seqs;
-    uint8_t *is_rc = (uint8_t *)_err_malloc(n_seqs * sizeof(uint8_t));
+    auto *is_rc = (uint8_t *)_err_malloc((n_seqs + (generate_consensus ? 1 : 0)) * sizeof(uint8_t));
+
     abpoa_reset_graph(ab, abpt, seq_lens[0]);
 
-    std::vector<bool> aln_is_reverse;
     for (i = 0; i < n_seqs; ++i) {
         abpoa_res_t res;
-        res.graph_cigar = 0, res.n_cigar = 0, res.is_rc = 0;
+        res.graph_cigar = nullptr, res.n_cigar = 0, res.is_rc = 0;
         res.traceback_ok = 1;
         abpt->rev_cigar = 0;
         bool aligned = -1 != abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
         // nb: we should check if we should do anything special when !res->traceback_ok
         abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i, n_seqs);
         is_rc[i] = res.is_rc;
-        if (res.is_rc) {
-            aln_is_reverse.push_back(true);
-        } else {
-            aln_is_reverse.push_back(false);
-        }
         if (res.n_cigar) {
             free(res.graph_cigar);
         }
     }
+    abpoa_topological_sort(ab->abg, abpt);
 
     if (maf != nullptr){
-        abpoa_generate_rc_msa(ab, abpt, NULL, is_rc, tot_n, NULL, &msa_seq, &msa_l);
+        abpoa_generate_rc_msa(ab, abpt, nullptr, is_rc, tot_n, NULL, &msa_seq, &msa_l);
     }
 
    /*fprintf(stdout, ">Multiple_sequence_alignment\n");
@@ -217,13 +201,12 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
    }*/
 
     if (generate_consensus) {
-        abpoa_generate_consensus(ab, abpt, tot_n, NULL, &cons_seq, &cons_cov, &cons_l, &cons_n);
+        abpoa_generate_consensus(ab, abpt, tot_n, nullptr, &cons_seq, &cons_cov, &cons_l, &cons_n);
         if (ab->abg->is_called_cons == 0) {
-            // TODO Abort mission here?
             err_printf("ERROR: no consensus sequence generated.\n");
             exit(1);
         }
-        aln_is_reverse.push_back(false);
+        is_rc[n_seqs] = 0;
 
         /*fprintf(stdout, "=== output to variables ===\n");
         for (int i = 0; i < cons_n; ++i) {
@@ -258,7 +241,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                 // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
                 uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
                 auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
-                record_start = aln_is_reverse[seq_rank] ?
+                record_start = is_rc[seq_rank] ?
                                (path_length - graph.get_position_of_step(last_step) -
                                 graph.get_length(graph.get_handle_of_step(last_step))) :
                                path_range_begin;
@@ -298,7 +281,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                 path_name,
                 record_start,
                 seq_size,
-                aln_is_reverse[seq_rank],
+                is_rc[seq_rank] == 1,
                 path_length,
                 aligned_seq
             });
@@ -309,7 +292,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     }
 
     // free memory
-    free(is_rc);
     if (cons_n) {
         for (i = 0; i < cons_n; ++i) {
             free(cons_seq[i]);
@@ -331,33 +313,77 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(bseqs);
     free(seq_lens);
 
-    build_odgi_abPOA(ab, abpt, output_graph, names, aln_is_reverse, consensus_name, generate_consensus);
+    odgi::graph_t block_graph;
+    build_odgi_abPOA(ab, abpt, &block_graph, names, is_rc, consensus_name, generate_consensus);
 
+    free(is_rc);
     abpoa_free(ab, abpt);
     abpoa_free_para(abpt);
 
     // normalize the representation, allowing for nodes > 1bp
     //auto graph_copy = output_graph;
-    if (!odgi::algorithms::unchop(*output_graph)) {
+    if (!odgi::algorithms::unchop(block_graph)) {
         std::cerr << "[smoothxg::smooth_abpoa] error: unchop failure, saving before/after graph to disk" << std::endl;
-        std::ofstream a("smoothxg_unchop_failure_before.gfa");
+        //std::ofstream a("smoothxg_unchop_failure_before.gfa");
         //graph_copy.to_gfa(a);
         //a.close();
         std::ofstream b("smoothxg_unchop_failure_after.gfa");
-        output_graph->to_gfa(b);
+        block_graph.to_gfa(b);
         b.close();
         exit(1);
     }
 
     // order the graph
-    output_graph->apply_ordering(odgi::algorithms::topological_order(output_graph), true);
+    block_graph.apply_ordering(odgi::algorithms::topological_order(&block_graph), true);
+
+    // copy the now-compacted graph to our output_graph
+    block_graph.for_each_handle(
+        [&](const handle_t& old_handle) {
+            output_graph->create_handle(
+                block_graph.get_sequence(old_handle),
+                block_graph.get_id(old_handle));
+        });
+
+    block_graph.for_each_handle(
+        [&](const handle_t& curr) {
+            block_graph.follow_edges(
+                curr, false,
+                [&](const handle_t& next) {
+                    output_graph->create_edge(
+                        output_graph->get_handle(block_graph.get_id(curr),
+                                                 block_graph.get_is_reverse(curr)),
+                        output_graph->get_handle(block_graph.get_id(next),
+                                                 block_graph.get_is_reverse(next)));
+                });
+            block_graph.follow_edges(
+                curr, true,
+                [&](const handle_t& prev) {
+                    output_graph->create_edge(
+                        output_graph->get_handle(block_graph.get_id(prev),
+                                                 block_graph.get_is_reverse(prev)),
+                        output_graph->get_handle(block_graph.get_id(curr),
+                                                 block_graph.get_is_reverse(curr)));
+                });
+        });
+
+    block_graph.for_each_path_handle(
+        [&](const path_handle_t& old_path) {
+            path_handle_t new_path = output_graph->create_path_handle(block_graph.get_path_name(old_path));
+            block_graph.for_each_step_in_path(old_path, [&](const step_handle_t& step) {
+                    handle_t old_handle = block_graph.get_handle_of_step(step);
+                    handle_t new_handle = output_graph->get_handle(
+                        block_graph.get_id(old_handle),
+                        block_graph.get_is_reverse(old_handle));
+                    output_graph->append_step(new_path, new_handle);
+                });
+        });
 
     // output_graph.to_gfa(std::cout);
     return output_graph;
 }
 
 odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
-                          const uint64_t &block_id,
+                          const uint64_t block_id,
                           std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                           std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                           bool local_alignment,
@@ -365,16 +391,10 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                           const std::string &consensus_name,
                           bool save_block_fastas) {
 
-    std::uint8_t spoa_algorithm = local_alignment ? 0 : 1;
-    std::unique_ptr<spoa::AlignmentEngine> alignment_engine
-        = spoa::createAlignmentEngine(
-            static_cast<spoa::AlignmentType>(spoa_algorithm),
-            poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
-
-    auto poa_graph = spoa::createGraph();
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
+    std::size_t max_sequence_size = 0;
     for (auto &path_range : block.path_ranges) {
         seqs.emplace_back();
         auto &seq = seqs.back();
@@ -387,34 +407,29 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                       graph.get_path_handle_of_step(path_range.begin))
                << "_" << graph.get_position_of_step(path_range.begin);
         names.push_back(namess.str());
+
+        max_sequence_size = std::max(max_sequence_size, seq.size());
     }
 
     if (save_block_fastas) {
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_spoa");
     }
 
-    /*
-    std::string s = "smoothxg_block_" + std::to_string(block_id) + ".fa";
-    std::ofstream fasta(s.c_str());
-    for (uint64_t i = 0; i < seqs.size(); ++i) {
-        fasta << ">" << names[i] << " " << seqs[i].size() << std::endl
-              << seqs[i] << std::endl;
-    }
-    fasta.close();
-    */
-
-    // set up POA
-    // done...
-    // run POA
-    std::size_t max_sequence_size = 0;
-    for (auto &seq : seqs) {
-        max_sequence_size = std::max(max_sequence_size, seq.size());
-    }
     auto* output_graph = new odgi::graph_t();
+
     // if the graph would be empty, bail out
     if (max_sequence_size == 0) {
         return output_graph;
     }
+
+    std::uint8_t spoa_algorithm = local_alignment ? 0 : 1;
+    std::unique_ptr<spoa::AlignmentEngine> alignment_engine
+            = spoa::createAlignmentEngine(
+                    static_cast<spoa::AlignmentType>(spoa_algorithm),
+                    poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
+
+    auto poa_graph = spoa::createGraph();
+
     // preallocation does not seem to help, and it consumes a lot of memory
     // relative to progressive allocation
     // alignment_engine->prealloc(max_sequence_size, 4);
@@ -1607,146 +1622,112 @@ void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
 
 void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::vector<std::string> &sequence_names,
-                      const std::vector<bool> &aln_is_reverse,
+                      const uint8_t* aln_is_reverse,
                       const std::string &consensus_name,
                       bool include_consensus) {
     // std::cerr << "ENTERED build_odgi_abPOA" << std::endl;
     abpoa_graph_t *abg = ab->abg;
-    if (abg->node_n <= 2) // how would this happen, and can we manage the error externally?
-        return;
+    // how would this happen, and can we manage the error externally?
+    if (abg->node_n <= 2) return;
+
     int seq_n = sequence_names.size();
 
     // traverse graph
     int *in_degree = (int *)_err_malloc(abg->node_n * sizeof(int));
     int **read_paths = (int **)_err_malloc(seq_n * sizeof(int *)),
         *read_path_i = (int *)_err_calloc(seq_n, sizeof(int));
-    int i, j, cur_id, pre_id, out_id, *id;
+    int i, j, cur_id, pre_id, out_id;
     for (i = 0; i < abg->node_n; ++i)
         in_degree[i] = abg->node[i].in_edge_n;
     for (i = 0; i < seq_n; ++i)
         read_paths[i] = (int *)_err_malloc(abg->node_n * sizeof(int));
-    kdq_int_t *q = kdq_init_int();
 
-    // Breadth-First-Search
-    kdq_push_int(q, ABPOA_SRC_NODE_ID);
-    while ((id = kdq_shift_int(q)) != 0) {
-        cur_id = *id;
-        if (cur_id == ABPOA_SINK_NODE_ID) {
-            kdq_destroy_int(q);
-            break;
-        } else {
-            if (cur_id != ABPOA_SRC_NODE_ID) {
-                // output node
-                // fprintf(stdout, "S\t%d\t%c\n", cur_id - 1,
-                // "ACGTN"[abg->node[cur_id].base]); add node to output graph
-                std::string seq = std::string(
-                    1, static_cast<char>("ACGTN"[abg->node[cur_id].base]));
-                // std::cerr << "seq: " << seq << std::endl;
-                output->create_handle(seq, cur_id - 1);
-                // std::cerr << "cur_id: " << (cur_id - 1) << std::endl;
-                // output all links based pre_ids
-                for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
-                    pre_id = abg->node[cur_id].in_id[i];
-                    if (pre_id != ABPOA_SRC_NODE_ID) {
-                        // output edge
-                        // fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id - 1,
-                        // cur_id - 1); std::cerr << "cur_id edge: " << (cur_id
-                        // - 1) << std::endl; std::cerr << "pre_id edge: " <<
-                        // (pre_id - 1) << std::endl;
-                        output->create_edge(output->get_handle(pre_id - 1),
-                                           output->get_handle(cur_id - 1));
-                    }
-                }
-                // add node id to read path
-                int b, read_id;
-                uint64_t num, tmp;
-                b = 0;
-                for (i = 0; i < abg->node[cur_id].read_ids_n; ++i) {
-                    num = abg->node[cur_id].read_ids[i];
-                    while (num) {
-                        tmp = num & -num;
-                        read_id = ilog2_64(abpt, tmp);
-                        read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id - 1;
-                        num ^= tmp;
-                    }
-                    b += 64;
+    std::vector<int> stack_node_ids;
+    for (i = 0; i < abg->node[ABPOA_SRC_NODE_ID].out_edge_n; ++i) {
+        out_id = abg->node[ABPOA_SRC_NODE_ID].out_id[i];
+        if (--in_degree[out_id] == 0) {
+            stack_node_ids.push_back(out_id);
+        }
+    }
+    while (!stack_node_ids.empty()) {
+        cur_id = stack_node_ids.back();
+        stack_node_ids.pop_back();
+
+        if (cur_id != ABPOA_SINK_NODE_ID) {
+            // output node
+            // fprintf(stdout, "S\t%d\t%c\n", cur_id - 1,
+            // "ACGTN"[abg->node[cur_id].base]); add node to output graph
+            std::string seq = std::string(1, "ACGTN"[abg->node[cur_id].base]);
+            // std::cerr << "seq: " << seq << std::endl;
+            output->create_handle(seq, cur_id);
+            // std::cerr << "cur_id: " << cur_id << std::endl;
+            // output all links based pre_ids
+            for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
+                pre_id = abg->node[cur_id].in_id[i];
+                if (pre_id != ABPOA_SRC_NODE_ID) {
+                    // output edge
+                    // fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id,
+                    // cur_id); std::cerr << "cur_id edge: " << cur_id
+                    // << std::endl; std::cerr << "pre_id edge: " <<
+                    // pre_id << std::endl;
+                    output->create_edge(output->get_handle(pre_id), output->get_handle(cur_id));
                 }
             }
+            // add node id to read path
+            int b, read_id;
+            uint64_t num, tmp;
+            b = 0;
+            for (i = 0; i < abg->node[cur_id].read_ids_n; ++i) {
+                num = abg->node[cur_id].read_ids[i];
+                while (num) {
+                    tmp = num & -num;
+                    read_id = ilog2_64(abpt, tmp);
+                    read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id;
+                    num ^= tmp;
+                }
+                b += 64;
+            }
+
             for (i = 0; i < abg->node[cur_id].out_edge_n; ++i) {
                 out_id = abg->node[cur_id].out_id[i];
                 if (--in_degree[out_id] == 0) {
-                    kdq_push_int(q, out_id);
+                    stack_node_ids.push_back(out_id);
                 }
             }
         }
     }
 
     // output read paths
-
     for (i = 0; i < seq_n; ++i) {
-        path_handle_t p;
-        std::vector<handle_t> steps;
-        std::uint32_t node_id;
-        if (!sequence_names.empty()) {
-            // fprintf(stdout, "P\t%s\t", sequence_names[i]);
-            // std::cerr << "P\t" << sequence_names[i] << "\t";
-            p = output->create_path_handle(sequence_names[i]);
-        } else {
-            // fprintf(stdout, "P\t%d\t", i+1);
-            p = output->create_path_handle(std::to_string(i + 1));
-        }
+        // fprintf(stdout, "P\t%s\t", sequence_names[i]);
+        // std::cerr << "P\t" << sequence_names[i] << "\t";
+        path_handle_t p = output->create_path_handle(sequence_names[i]);
+
         if (aln_is_reverse[i]) {
             for (j = read_path_i[i] - 1; j >= 0; --j) {
                 // fprintf(stdout, "%d-", read_paths[i][j]);
-                node_id = read_paths[i][j];
-                output->append_step(p, output->flip(output->get_handle(node_id)));
-                /*
-                if (j != 0) {
-                    fprintf(stdout, ",");
-                } else {
-                    fprintf(stdout, "\t*\n");
-                }
-                 */
+                output->append_step(p, output->flip(output->get_handle(read_paths[i][j])));
             }
         } else {
             for (j = 0; j < read_path_i[i]; ++j) {
                 // fprintf(stdout, "%d+", read_paths[i][j]);
-                node_id = read_paths[i][j];
-                output->append_step(p, output->get_handle(node_id));
-                /*
-                if (j != read_path_i[i]-1) {
-                    fprintf(stdout, ",");
-                }
-                else {
-                    fprintf(stdout, "\t*\n");
-                }
-                */
+                output->append_step(p, output->get_handle(read_paths[i][j]));
             }
         }
     }
     if (include_consensus) {
-        // we already did that!
-        // abpoa_generate_consensus(ab, abpt, seq_n, NULL, NULL, NULL, NULL,
-        // NULL);
-        int id = abg->node[ABPOA_SRC_NODE_ID].max_out_id;
-        // fprintf(stdout, "P\tConsensus_sequence\t");
         path_handle_t p = output->create_path_handle(consensus_name);
+
+        int max_out_id = abg->node[ABPOA_SRC_NODE_ID].max_out_id;
+        // fprintf(stdout, "P\tConsensus_sequence\t");
+
         while (true) {
             // fprintf(stdout, "%d+", id-1);
-            output->append_step(p, output->get_handle(id - 1));
-            id = abg->node[id].max_out_id;
-            if (id == ABPOA_SINK_NODE_ID) {
+            output->append_step(p, output->get_handle(max_out_id));
+            max_out_id = abg->node[max_out_id].max_out_id;
+            if (max_out_id == ABPOA_SINK_NODE_ID) {
                 break;
             }
-            /*
-            if (id != ABPOA_SINK_NODE_ID) {
-                fprintf(stdout, ",");
-            }
-            else {
-                // fprintf(stdout, "\t*\n");
-                break;
-            }
-             */
         }
     }
 
@@ -1764,12 +1745,6 @@ void build_odgi(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
                 const std::string &consensus_name, bool include_consensus) {
 
     auto &nodes = graph->nodes();
-    std::vector<std::int32_t> in_consensus(nodes.size(), -1);
-    std::int32_t rank = 0;
-    auto consensus = graph->consensus();
-    for (const auto &id : consensus) {
-        in_consensus[id] = rank++;
-    }
 
     for (std::uint32_t i = 0; i < nodes.size(); ++i) {
         std::string seq =
