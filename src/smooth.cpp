@@ -1642,9 +1642,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
     for (i = 0; i < seq_n; ++i)
         read_paths[i] = (int *)_err_malloc(abg->node_n * sizeof(int));
 
-    // Breadth-First-Search
     std::vector<int> stack_node_ids;
-
     for (i = 0; i < abg->node[ABPOA_SRC_NODE_ID].out_edge_n; ++i) {
         out_id = abg->node[ABPOA_SRC_NODE_ID].out_id[i];
         if (--in_degree[out_id] == 0) {
@@ -1661,7 +1659,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
             // "ACGTN"[abg->node[cur_id].base]); add node to output graph
             std::string seq = std::string(1, "ACGTN"[abg->node[cur_id].base]);
             // std::cerr << "seq: " << seq << std::endl;
-            output->create_handle(seq, abg->node_id_to_index[cur_id]);
+            output->create_handle(seq, cur_id);
             // std::cerr << "cur_id: " << cur_id << std::endl;
             // output all links based pre_ids
             for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
@@ -1672,8 +1670,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                     // cur_id); std::cerr << "cur_id edge: " << cur_id
                     // << std::endl; std::cerr << "pre_id edge: " <<
                     // pre_id << std::endl;
-                    output->create_edge(output->get_handle(abg->node_id_to_index[pre_id]),
-                                        output->get_handle(abg->node_id_to_index[cur_id]));
+                    output->create_edge(output->get_handle(pre_id), output->get_handle(cur_id));
                 }
             }
             // add node id to read path
@@ -1685,7 +1682,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                 while (num) {
                     tmp = num & -num;
                     read_id = ilog2_64(abpt, tmp);
-                    read_paths[b+read_id][read_path_i[b+read_id]++] = abg->node_id_to_index[cur_id];
+                    read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id;
                     num ^= tmp;
                 }
                 b += 64;
@@ -1710,26 +1707,11 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
             for (j = read_path_i[i] - 1; j >= 0; --j) {
                 // fprintf(stdout, "%d-", read_paths[i][j]);
                 output->append_step(p, output->flip(output->get_handle(read_paths[i][j])));
-                /*
-                if (j != 0) {
-                    fprintf(stdout, ",");
-                } else {
-                    fprintf(stdout, "\t*\n");
-                }
-                 */
             }
         } else {
             for (j = 0; j < read_path_i[i]; ++j) {
                 // fprintf(stdout, "%d+", read_paths[i][j]);
                 output->append_step(p, output->get_handle(read_paths[i][j]));
-                /*
-                if (j != read_path_i[i]-1) {
-                    fprintf(stdout, ",");
-                }
-                else {
-                    fprintf(stdout, "\t*\n");
-                }
-                */
             }
         }
     }
@@ -1741,20 +1723,11 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
 
         while (true) {
             // fprintf(stdout, "%d+", id-1);
-            output->append_step(p, output->get_handle(abg->node_id_to_index[max_out_id]));
+            output->append_step(p, output->get_handle(max_out_id));
             max_out_id = abg->node[max_out_id].max_out_id;
             if (max_out_id == ABPOA_SINK_NODE_ID) {
                 break;
             }
-            /*
-            if (id != ABPOA_SINK_NODE_ID) {
-                fprintf(stdout, ",");
-            }
-            else {
-                // fprintf(stdout, "\t*\n");
-                break;
-            }
-             */
         }
     }
 
