@@ -45,11 +45,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 
     // OVERALL: https://www.acodersjourney.com/6-tips-supercharge-cpp-11-vector-performance/ -> check these things here
 
+    // Preparation
     std::vector<path_handle_t> consensus_paths;
     consensus_paths.reserve(consensus_path_names.size());
-    for (auto& name : consensus_path_names) {
-        consensus_paths.push_back(smoothed.get_path_handle(name));
-    }
 
     std::vector<std::string*> cons_path_ptr(smoothed.get_path_count()+1, nullptr);
     std::vector<bool> is_consensus(smoothed.get_path_count()+1, false);
@@ -57,9 +55,13 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     {
         uint64_t idx = 0;
 
-        // TODO should be compact ... should check
-        for (auto& path : consensus_paths) {
-            uint64_t x = as_integer(path);
+        for (auto& name : consensus_path_names) {
+            auto path_handle = smoothed.get_path_handle(name);
+
+            consensus_paths.push_back(path_handle);
+
+            // TODO should be compact ... should check
+            uint64_t x = as_integer(path_handle);
             cons_path_ptr[x] = (std::string*)&consensus_path_names[idx++];
             is_consensus[x] = true;
         }
