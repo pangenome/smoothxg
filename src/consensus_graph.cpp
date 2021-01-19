@@ -3,8 +3,6 @@
 
 namespace smoothxg {
 
-//#define DEBUG
-
 bool operator<(const link_path_t& a,
                const link_path_t& b) {
     auto& a_0 = as_integer(a.from_cons_path);
@@ -157,9 +155,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 #pragma omp parallel for schedule(static, 1) num_threads(thread_count)
     for (uint64_t idx = 0; idx < non_consensus_paths.size(); ++idx){
         auto& path = non_consensus_paths[idx];
-#ifdef DEBUG
-        path_handle_t last_seen_consensus;
-#endif
+
         bool seen_consensus = false;
 
         link_path_t link;
@@ -192,17 +188,12 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     link.length = 0;
                     link.hash = 0;
                     seen_consensus = true;
-#ifdef DEBUG
-                    last_seen_consensus = curr_consensus;
-#endif
+
                     // TODO do we want to add the allele depth of the start and end consensus handles to the link object?
 
                     // TODO add frequency to construct link_path_t --> double
                     // TODO min and max frequency
                 } else {
-#ifdef DEBUG
-                std::cerr << "path " << smoothed.get_path_name(path) << " switched from " << smoothed.get_path_name(last_seen_consensus) << " to " << smoothed.get_path_name(curr_consensus) << std::endl;
-#endif
                     // we've seen a consensus before, and it's the same
                     // and the direction of movement is correct
                     // check the distance in the graph position vector
@@ -307,18 +298,16 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     }
                 };
 
-        // FIXME can we parallelize this?
         auto compute_best_link =
                 [&](const std::vector<link_path_t> &links) {
                     std::map<uint64_t, uint64_t> hash_counts;
                     std::vector<link_path_t> unique_links;
-                    uint64_t link_rank = 0;
-
                     std::map<uint64_t, uint64_t> hash_lengths;
                     for (auto &link : links) {
                         //std::cerr << link << std::endl;
                         auto &c = hash_counts[link.hash];
                         if (c == 0) {
+                            // We take a link only the first time we encounter it
                             unique_links.push_back(link);
                         }
                         ++c;
@@ -326,8 +315,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         hash_lengths[link.hash] = link.length;
                     }
 
-                    uint64_t best_count = 0;
                     uint64_t best_hash;
+                    uint64_t best_count = 0;
                     for (auto &c : hash_counts) {
                         if (c.second > best_count) {
                             best_hash = c.first;
@@ -399,6 +388,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     }
 
                     ska::flat_hash_set<uint64_t> seen_nodes;
+                    uint64_t link_rank = 0;
 
                     // this part attempts to preserve connectivity between consensus sequences
                     // we're preserving the consensus graph topology
@@ -485,13 +475,14 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     // add the consensus paths first
     // FIXME could this be run in parallel? --> create the path in an extra for
     std::cerr << "[smoothxg::create_consensus_graph] adding consensus paths" << std::endl;
+
     for (auto& path : consensus_paths) {
         // create the path
         path_handle_t path_cons_graph = consensus->create_path_handle(smoothed.get_path_name(path));
         handle_t cur_handle_in_cons_graph;
         // add the current node first, then add the step
         smoothed.for_each_step_in_path(path,
-                                       [&consensus, &smoothed, &path, &cur_handle_in_cons_graph, &path_cons_graph]
+                                       [&consensus, &smoothed, &cur_handle_in_cons_graph, &path_cons_graph]
                                        (const step_handle_t& step) {
             handle_t h = smoothed.get_handle_of_step(step);
             handle_t next_handle;
@@ -722,8 +713,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         links_by_start_end.end(),
         [](const link_range_t& a,
            const link_range_t& b) {
-            return a.start < b.end
-                             || a.start == b.end && a.end > b.end;
+            return a.start < b.end || a.start == b.end && a.end > b.end;
         });
 
     std::vector<std::pair<std::string, std::vector<handle_t>>> updated_links;
