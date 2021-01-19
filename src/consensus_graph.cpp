@@ -246,8 +246,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                             link_path_ms->append(link);
                             is_there_something.store(true);
 
-                            std::cerr << hh.str() << std::endl;
-
                             // reset link
                             link.from_cons_name = cons_path_ptr[idx_curr_consensus];
                             link.to_cons_name = cons_path_ptr[idx_curr_consensus];
