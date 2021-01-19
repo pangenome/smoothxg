@@ -11,7 +11,7 @@ bool operator<(const link_path_t& a,
     auto& a_1 = as_integer(a.to_cons_path);
     auto& b_0 = as_integer(b.from_cons_path);
     auto& b_1 = as_integer(b.to_cons_path);
-    return (a_0 < b_0) 
+    return (a_0 < b_0)
         || (a_0 == b_0
             && (a_1 < b_1
                 || (a_1 == b_1
@@ -170,12 +170,10 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
             handle_t h = smoothed.get_handle_of_step(step);
             nid_t node_id = smoothed.get_id(h);
 
-            // we use a bitvector (vector<bool>) saying if the node is in the consensus graph
-            // and then we don't have to iterate path_steps * path_steps
-            // we'll also need to store the path handle of the consensus path at that node (another vector!)
-            // .... but keep in mind that this makes the assumption that we have only one consensus path at any place in the graph
-            // .... if we have more, should we just handle the first in this context...?
-            ///.... currently we are using the "last" one we find (but there's only one)
+            // we store the path handle of the consensus path for each that node, but
+            // keep in mind that this makes the assumption that we have only one consensus
+            // path at any place in the graph : if we have more, should we just handle the
+            // first in this context? currently we are using the "last" (unique) one we find
             if (handle_is_consensus.test(node_id)) {
                 // if we're on the consensus
 
@@ -205,7 +203,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 #ifdef DEBUG
                 std::cerr << "path " << smoothed.get_path_name(path) << " switched from " << smoothed.get_path_name(last_seen_consensus) << " to " << smoothed.get_path_name(curr_consensus) << std::endl;
 #endif
-
                     // we've seen a consensus before, and it's the same
                     // and the direction of movement is correct
                     // check the distance in the graph position vector
@@ -221,13 +218,13 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         link.length = 0;
                     } else { // or it's different
                         // this is when we write a link candidate record
+
                         std::string seq = get_path_seq(smoothed.get_next_step(link.begin), step);
                         if (!seq.empty()) {
                             link.to_cons_name = cons_path_ptr[idx_curr_consensus];
                             link.to_cons_path = curr_consensus;
                             //link.begin = smoothed.get_next_step(link.begin);
                             link.end = step;
-                            //std::cerr << "writing to mmset" << std::endl;
 
                             link.length = seq.length();
 
@@ -236,7 +233,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                << ":"
                                << smoothed.get_id(curr_handle) // <==> smoothed.get_handle_of_step(link.end)
                                << ":"
-                               << get_path_seq(smoothed.get_next_step(link.begin), link.end);
+                               << seq;
                             link.hash = hash_seq(hh.str());
                             if (as_integer(link.from_cons_path) > idx_curr_consensus /* <==> as_integer(link.to_cons_path)*/) {
                                 std::swap(link.from_cons_path, link.to_cons_path);
@@ -245,18 +242,18 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                             link.jump_length = jump_length;
                             link_path_ms->append(link);
                             is_there_something.store(true);
-
-                            // reset link
-                            link.from_cons_name = cons_path_ptr[idx_curr_consensus];
-                            link.to_cons_name = cons_path_ptr[idx_curr_consensus];
-                            link.from_cons_path = curr_consensus;
-                            link.to_cons_path = curr_consensus;
-                            link.begin = step;
-                            link.end = step;
-                            link.length = 0;
-                            link.hash = 0;
-                            //link.is_rev = smoothed.get_is_reverse(curr_handle);
                         }
+
+                        // reset link
+                        link.from_cons_name = cons_path_ptr[idx_curr_consensus];
+                        link.to_cons_name = cons_path_ptr[idx_curr_consensus];
+                        link.from_cons_path = curr_consensus;
+                        link.to_cons_path = curr_consensus;
+                        link.begin = step;
+                        link.end = step;
+                        link.length = 0;
+                        link.hash = 0;
+                        //link.is_rev = smoothed.get_is_reverse(curr_handle);
                     }
                 }
             }/* else {
@@ -285,8 +282,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     ska::flat_hash_set<uint64_t> seen_nodes, // by copy
                     const xg::XG &graph) {
                     uint64_t novel_bp = 0;
-                    for (auto s = begin;
-                         s != end; s = graph.get_next_step(s)) {
+                    for (auto s = begin; s != end; s = graph.get_next_step(s)) {
                         handle_t h = graph.get_handle_of_step(s);
                         uint64_t i = graph.get_id(h);
                         if (!seen_nodes.count(i)) {
@@ -302,8 +298,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     const step_handle_t end,
                     ska::flat_hash_set<uint64_t> &seen_nodes, // by ref
                     const xg::XG &graph) {
-                    for (auto s = begin;
-                         s != end; s = graph.get_next_step(s)) {
+                    for (auto s = begin; s != end; s = graph.get_next_step(s)) {
                         handle_t h = graph.get_handle_of_step(s);
                         uint64_t i = graph.get_id(h);
                         if (!seen_nodes.count(i)) {
@@ -318,6 +313,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     std::map<uint64_t, uint64_t> hash_counts;
                     std::vector<link_path_t> unique_links;
                     uint64_t link_rank = 0;
+
+                    std::map<uint64_t, uint64_t> hash_lengths;
                     for (auto &link : links) {
                         //std::cerr << link << std::endl;
                         auto &c = hash_counts[link.hash];
@@ -325,11 +322,10 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                             unique_links.push_back(link);
                         }
                         ++c;
-                    }
-                    std::map<uint64_t, uint64_t> hash_lengths;
-                    for (auto &link : links) {
+
                         hash_lengths[link.hash] = link.length;
                     }
+
                     uint64_t best_count = 0;
                     uint64_t best_hash;
                     for (auto &c : hash_counts) {
@@ -349,25 +345,17 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     }
 
                     // if we have a 0-length link between consensus ends, add it
-                    handle_t from_end_fwd
-                            = smoothed.get_handle_of_step(
-                                    smoothed.path_back(
-                                            most_frequent_link.from_cons_path));
-                    handle_t to_begin_fwd
-                            = smoothed.get_handle_of_step(
-                                    smoothed.path_begin(
-                                            most_frequent_link.to_cons_path));
+                    handle_t from_end_fwd = smoothed.get_handle_of_step(
+                                    smoothed.path_back(most_frequent_link.from_cons_path));
+                    handle_t to_begin_fwd = smoothed.get_handle_of_step(
+                                    smoothed.path_begin(most_frequent_link.to_cons_path));
                     handle_t from_end_rev = smoothed.flip(to_begin_fwd);
                     handle_t to_begin_rev = smoothed.flip(from_end_fwd);
 
-                    handle_t from_begin_fwd
-                            = smoothed.get_handle_of_step(
-                                    smoothed.path_begin(
-                                            most_frequent_link.from_cons_path));
-                    handle_t to_end_fwd
-                            = smoothed.get_handle_of_step(
-                                    smoothed.path_back(
-                                            most_frequent_link.to_cons_path));
+                    handle_t from_begin_fwd = smoothed.get_handle_of_step(
+                                    smoothed.path_begin(most_frequent_link.from_cons_path));
+                    handle_t to_end_fwd = smoothed.get_handle_of_step(
+                                    smoothed.path_back(most_frequent_link.to_cons_path));
                     handle_t from_begin_rev = smoothed.flip(from_begin_fwd);
                     handle_t to_end_rev = smoothed.flip(to_end_fwd);
 
@@ -391,8 +379,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                             //path_handle_t from_cons;
                             //path_handle_t to_cons;
                             // are we just stepping from the end of one to the beginning of the other?
-                            for (step_handle_t s = link.begin;
-                                 s != link.end; s = smoothed.get_next_step(s)) {
+                            for (step_handle_t s = link.begin; s != link.end; s = smoothed.get_next_step(s)) {
                                 step_handle_t next = smoothed.get_next_step(s);
                                 handle_t b = smoothed.get_handle_of_step(s);
                                 handle_t e = smoothed.get_handle_of_step(next);
@@ -473,8 +460,10 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                || curr_to_cons_path != v.to_cons_path) {
                         // compute the best link in the set of curr_links
                         compute_best_link(curr_links);
+
                         // reset the links
-                        curr_links.clear();
+                        std::vector<link_path_t>().swap(curr_links);
+
                         curr_from_cons_path = v.from_cons_path;
                         curr_to_cons_path = v.to_cons_path;
                         curr_links.push_back(v);
