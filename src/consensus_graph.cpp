@@ -3,6 +3,8 @@
 
 namespace smoothxg {
 
+//#define DEBUG
+
 bool operator<(const link_path_t& a,
                const link_path_t& b) {
     auto& a_0 = as_integer(a.from_cons_path);
@@ -97,7 +99,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
             }
         });
 
-    auto get_path_seq_length =
+    /*auto get_path_seq_length =
         [&](const step_handle_t& begin,
             const step_handle_t& end) {
             uint64_t len = 0;
@@ -105,7 +107,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                 len += smoothed.get_length(smoothed.get_handle_of_step(i));
             }
             return len;
-        };
+        };*/
     
     auto get_path_seq =
         [&](const step_handle_t& begin,
@@ -155,8 +157,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 #pragma omp parallel for schedule(static, 1) num_threads(thread_count)
     for (uint64_t idx = 0; idx < non_consensus_paths.size(); ++idx){
         auto& path = non_consensus_paths[idx];
-
+#ifdef DEBUG
         path_handle_t last_seen_consensus;
+#endif
         bool seen_consensus = false;
 
         link_path_t link;
@@ -191,18 +194,17 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     link.length = 0;
                     link.hash = 0;
                     seen_consensus = true;
+#ifdef DEBUG
                     last_seen_consensus = curr_consensus;
+#endif
                     // TODO do we want to add the allele depth of the start and end consensus handles to the link object?
 
                     // TODO add frequency to construct link_path_t --> double
                     // TODO min and max frequency
                 } else {
-                    /*
-                    if (last_seen_consensus != consensus) {
-                        std::cerr << "path " << smoothed.get_path_name(path) << " switched from " << smoothed.get_path_name(last_seen_consensus) << " to " << smoothed.get_path_name(consensus) << std::endl;
-                        last_seen_consensus = consensus;
-                    }
-                    */
+#ifdef DEBUG
+                std::cerr << "path " << smoothed.get_path_name(path) << " switched from " << smoothed.get_path_name(last_seen_consensus) << " to " << smoothed.get_path_name(curr_consensus) << std::endl;
+#endif
 
                     // we've seen a consensus before, and it's the same
                     // and the direction of movement is correct
@@ -219,41 +221,44 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         link.length = 0;
                     } else { // or it's different
                         // this is when we write a link candidate record
-                        link.to_cons_name = cons_path_ptr[idx_curr_consensus];
-                        link.to_cons_path = curr_consensus;
-                        //link.begin = smoothed.get_next_step(link.begin);
-                        link.end = step;
-                        //std::cerr << "writing to mmset" << std::endl;
+                        std::string seq = get_path_seq(smoothed.get_next_step(link.begin), step);
+                        if (!seq.empty()) {
+                            link.to_cons_name = cons_path_ptr[idx_curr_consensus];
+                            link.to_cons_path = curr_consensus;
+                            //link.begin = smoothed.get_next_step(link.begin);
+                            link.end = step;
+                            //std::cerr << "writing to mmset" << std::endl;
 
-                        std::string seq = get_path_seq(smoothed.get_next_step(link.begin), link.end);
+                            link.length = seq.length();
 
-                        link.length = seq.length();
+                            stringstream hh;
+                            hh << smoothed.get_id(smoothed.get_handle_of_step(link.begin))
+                               << ":"
+                               << smoothed.get_id(curr_handle) // <==> smoothed.get_handle_of_step(link.end)
+                               << ":"
+                               << get_path_seq(smoothed.get_next_step(link.begin), link.end);
+                            link.hash = hash_seq(hh.str());
+                            if (as_integer(link.from_cons_path) > idx_curr_consensus /* <==> as_integer(link.to_cons_path)*/) {
+                                std::swap(link.from_cons_path, link.to_cons_path);
+                                std::swap(link.from_cons_name, link.to_cons_name);
+                            }
+                            link.jump_length = jump_length;
+                            link_path_ms->append(link);
+                            is_there_something.store(true);
 
-                        stringstream hh;
-                        hh << smoothed.get_id(smoothed.get_handle_of_step(link.begin))
-                          << ":"
-                          << smoothed.get_id(curr_handle) // <==> smoothed.get_handle_of_step(link.end)
-                          << ":"
-                          << get_path_seq(smoothed.get_next_step(link.begin), link.end);
-                        link.hash = hash_seq(hh.str());
-                        if (as_integer(link.from_cons_path) > as_integer(link.to_cons_path)) {
-                            std::swap(link.from_cons_path, link.to_cons_path);
-                            std::swap(link.from_cons_name, link.to_cons_name);
+                            std::cerr << hh.str() << std::endl;
+
+                            // reset link
+                            link.from_cons_name = cons_path_ptr[idx_curr_consensus];
+                            link.to_cons_name = cons_path_ptr[idx_curr_consensus];
+                            link.from_cons_path = curr_consensus;
+                            link.to_cons_path = curr_consensus;
+                            link.begin = step;
+                            link.end = step;
+                            link.length = 0;
+                            link.hash = 0;
+                            //link.is_rev = smoothed.get_is_reverse(curr_handle);
                         }
-                        link.jump_length = jump_length;
-                        link_path_ms->append(link);
-                        is_there_something.store(true);
-
-                        // reset link
-                        link.from_cons_name = cons_path_ptr[idx_curr_consensus];
-                        link.to_cons_name = cons_path_ptr[idx_curr_consensus];
-                        link.from_cons_path = curr_consensus;
-                        link.to_cons_path = curr_consensus;
-                        link.begin = step;
-                        link.end = step;
-                        link.length = 0;
-                        link.hash = 0;
-                        link.is_rev = smoothed.get_is_reverse(curr_handle);
                     }
                 }
             }/* else {
