@@ -52,22 +52,25 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     }
 
     std::vector<std::string*> cons_path_ptr(smoothed.get_path_count()+1, nullptr);
-    // should be compact ... should check
-    uint64_t idx = 0;
-    for (auto& path : consensus_paths) {
-        cons_path_ptr[as_integer(path)] = (std::string*)&consensus_path_names[idx++];
+    std::vector<bool> is_consensus(smoothed.get_path_count()+1, false);
+
+    {
+        uint64_t idx = 0;
+
+        // TODO should be compact ... should check
+        for (auto& path : consensus_paths) {
+            uint64_t x = as_integer(path);
+            cons_path_ptr[x] = (std::string*)&consensus_path_names[idx++];
+            is_consensus[x] = true;
+        }
     }
+
     // walk each path
     // record distance since last step on a consensus path
     // record first step handle off a consensus path
     // detect consensus switches, writing the distance to the last consensus step, step
     // into an array of tuples
     std::cerr << "[smoothxg::create_consensus_graph] deriving consensus graph with consensus-jump-max=" << consensus_jump_max << std::endl;
-    
-    std::vector<bool> is_consensus(smoothed.get_path_count()+1, false);
-    for (auto& path : consensus_paths) {
-        is_consensus[as_integer(path)] = true;
-    }
 
     atomicbitvector::atomic_bv_t handle_is_consensus(smoothed.get_node_count());
     std::vector<path_handle_t> consensus_path_handles(smoothed.get_node_count());
