@@ -274,7 +274,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         auto novel_sequence_length =
                 [&](const step_handle_t begin,
                     const step_handle_t end,
-                    ska::flat_hash_set<uint64_t> seen_nodes, // by copy
+                    ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
                     const xg::XG &graph) {
                     uint64_t novel_bp = 0;
                     for (auto s = begin;
@@ -288,6 +288,41 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     }
                     return novel_bp;
                 };
+
+        auto largest_novel_gap =
+                [&](const step_handle_t begin,
+                    const step_handle_t end,
+                    ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
+                    const xg::XG &graph) {
+                    uint64_t novel_bp = 0;
+                    uint64_t largest_gap = 0;
+                    for (auto s = begin;
+                         s != end; s = graph.get_next_step(s)) {
+                        handle_t h = graph.get_handle_of_step(s);
+                        uint64_t i = graph.get_id(h);
+                        if (!seen_nodes.count(i)) {
+                            novel_bp += graph.get_length(h);
+                            seen_nodes.insert(i);
+                        } else {
+                            largest_gap = std::max(novel_bp, largest_gap);
+                            novel_bp = 0;
+                        }
+                    }
+                    return largest_gap;
+                };
+
+        auto get_step_count =
+                [&](const step_handle_t begin,
+                    const step_handle_t end,
+                    const xg::XG &graph) {
+                    uint64_t count = 0;
+                    for (auto s = begin;
+                         s != end; s = graph.get_next_step(s)) {
+                        ++count;
+                    }
+                    return count;
+                };
+
 
         auto mark_seen_nodes =
                 [&](const step_handle_t begin,
@@ -430,9 +465,13 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         if (link.hash == best_hash) {
                             continue;
                         }
-                        uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
+                        uint64_t novel_bp = largest_novel_gap(link.begin, link.end, seen_nodes, smoothed);
+                        uint64_t step_count = get_step_count(link.begin, link.end, smoothed);
+                        // we accept jump-based lengths and also novel_bp calcs based on the largest gap we find
                         if (link.jump_length >= consensus_jump_max
-                            || novel_bp >= consensus_jump_max) {
+                            && (link.length == 0 || novel_bp == 0 || (double)novel_bp / (double)step_count > 1)
+                            ||
+                            novel_bp >= consensus_jump_max) {
                             link.rank = link_rank++;
                             consensus_links.push_back(link);
                             mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);
