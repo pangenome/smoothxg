@@ -211,29 +211,27 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         // this is when we write a link candidate record
 
                         std::string seq = get_path_seq(smoothed.get_next_step(link.begin), step);
-                        if (!seq.empty()) {
-                            link.to_cons_name = cons_path_ptr[idx_curr_consensus];
-                            link.to_cons_path = curr_consensus;
-                            //link.begin = smoothed.get_next_step(link.begin);
-                            link.end = step;
+                        link.to_cons_name = cons_path_ptr[idx_curr_consensus];
+                        link.to_cons_path = curr_consensus;
+                        //link.begin = smoothed.get_next_step(link.begin);
+                        link.end = step;
 
-                            link.length = seq.length();
+                        link.length = seq.length();
 
-                            stringstream hh;
-                            hh << smoothed.get_id(smoothed.get_handle_of_step(link.begin))
-                               << ":"
-                               << smoothed.get_id(curr_handle) // <==> smoothed.get_handle_of_step(link.end)
-                               << ":"
-                               << seq;
-                            link.hash = hash_seq(hh.str());
-                            if (as_integer(link.from_cons_path) > idx_curr_consensus /* <==> as_integer(link.to_cons_path)*/) {
-                                std::swap(link.from_cons_path, link.to_cons_path);
-                                std::swap(link.from_cons_name, link.to_cons_name);
-                            }
-                            link.jump_length = jump_length;
-                            link_path_ms->append(link);
-                            is_there_something.store(true);
+                        stringstream hh;
+                        hh << smoothed.get_id(smoothed.get_handle_of_step(link.begin))
+                           << ":"
+                           << smoothed.get_id(curr_handle) // <==> smoothed.get_handle_of_step(link.end)
+                           << ":"
+                           << seq;
+                        link.hash = hash_seq(hh.str());
+                        if (as_integer(link.from_cons_path) > idx_curr_consensus /* <==> as_integer(link.to_cons_path)*/) {
+                            std::swap(link.from_cons_path, link.to_cons_path);
+                            std::swap(link.from_cons_name, link.to_cons_name);
                         }
+                        link.jump_length = jump_length;
+                        link_path_ms->append(link);
+                        is_there_something.store(true);
 
                         // reset link
                         link.from_cons_name = cons_path_ptr[idx_curr_consensus];
