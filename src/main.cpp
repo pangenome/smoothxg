@@ -66,6 +66,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE", "read the consensus path names from this file", {'H', "read-consensus-path-names"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
     args::ValueFlag<std::string> _consensus_jump_max(parser, "jump_max[,jump_max]*", "preserve all divergences from the consensus paths greater than this length, with multiples allowed [default: 100]", {'C', "consensus-jump-max"});
+    args::ValueFlag<uint64_t> _consensus_jump_limit(parser, "jump_limit", "ignore consensus jumps farther than this in the sort order of the smoothed graph [default: 1e6]", {'Q', "consensus-jump-limit"});
 
     // Merge blocks (for merging MAF blocks and consensus sequences)
     args::Flag merge_blocks(parser, "bool", "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",{'M', "merge-blocks"});
@@ -421,6 +422,7 @@ int main(int argc, char** argv) {
         } else {
             jump_maxes.push_back(100);
         }
+        uint64_t jump_limit = (_consensus_jump_limit ? args::get(_consensus_jump_limit) : 1e6);
         std::cerr << "[smoothxg::main] building xg index from smoothed graph" << std::endl;
         XG smoothed_xg;
         if (_read_consensus_path_names) {
@@ -438,7 +440,7 @@ int main(int argc, char** argv) {
         }
         for (auto jump_max : jump_maxes) {
             odgi::graph_t* consensus_graph = smoothxg::create_consensus_graph(
-                smoothed_xg, consensus_path_names, jump_max, n_threads,
+                smoothed_xg, consensus_path_names, jump_max, jump_limit, n_threads,
                 args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
             ofstream o(consensus_base + "@" + std::to_string(jump_max) + ".gfa");
             consensus_graph->to_gfa(o);
