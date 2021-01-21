@@ -465,13 +465,20 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         if (link.hash == best_hash) {
                             continue;
                         }
-                        uint64_t novel_bp = largest_novel_gap(link.begin, link.end, seen_nodes, smoothed);
+                        uint64_t largest_novel_gap_bp = largest_novel_gap(link.begin, link.end, seen_nodes, smoothed);
+                        uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
                         uint64_t step_count = get_step_count(link.begin, link.end, smoothed);
-                        // we accept jump-based lengths and also novel_bp calcs based on the largest gap we find
+                        // this complex filter attempts to keep representative link paths for indels above our consensus_jump_max
+                        // we either need the jump length (measured in terms of delta in our graph vector) to be over our jump max
+                        // *and* the link path should be empty or mostly novel
+                        // *or* we're adding in the specified amount of novel_bp of sequence
                         if (link.jump_length >= consensus_jump_max
-                            && (link.length == 0 || novel_bp == 0 || (double)novel_bp / (double)step_count > 1)
+                            && (link.length == 0 ||
+                                (double)largest_novel_gap_bp / (double)step_count > 1)
                             ||
-                            novel_bp >= consensus_jump_max) {
+                            //novel_bp >= consensus_jump_max
+                            largest_novel_gap_bp >= consensus_jump_max
+                            ) {
                             link.rank = link_rank++;
                             consensus_links.push_back(link);
                             mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);
