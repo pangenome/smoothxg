@@ -769,11 +769,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                 for (uint64_t i = 0; i < num_seq_in_block; i++) {
                                     // Do not check the consensus (always forward)
                                     if (!add_consensus || i < num_seq_in_block - 1) {
-
                                         auto &maf_row = mafs[block_id][i];
 
                                         // To merge a block, it has to contains new sequences...
-                                        if (merged_maf_blocks.rows.count(maf_row.path_name) == 1) {
+                                        if (merged_maf_blocks.rows.count(maf_row.path_name) > 0) {
                                             // ...or mergeable ones
 
                                             bool found_contiguous_row = false;
@@ -1023,6 +1022,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                     clear_vector(rows);
                                 }
 
+                                // Cleaning
                                 clear_string(block_id_range);
 
                                 clear_vector(merged_maf_blocks.field_blocks);
