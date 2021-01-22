@@ -559,8 +559,8 @@ void _put_block_in_group(
         } else {
             for (auto &merged_maf_prow : merged_maf_blocks.rows[maf_row.path_name]) {
                 // Check the length to avoid merging more rows from the same last block
-                if (merged_maf_prow.aligned_seq.length() == alignment_size_merged_maf_blocks &&
-                    maf_row.is_reversed == merged_maf_prow.is_reversed){
+                if (maf_row.is_reversed == merged_maf_prow.is_reversed &&
+                    merged_maf_prow.aligned_seq.length() == alignment_size_merged_maf_blocks) {
                     if (merged_maf_prow.is_reversed){
                         if ((merged_maf_prow.path_length - merged_maf_prow.record_start) == (maf_row.path_length - (maf_row.record_start + maf_row.seq_size))) {
                             // merged_maf_row_end == maf_row_begin, new row on the left
@@ -605,7 +605,7 @@ void _put_block_in_group(
         }
 
         if (!merged_row){
-            // If in the merged group there are sequences from previous blocks, put gaps for the new added paths form new blocks
+            // If in the merged group there are sequences from previous blocks, put gaps for the new added paths for new blocks
             std::string gaps = "";
             for (uint64_t j = 0; j < alignment_size_merged_maf_blocks; j++){ gaps += "-"; }
 
@@ -745,6 +745,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                 while (block_id < num_blocks) {
                     if (mafs_ready.test(block_id)) {
+                        //std::cerr << "block_id (" << block_id << ")" << std::endl;
+
                         uint64_t num_seq_in_block = mafs[block_id].size();
 
                         bool is_last_block = (block_id == num_blocks - 1);
@@ -766,7 +768,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                 uint64_t num_contiguous_seq = 0;
 
-                                for (uint64_t i = 0; i < num_seq_in_block; i++) {
+                                for (uint64_t i = 0; i < num_seq_in_block; ++i) {
                                     // Do not check the consensus (always forward)
                                     if (!add_consensus || i < num_seq_in_block - 1) {
                                         auto &maf_row = mafs[block_id][i];
@@ -775,7 +777,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                         if (merged_maf_blocks.rows.count(maf_row.path_name) > 0) {
                                             // ...or mergeable ones
 
-                                            bool found_contiguous_row = false;
                                             for (auto &merged_maf_prow : merged_maf_blocks.rows[maf_row.path_name]) {
                                                 if (maf_row.is_reversed == merged_maf_prow.is_reversed) {
                                                     if (maf_row.is_reversed) {
@@ -789,7 +790,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                                                 new_block_on_the_left = 1;
 
-                                                                found_contiguous_row = true;
                                                                 num_contiguous_seq += 1;
 
                                                                 break;
@@ -805,7 +805,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                                                 new_block_on_the_left = 0;
 
-                                                                found_contiguous_row = true;
                                                                 num_contiguous_seq += 1;
 
                                                                 break;
@@ -821,7 +820,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                                                 new_block_on_the_left = 0;
 
-                                                                found_contiguous_row = true;
                                                                 num_contiguous_seq += 1;
 
                                                                 break;
@@ -835,7 +833,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                                                 new_block_on_the_left = 1;
 
-                                                                found_contiguous_row = true;
                                                                 num_contiguous_seq += 1;
 
                                                                 break;
@@ -846,31 +843,22 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                                     break;
                                                 }
                                             }
-
-                                            if (!found_contiguous_row) {
-                                                merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
-                                                prep_new_merge_group = !is_last_block;
-                                                break;
-                                            }
                                         }
                                     }
                                 }
 
-                                //std::cerr << "blockId " << block_id << " is mergeable: " << (merged ? "yes" : "no") << std::endl;
-                                if (merged) {
-                                    uint64_t num_merged_seq = 0;
-                                    for (auto &maf_prows : merged_maf_blocks.rows) { num_merged_seq += maf_prows.second.size(); }
+                                uint64_t num_merged_seq = 0;
+                                for (auto &maf_prows : merged_maf_blocks.rows) { num_merged_seq += maf_prows.second.size(); }
+                                double current_contiguous_path_jaccard =
+                                        (double) num_contiguous_seq /
+                                        (double) (num_seq_in_block - (add_consensus ? 1 : 0) + num_merged_seq - num_contiguous_seq);
 
-                                    double current_contiguous_path_jaccard =
-                                            (double) num_contiguous_seq /
-                                            (double) (num_seq_in_block - (add_consensus ? 1 : 0) + num_merged_seq -
-                                                      num_contiguous_seq);
+                                //std::cerr << "block_id (" << block_id << ") - current_contiguous_path_jaccard (" << current_contiguous_path_jaccard << ") >= contiguous_path_jaccard (" << contiguous_path_jaccard << ")" << std::endl;
 
-                                    if (current_contiguous_path_jaccard < contiguous_path_jaccard) {
-                                        merged = false;
-                                        prep_new_merge_group = !is_last_block;
-                                        fraction_below_threshold = true;
-                                    }
+                                if (current_contiguous_path_jaccard < contiguous_path_jaccard) {
+                                    merged = false;
+                                    prep_new_merge_group = !is_last_block;
+                                    fraction_below_threshold = true;
 
                                     //std::cerr << "blockId " << block_id << " will be merged: " << (merged ? "yes" : "no") << std::endl << std::endl;
                                 }
