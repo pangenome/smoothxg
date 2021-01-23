@@ -74,7 +74,7 @@ void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
                const std::vector<std::string> &sequence_names,
                bool include_consensus);
 
-void build_odgi(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
+void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
                 const std::vector<std::string> &sequence_names,
                 const std::vector<bool> &aln_is_reverse,
                 const std::string &consensus_name,
