@@ -34,7 +34,7 @@ void clear_vector(std::vector<T>& vec) {
     vec.shrink_to_fit();
     std::vector<T>().swap(vec);
 }
-void clear_string(std::string str){
+void clear_string(std::string& str){
     str.clear();
     str.shrink_to_fit();
     std::string().swap(str);
