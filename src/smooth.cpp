@@ -767,7 +767,6 @@ void _put_block_in_group(
 
     clear_string(gaps);
 
-    //todo to update the name to remember the flip?
     // The merged consensus is created when the merged block is written into a file
     if (!consensus_name.empty()){
         // IMPORTANT: it assumes a single consensus sequence!
@@ -775,6 +774,7 @@ void _put_block_in_group(
 
         auto &maf_row = mafs[block_id][consensus_name][0];
 
+        //uint64_t maf_row_record_start = flip_block_before_merging ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
         if (flip_block_before_merging) {
             reverse_complement_in_place(maf_row.aligned_seq);
         }
@@ -786,9 +786,9 @@ void _put_block_in_group(
             merged_maf_blocks.consensus_rows.insert(merged_maf_blocks.consensus_rows.begin(), std::pair<std::string, maf_partial_row_t>(
                     consensus_name,
                     {
-                            maf_row.record_start,
+                            maf_row.record_start,//maf_row_record_start,
                             maf_row.seq_size,
-                            maf_row.is_reversed,
+                            maf_row.is_reversed,//(bool) (flip_block_before_merging ^ maf_row.is_reversed),
                             maf_row.path_length,
                             maf_row.aligned_seq
                     }
@@ -797,9 +797,9 @@ void _put_block_in_group(
             merged_maf_blocks.consensus_rows.push_back(std::pair<std::string, maf_partial_row_t>(
                     consensus_name,
                     {
-                            maf_row.record_start,
+                            maf_row.record_start,//maf_row_record_start,
                             maf_row.seq_size,
-                            maf_row.is_reversed,
+                            maf_row.is_reversed,//(bool) (flip_block_before_merging ^ maf_row.is_reversed),
                             maf_row.path_length,
                             maf_row.aligned_seq
                     }
@@ -1409,7 +1409,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         write_maf_thread.join();
     }
 
-/*
+
 #pragma omp parallel for schedule(dynamic,1)
     for (uint64_t block_id = 0; block_id < block_graphs.size(); ++block_id) {
         if (blok_to_flip.test(block_id)) {
@@ -1420,7 +1420,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block_graphs[block_id]->for_each_handle(
                     [&](const handle_t& old_handle) {
                         handle_t rev_handle = flipped_graph->create_handle(
-                                block_graphs[block_id]->get_sequence(old_handle),
+                                block_graphs[block_id]->get_sequence(block_graphs[block_id]->flip(old_handle)),
                                 block_graphs[block_id]->get_id(old_handle));
                         forward_translation[old_handle] = rev_handle;
                     });
@@ -1433,35 +1433,48 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     rev_left = flipped_graph->flip(forward_translation[block_graphs[block_id]->flip(edge.first)]);
                 }
                 else {
-                    rev_left = forward_translation[edge.first];
+                    rev_left = flipped_graph->flip(forward_translation[edge.first]);
                 }
 
-                if (block_graphs[block_id]->get_is_reverse(edge.second)) {
+                if (!block_graphs[block_id]->get_is_reverse(edge.second)) {
                     rev_right = flipped_graph->flip(forward_translation[block_graphs[block_id]->flip(edge.second)]);
                 }
                 else {
-                    rev_right = forward_translation[edge.second];
+                    rev_right = flipped_graph->flip(forward_translation[edge.second]);
                 }
 
                 // actually make the edge
-                flipped_graph->create_edge(rev_right, rev_left);
+                flipped_graph->create_edge(rev_left, rev_right);
             });
 
+            std::string consensus_name;
+            if (add_consensus){
+                consensus_name = consensus_base_name + std::to_string(block_id);
+            }
 
-
-            //flipped_graph->prepend_step()
             block_graphs[block_id]->for_each_path_handle(
                     [&](const path_handle_t& old_path) {
-                        path_handle_t new_path = flipped_graph->create_path_handle(block_graphs[block_id]->get_path_name(old_path));
-                        block_graphs[block_id]->for_each_step_in_path(old_path, [&](const step_handle_t& step) {
-                            handle_t old_handle = block_graphs[block_id]->get_handle_of_step(step);
-                            handle_t new_handle = flipped_graph->get_handle(
-                                    block_graphs[block_id]->get_id(old_handle),
-                                    !block_graphs[block_id]->get_is_reverse(old_handle));
-                            flipped_graph->prepend_step(new_path, new_handle);
-                        });
-                    });
+                        string path_name = block_graphs[block_id]->get_path_name(old_path);
+                        path_handle_t new_path = flipped_graph->create_path_handle(path_name);
+                        if (path_name != consensus_name) {
+                            block_graphs[block_id]->for_each_step_in_path(old_path, [&](const step_handle_t& step) {
+                                handle_t old_handle = block_graphs[block_id]->get_handle_of_step(step);
+                                handle_t new_handle = flipped_graph->get_handle(
+                                        block_graphs[block_id]->get_id(old_handle),
+                                        !block_graphs[block_id]->get_is_reverse(old_handle));
+                                flipped_graph->append_step(new_path, new_handle);
+                            });
+                        } else {
+                            block_graphs[block_id]->for_each_step_in_path(old_path, [&](const step_handle_t& step) {
+                                handle_t old_handle = block_graphs[block_id]->get_handle_of_step(step);
+                                handle_t new_handle = flipped_graph->get_handle(
+                                        block_graphs[block_id]->get_id(old_handle),
+                                        block_graphs[block_id]->get_is_reverse(old_handle));
+                                flipped_graph->prepend_step(new_path, new_handle);
+                            });
+                        }
 
+                    });
 
             //std::cerr << "block_id " << block_id << std::endl;
             //std::ofstream a(std::to_string(block_id) + "A.gfa");
@@ -1470,13 +1483,11 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             //std::ofstream b(std::to_string(block_id) + "B.gfa");
             //flipped_graph->to_gfa(b);
             //b.close();
-
-
             delete block_graphs[block_id];
             block_graphs[block_id] = flipped_graph;
         }
     }
-*/
+
     std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings" << std::endl;
     // sort the path range mappings by path handle id, then start position
     // this will allow us to walk through them in order
