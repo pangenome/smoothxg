@@ -9,7 +9,8 @@
 #include "deps/cgranges/cpp/IITree.h"
 #include "atomic_bitvector.hpp"
 
-#include "deps/odgi/src/dna.hpp"
+#include "deps/odgi/src/dna.hpp" //todo
+
 
 #include "progress.hpp"
 
@@ -871,6 +872,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     IITree<uint64_t, uint64_t> merged_block_id_intervals_tree;
     std::unordered_set<uint64_t> inverted_merged_block_id_intervals_ranks;
 
+    atomicbitvector::atomic_bv_t blok_to_flip(blockset->size());
+
     {
         bool produce_maf = !path_output_maf.empty();
 
@@ -880,8 +883,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         // but the sequences will be considered (and kept in memory) only if a MAF has to be produced
         std::vector<std::map<std::string, std::vector<maf_partial_row_t>>> mafs(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
         atomicbitvector::atomic_bv_t mafs_ready(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
-
-        std::vector<bool> block_id_to_flip;
 
         auto write_maf_lambda = [&]() {
             if (produce_maf || (add_consensus && merge_blocks)) {
@@ -1070,7 +1071,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                         if (merged) {
                             // ..then merge
                             if (flip_block_before_merging) {
-                                block_id_to_flip.push_back(block_id);
+                                blok_to_flip.set(block_id);
                             }
 
                             _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, consensus_name,mafs,new_block_on_the_left == 1, flip_block_before_merging);
@@ -1408,8 +1409,75 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         write_maf_thread.join();
     }
 
-    std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings"
-              << std::endl;
+/*
+#pragma omp parallel for schedule(dynamic,1)
+    for (uint64_t block_id = 0; block_id < block_graphs.size(); ++block_id) {
+        if (blok_to_flip.test(block_id)) {
+            auto* flipped_graph = new odgi::graph_t();
+
+            unordered_map<handle_t, handle_t> forward_translation;
+
+            block_graphs[block_id]->for_each_handle(
+                    [&](const handle_t& old_handle) {
+                        handle_t rev_handle = flipped_graph->create_handle(
+                                block_graphs[block_id]->get_sequence(old_handle),
+                                block_graphs[block_id]->get_id(old_handle));
+                        forward_translation[old_handle] = rev_handle;
+                    });
+
+            // make the edges
+            block_graphs[block_id]->for_each_edge([&](const edge_t& edge) {
+                // get the two sides in the correct orientation
+                handle_t rev_left, rev_right;
+                if (block_graphs[block_id]->get_is_reverse(edge.first)) {
+                    rev_left = flipped_graph->flip(forward_translation[block_graphs[block_id]->flip(edge.first)]);
+                }
+                else {
+                    rev_left = forward_translation[edge.first];
+                }
+
+                if (block_graphs[block_id]->get_is_reverse(edge.second)) {
+                    rev_right = flipped_graph->flip(forward_translation[block_graphs[block_id]->flip(edge.second)]);
+                }
+                else {
+                    rev_right = forward_translation[edge.second];
+                }
+
+                // actually make the edge
+                flipped_graph->create_edge(rev_right, rev_left);
+            });
+
+
+
+            //flipped_graph->prepend_step()
+            block_graphs[block_id]->for_each_path_handle(
+                    [&](const path_handle_t& old_path) {
+                        path_handle_t new_path = flipped_graph->create_path_handle(block_graphs[block_id]->get_path_name(old_path));
+                        block_graphs[block_id]->for_each_step_in_path(old_path, [&](const step_handle_t& step) {
+                            handle_t old_handle = block_graphs[block_id]->get_handle_of_step(step);
+                            handle_t new_handle = flipped_graph->get_handle(
+                                    block_graphs[block_id]->get_id(old_handle),
+                                    !block_graphs[block_id]->get_is_reverse(old_handle));
+                            flipped_graph->prepend_step(new_path, new_handle);
+                        });
+                    });
+
+
+            //std::cerr << "block_id " << block_id << std::endl;
+            //std::ofstream a(std::to_string(block_id) + "A.gfa");
+            //block_graphs[block_id]->to_gfa(a);
+            //a.close();
+            //std::ofstream b(std::to_string(block_id) + "B.gfa");
+            //flipped_graph->to_gfa(b);
+            //b.close();
+
+
+            delete block_graphs[block_id];
+            block_graphs[block_id] = flipped_graph;
+        }
+    }
+*/
+    std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings" << std::endl;
     // sort the path range mappings by path handle id, then start position
     // this will allow us to walk through them in order
     ips4o::parallel::sort(
