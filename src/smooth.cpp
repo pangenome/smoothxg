@@ -9,7 +9,55 @@
 #include "deps/cgranges/cpp/IITree.h"
 #include "atomic_bitvector.hpp"
 
+#include "deps/odgi/src/dna.hpp"
+
 #include "progress.hpp"
+
+static const char complement[256] = {'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 8
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 16
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 24
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 32
+                                     'N', 'N', 'N', '$', '#', 'N', 'N', 'N', // 40 GCSA stop/start characters
+                                     'N', 'N', 'N', 'N', 'N', '-', 'N', 'N', // 48
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 56
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 64
+                                     'N', 'T', 'V', 'G', 'H', 'N', 'N', 'C', // 72
+                                     'D', 'N', 'N', 'M', 'N', 'K', 'N', 'N', // 80
+                                     'N', 'Q', 'Y', 'W', 'A', 'A', 'B', 'S', // 88
+                                     'N', 'R', 'N', 'N', 'N', 'N', 'N', 'N', // 96
+                                     'N', 't', 'v', 'g', 'h', 'N', 'N', 'c', // 104
+                                     'd', 'N', 'N', 'm', 'N', 'k', 'n', 'N', // 112
+                                     'N', 'q', 'y', 'w', 'a', 'a', 'b', 's', // 120
+                                     'N', 'r', 'N', 'N', 'N', 'N', 'N', 'N', // 128
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 136
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 144
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 152
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 160
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 168
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 176
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 184
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 192
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 200
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 208
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 216
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 224
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 232
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 240
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 248
+                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N'};// 256
+
+inline void reverse_complement_in_place(std::string& seq) {
+    size_t swap_size = seq.size() / 2;
+    for (size_t i = 0, j = seq.size() - 1; i < swap_size; i++, j--) {
+        char tmp = seq[i];
+        seq[i] = complement[seq[j]];
+        seq[j] = complement[tmp];
+    }
+
+    if (seq.size() % 2) {
+        seq[swap_size] = complement[seq[swap_size]];
+    }
+}
 
 namespace smoothxg {
 
@@ -556,9 +604,11 @@ void _put_block_in_group(
         maf_t &merged_maf_blocks, uint64_t block_id, uint64_t num_seq_in_block,
         std::string consensus_name,
         std::vector<std::map<std::string, std::vector<maf_partial_row_t>>> &mafs,
-        bool new_block_on_the_left
+        bool new_block_on_the_left,
+        bool flip_block_before_merging
 ){
     //std::cerr << "_put_block_in_group (" << block_id << ")" << std::endl;
+    //std::cerr << "flip_block_before_merging (" << flip_block_before_merging << ")" << std::endl;
 
     uint64_t alignment_size_merged_maf_blocks =
             merged_maf_blocks.block_ids.empty() ? 0 : merged_maf_blocks.rows.begin()->second.begin() ->aligned_seq.length();
@@ -579,11 +629,18 @@ void _put_block_in_group(
                 ));
 
                 for (auto& maf_row : path_to_maf_rows.second) {
+                    uint64_t maf_row_record_start = flip_block_before_merging ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
+
+                    if (flip_block_before_merging) {
+                        reverse_complement_in_place(maf_row.aligned_seq);
+                    }
+
                     merged_maf_blocks.rows[path_to_maf_rows.first].push_back({
-                            maf_row.record_start,
+                            maf_row_record_start,
                             maf_row.seq_size,
-                            maf_row.is_reversed,
+                            (bool)(flip_block_before_merging ^ maf_row.is_reversed),
                             maf_row.path_length,
+
                             new_block_on_the_left ? maf_row.aligned_seq + gaps : gaps + maf_row.aligned_seq
                     });
                 }
@@ -598,6 +655,7 @@ void _put_block_in_group(
                     //std::cerr << "rank_row " << rank_row << std::endl;
 
                     auto& maf_row = path_to_maf_rows.second[rank_row];
+                    uint64_t maf_row_record_start = flip_block_before_merging ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
 
                     bool merged = false;
 
@@ -605,25 +663,35 @@ void _put_block_in_group(
                         //std::cerr << "merged_maf_prow " << path_to_maf_rows.first << std::endl;
 
                         // Check the length to avoid merging more rows from the same last block
-                        if (maf_row.is_reversed == merged_maf_prow.is_reversed && merged_maf_prow.aligned_seq.length() == alignment_size_merged_maf_blocks){
+                        if ((flip_block_before_merging ^ maf_row.is_reversed) == merged_maf_prow.is_reversed &&
+                        merged_maf_prow.aligned_seq.length() == alignment_size_merged_maf_blocks){
                             if (merged_maf_prow.is_reversed){
-                                if ((merged_maf_prow.path_length - merged_maf_prow.record_start) == (maf_row.path_length - (maf_row.record_start + maf_row.seq_size))) {
+                                if ((merged_maf_prow.path_length - merged_maf_prow.record_start) == (maf_row.path_length - (maf_row_record_start + maf_row.seq_size))) {
                                     // merged_maf_row_end == maf_row_begin, new row on the left
 
-                                    //std::cerr << "\t\trow+merged: " << maf_row.record_start << "," << maf_row.seq_size << " --- "
+                                    //std::cerr << "\t\trow+merged: " << maf_row_record_start << "," << maf_row.seq_size << " --- "
                                     //<< merged_maf_prow.record_start << "," << merged_maf_prow.seq_size << std::endl;
 
                                     merged_maf_prow.record_start -= maf_row.seq_size;
+
+                                    if (flip_block_before_merging) {
+                                        reverse_complement_in_place(maf_row.aligned_seq);
+                                    }
+
                                     merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq;
                                     merged_maf_prow.seq_size += maf_row.seq_size;
 
                                     merged = true;
                                     break;
-                                } else if ((maf_row.path_length - maf_row.record_start) == (merged_maf_prow.path_length - (merged_maf_prow.record_start + merged_maf_prow.seq_size))) {
+                                } else if ((maf_row.path_length - maf_row_record_start) == (merged_maf_prow.path_length - (merged_maf_prow.record_start + merged_maf_prow.seq_size))) {
                                     // maf_row_end == merged_maf_row_begin, new row on the right
 
                                     //std::cerr << "\t\tmerged+row: " << merged_maf_prow.record_start << "," << merged_maf_prow.seq_size << " --- "
                                     //          << maf_row.record_start << "," << maf_row.seq_size << std::endl;
+
+                                    if (flip_block_before_merging) {
+                                        reverse_complement_in_place(maf_row.aligned_seq);
+                                    }
 
                                     merged_maf_prow.aligned_seq += maf_row.aligned_seq;
                                     merged_maf_prow.seq_size += maf_row.seq_size;
@@ -632,24 +700,33 @@ void _put_block_in_group(
                                     break;
                                 }
                             } else {
-                                if ((merged_maf_prow.record_start + merged_maf_prow.seq_size) == maf_row.record_start) {
+                                if ((merged_maf_prow.record_start + merged_maf_prow.seq_size) == maf_row_record_start) {
                                     // merged_maf_row_end == maf_row_begin, new row on the right
 
                                     //std::cerr << "\t\tmerged+row: " << merged_maf_prow.record_start << "," << merged_maf_prow.seq_size << " --- "
                                     //          << maf_row.record_start << "," << maf_row.seq_size << std::endl;
+
+                                    if (flip_block_before_merging) {
+                                        reverse_complement_in_place(maf_row.aligned_seq);
+                                    }
 
                                     merged_maf_prow.aligned_seq += maf_row.aligned_seq;
                                     merged_maf_prow.seq_size += maf_row.seq_size;
 
                                     merged = true;
                                     break;
-                                } else if ((maf_row.record_start + maf_row.seq_size) == merged_maf_prow.record_start) {
+                                } else if ((maf_row_record_start + maf_row.seq_size) == merged_maf_prow.record_start) {
                                     // maf_row_end == merged_maf_row_begin, new row on the left
 
                                     //std::cerr << "\t\trow+merged: " << maf_row.record_start << "\t" << maf_row.seq_size << " --- "
                                     //          << merged_maf_prow.record_start << "," << merged_maf_prow.seq_size << std::endl;
 
                                     merged_maf_prow.record_start -= maf_row.seq_size;
+
+                                    if (flip_block_before_merging) {
+                                        reverse_complement_in_place(maf_row.aligned_seq);
+                                    }
+
                                     merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq ;
                                     merged_maf_prow.seq_size += maf_row.seq_size;
 
@@ -667,13 +744,18 @@ void _put_block_in_group(
 
                 for (auto& rank_row : unmerged_rows) {
                     auto& maf_row = path_to_maf_rows.second[rank_row];
+                    uint64_t maf_row_record_start = flip_block_before_merging ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
 
                     //std::cerr << "\t\tGap" << maf_row.record_start << "\t" << maf_row.seq_size << std::endl;
 
+                    if (flip_block_before_merging) {
+                        reverse_complement_in_place(maf_row.aligned_seq);
+                    }
+
                     merged_maf_blocks.rows[path_to_maf_rows.first].push_back({
-                        maf_row.record_start,
+                        maf_row_record_start,
                         maf_row.seq_size,
-                        maf_row.is_reversed,
+                        (bool)(flip_block_before_merging ^ maf_row.is_reversed),
                         maf_row.path_length,
                         new_block_on_the_left ? maf_row.aligned_seq + gaps : gaps + maf_row.aligned_seq
                     });
@@ -684,10 +766,20 @@ void _put_block_in_group(
 
     clear_string(gaps);
 
+    //todo to update the name to remember the flip?
     // The merged consensus is created when the merged block is written into a file
     if (!consensus_name.empty()){
         // IMPORTANT: it assumes a single consensus sequence!
+        //std::cerr << "mafs[block_id].size() " << mafs[block_id].size() << std::endl;
+
         auto &maf_row = mafs[block_id][consensus_name][0];
+
+        if (flip_block_before_merging) {
+            reverse_complement_in_place(maf_row.aligned_seq);
+        }
+
+        //std::cerr << "consensus_name " << consensus_name << std::endl;
+        //std::cerr << "maf_row.seq_size " << maf_row.seq_size << std::endl;
 
         if (new_block_on_the_left){
             merged_maf_blocks.consensus_rows.insert(merged_maf_blocks.consensus_rows.begin(), std::pair<std::string, maf_partial_row_t>(
@@ -789,6 +881,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         std::vector<std::map<std::string, std::vector<maf_partial_row_t>>> mafs(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
         atomicbitvector::atomic_bv_t mafs_ready(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
 
+        std::vector<bool> block_id_to_flip;
+
         auto write_maf_lambda = [&]() {
             if (produce_maf || (add_consensus && merge_blocks)) {
                 uint64_t block_id = 0;
@@ -823,6 +917,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                 (merged_maf_blocks.block_ids.front() > merged_maf_blocks.block_ids.back() ? 1 : 0)
                         ) : -1;
 
+                        bool flip_block_before_merging = false;
+
                         std::string consensus_name;
                         if (add_consensus){
                             consensus_name = consensus_base_name + std::to_string(block_id);
@@ -832,108 +928,123 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             if (merged_maf_blocks.block_ids.empty()) {
                                 merged = true;
                             } else {
-                                merged = true;
+                                uint64_t num_contiguous_seq;
+                                for (auto flip_block : {false, true}) {
+                                    //std::cerr << "flip_block " << flip_block << std::endl;
 
-                                uint64_t num_contiguous_seq = 0;
+                                    flip_block_before_merging = flip_block;
 
-                                for (auto const& path_to_maf_rows : mafs[block_id]) {
-                                    // Do not check the consensus (always forward)
-                                    if (path_to_maf_rows.first != consensus_name){
-                                        //std::cerr << block_id << " - " << path_to_maf_rows.first << std::endl;
+                                    prep_new_merge_group = false;
+                                    merged = true;
 
-                                        // To merge a block, it has to contains new sequences...
-                                        if (merged_maf_blocks.rows.count(path_to_maf_rows.first) != 0) {
-                                            // ...or mergeable ones.
+                                    num_contiguous_seq = 0;
 
-                                            bool found_contiguous_row = false;
-                                            for (auto &maf_row : path_to_maf_rows.second) {
-                                                //std::cerr << "maf_row " << maf_row.record_start << " -- " << maf_row.seq_size << std::endl;
+                                    for (auto const& path_to_maf_rows : mafs[block_id]) {
+                                        // Do not check the consensus (always forward)
+                                        if (path_to_maf_rows.first != consensus_name){
+                                            //std::cerr << block_id << " - " << path_to_maf_rows.first << std::endl;
 
-                                                for (auto &merged_maf_prow : merged_maf_blocks.rows[path_to_maf_rows.first]) {
-                                                    //std::cerr << "\tmerged_maf_prow: " << merged_maf_prow.record_start << " -- " << merged_maf_prow.seq_size << std::endl;
+                                            // To merge a block, it has to contains new sequences...
+                                            if (merged_maf_blocks.rows.count(path_to_maf_rows.first) != 0) {
+                                                // ...or mergeable ones.
 
-                                                    if (maf_row.is_reversed == merged_maf_prow.is_reversed) {
-                                                        if (maf_row.is_reversed) {
-                                                            if ((merged_maf_prow.path_length - merged_maf_prow.record_start) ==
-                                                                (maf_row.path_length -
-                                                                 (maf_row.record_start + maf_row.seq_size))) {
-                                                                // merged_maf_row_end == maf_row_begin, new row on the right
+                                                bool found_contiguous_row = false;
+                                                for (auto &maf_row : path_to_maf_rows.second) {
+                                                    //std::cerr << "maf_row " << maf_row.record_start << " -- " << maf_row.seq_size << std::endl;
 
-                                                                if (new_block_on_the_left == -1 || new_block_on_the_left == 1) {
-                                                                    // the row is the first one, or the merge continues on the left
+                                                    uint64_t maf_row_record_start = flip_block ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
 
-                                                                    new_block_on_the_left = 1;
+                                                    for (auto &merged_maf_prow : merged_maf_blocks.rows[path_to_maf_rows.first]) {
+                                                        //std::cerr << "\tmerged_maf_prow: " << merged_maf_prow.record_start << " -- " << merged_maf_prow.seq_size << std::endl;
 
-                                                                    found_contiguous_row = true;
-                                                                    num_contiguous_seq += 1;
-                                                                    //std::cerr << "\t\tBREAK" << std::endl;
-                                                                    break;
+                                                        if ((flip_block ^ maf_row.is_reversed) == merged_maf_prow.is_reversed) {
+                                                            if (flip_block ^ maf_row.is_reversed) {
+                                                                if (
+                                                                        (merged_maf_prow.path_length - merged_maf_prow.record_start) ==
+                                                                        (maf_row.path_length - (maf_row_record_start + maf_row.seq_size))\
+                                                                        )
+                                                                      {
+                                                                    // merged_maf_row_end == maf_row_begin, new row on the right
+
+                                                                    if (new_block_on_the_left == -1 || new_block_on_the_left == 1) {
+                                                                        // the row is the first one, or the merge continues on the left
+
+                                                                        new_block_on_the_left = 1;
+
+                                                                        found_contiguous_row = true;
+                                                                        num_contiguous_seq += 1;
+                                                                        //std::cerr << "\t\tBREAK" << std::endl;
+                                                                        break;
+                                                                    }
+                                                                } else if ((maf_row.path_length - maf_row_record_start) ==
+                                                                           (merged_maf_prow.path_length - (merged_maf_prow.record_start + merged_maf_prow.seq_size))) {
+                                                                    // maf_row_end == merged_maf_row_begin, new row on the left
+
+                                                                    if (new_block_on_the_left == -1 || new_block_on_the_left == 0) {
+                                                                        // the row is the first one, or the merge continues on the right
+
+                                                                        new_block_on_the_left = 0;
+
+                                                                        found_contiguous_row = true;
+                                                                        num_contiguous_seq += 1;
+                                                                        //std::cerr << "\t\tBREAK" << std::endl;
+                                                                        break;
+                                                                    }
                                                                 }
-                                                            } else if ((maf_row.path_length - maf_row.record_start) ==
-                                                                       (merged_maf_prow.path_length -
-                                                                        (merged_maf_prow.record_start +
-                                                                         merged_maf_prow.seq_size))) {
-                                                                // maf_row_end == merged_maf_row_begin, new row on the left
+                                                            } else {
+                                                                if ((merged_maf_prow.record_start + merged_maf_prow.seq_size) == maf_row_record_start) {
+                                                                    // merged_maf_row_end == maf_row_begin, new row on the right
 
-                                                                if (new_block_on_the_left == -1 || new_block_on_the_left == 0) {
-                                                                    // the row is the first one, or the merge continues on the right
+                                                                    if (new_block_on_the_left == -1 || new_block_on_the_left == 0) {
+                                                                        // the row is the first one, or the merge continues on the right
 
-                                                                    new_block_on_the_left = 0;
+                                                                        new_block_on_the_left = 0;
 
-                                                                    found_contiguous_row = true;
-                                                                    num_contiguous_seq += 1;
-                                                                    //std::cerr << "\t\tBREAK" << std::endl;
-                                                                    break;
-                                                                }
-                                                            }
-                                                        } else {
-                                                            if ((merged_maf_prow.record_start + merged_maf_prow.seq_size) ==
-                                                                maf_row.record_start) {
-                                                                // merged_maf_row_end == maf_row_begin, new row on the right
+                                                                        found_contiguous_row = true;
+                                                                        num_contiguous_seq += 1;
+                                                                        //std::cerr << "\t\tBREAK" << std::endl;
+                                                                        break;
+                                                                    }
+                                                                } else if ((maf_row_record_start + maf_row.seq_size) == merged_maf_prow.record_start) {
+                                                                    // maf_row_end == merged_maf_row_begin, new row on the left
 
-                                                                if (new_block_on_the_left == -1 || new_block_on_the_left == 0) {
-                                                                    // the row is the first one, or the merge continues on the right
+                                                                    if (new_block_on_the_left == -1 || new_block_on_the_left == 1) {
+                                                                        // the row is the first one, or the merge continues on the left
 
-                                                                    new_block_on_the_left = 0;
+                                                                        new_block_on_the_left = 1;
 
-                                                                    found_contiguous_row = true;
-                                                                    num_contiguous_seq += 1;
-                                                                    //std::cerr << "\t\tBREAK" << std::endl;
-                                                                    break;
-                                                                }
-                                                            } else if ((maf_row.record_start + maf_row.seq_size) ==
-                                                                       merged_maf_prow.record_start) {
-                                                                // maf_row_end == merged_maf_row_begin, new row on the left
-
-                                                                if (new_block_on_the_left == -1 || new_block_on_the_left == 1) {
-                                                                    // the row is the first one, or the merge continues on the left
-
-                                                                    new_block_on_the_left = 1;
-
-                                                                    found_contiguous_row = true;
-                                                                    num_contiguous_seq += 1;
-                                                                    //std::cerr << "\t\tBREAK" << std::endl;
-                                                                    break;
+                                                                        found_contiguous_row = true;
+                                                                        num_contiguous_seq += 1;
+                                                                        //std::cerr << "\t\tBREAK" << std::endl;
+                                                                        break;
+                                                                    }
                                                                 }
                                                             }
                                                         }
                                                     }
+
+                                                    if (found_contiguous_row) {
+                                                        break;
+                                                    }
                                                 }
 
-                                                if (found_contiguous_row) {
+                                                if (!found_contiguous_row) {
+                                                    merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
+                                                    prep_new_merge_group = !is_last_block;
                                                     break;
                                                 }
                                             }
-
-                                            if (!found_contiguous_row) {
-                                                merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
-                                                prep_new_merge_group = !is_last_block;
-                                                break;
-                                            }
                                         }
+                                    }
+
+                                    if (merged) {
+                                        break;
                                     }
                                 }
 
+                                //if (block_id > 16) {
+                                //    merged = false;
+                               // }
                                 if (merged) {
                                     uint64_t num_merged_seq = merged_maf_blocks.rows.size();
                                     //for (auto &maf_prows : merged_maf_blocks.rows) { num_merged_seq += maf_prows.second.size(); }
@@ -951,14 +1062,18 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                 }
 
                                 //std::cerr << "blockId " << block_id << " will be merged: " << (merged ? "yes" : "no") << std::endl;
+                                //std::cerr << "new_block_on_the_left " << (new_block_on_the_left == 1) << std::endl;
                             }
                         }
 
                         // If mergeable...,
                         if (merged) {
                             // ..then merge
+                            if (flip_block_before_merging) {
+                                block_id_to_flip.push_back(block_id);
+                            }
 
-                            _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, consensus_name,mafs,new_block_on_the_left == 1);
+                            _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, consensus_name,mafs,new_block_on_the_left == 1, flip_block_before_merging);
 
                             _clear_maf_block(mafs[block_id]);
                         }
@@ -1153,7 +1268,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             // This is a mergeable (and not the last) block: it is the first one, or the last merge failed
                             // (and the current un-merged block becomes the first one of the next group)
 
-                            _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, consensus_name, mafs, false);
+                            _put_block_in_group(merged_maf_blocks, block_id, num_seq_in_block, consensus_name, mafs, false, false);
 
                             _clear_maf_block(mafs[block_id]);
                         }
