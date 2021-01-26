@@ -344,49 +344,9 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     // order the graph
     block_graph.apply_ordering(odgi::algorithms::topological_order(&block_graph), true);
 
-    // copy the now-compacted graph to our output_graph
-    block_graph.for_each_handle(
-        [&](const handle_t& old_handle) {
-            output_graph->create_handle(
-                block_graph.get_sequence(old_handle),
-                block_graph.get_id(old_handle));
-        });
+    // copy the graph to avoid memory fragmentation issues
+    graph_deep_copy(&block_graph, output_graph);
 
-    block_graph.for_each_handle(
-        [&](const handle_t& curr) {
-            block_graph.follow_edges(
-                curr, false,
-                [&](const handle_t& next) {
-                    output_graph->create_edge(
-                        output_graph->get_handle(block_graph.get_id(curr),
-                                                 block_graph.get_is_reverse(curr)),
-                        output_graph->get_handle(block_graph.get_id(next),
-                                                 block_graph.get_is_reverse(next)));
-                });
-            block_graph.follow_edges(
-                curr, true,
-                [&](const handle_t& prev) {
-                    output_graph->create_edge(
-                        output_graph->get_handle(block_graph.get_id(prev),
-                                                 block_graph.get_is_reverse(prev)),
-                        output_graph->get_handle(block_graph.get_id(curr),
-                                                 block_graph.get_is_reverse(curr)));
-                });
-        });
-
-    block_graph.for_each_path_handle(
-        [&](const path_handle_t& old_path) {
-            path_handle_t new_path = output_graph->create_path_handle(block_graph.get_path_name(old_path));
-            block_graph.for_each_step_in_path(old_path, [&](const step_handle_t& step) {
-                    handle_t old_handle = block_graph.get_handle_of_step(step);
-                    handle_t new_handle = output_graph->get_handle(
-                        block_graph.get_id(old_handle),
-                        block_graph.get_is_reverse(old_handle));
-                    output_graph->append_step(new_path, new_handle);
-                });
-        });
-
-    // output_graph.to_gfa(std::cout);
     return output_graph;
 }
 

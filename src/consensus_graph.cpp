@@ -36,12 +36,15 @@ ostream& operator<<(ostream& o, const link_path_t& a) {
 // we'll then build the xg index on top of that in low memory
 
 odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
-                                     // TODO: GBWT
-                                     const std::vector<std::string>& consensus_path_names,
-                                     const uint64_t& consensus_jump_max,
-                                     // TODO: minimum allele frequency
-                                     const uint64_t& thread_count,
-                                     const std::string& base) {
+                                      // TODO: GBWT
+                                      const std::vector<std::string>& consensus_path_names,
+                                      const uint64_t& consensus_jump_max,
+                                      const uint64_t& consensus_jump_limit,
+                                      // TODO: minimum allele frequency
+                                      const uint64_t& thread_count,
+                                      const std::string& base) {
+
+
 
     // OVERALL: https://www.acodersjourney.com/6-tips-supercharge-cpp-11-vector-performance/ -> check these things here
 
@@ -274,7 +277,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         auto novel_sequence_length =
                 [&](const step_handle_t begin,
                     const step_handle_t end,
-                    ska::flat_hash_set<uint64_t> seen_nodes, // by copy
+                    ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
                     const xg::XG &graph) {
                     uint64_t novel_bp = 0;
                     for (auto s = begin;
@@ -288,6 +291,41 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     }
                     return novel_bp;
                 };
+
+        auto largest_novel_gap =
+                [&](const step_handle_t begin,
+                    const step_handle_t end,
+                    ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
+                    const xg::XG &graph) {
+                    uint64_t novel_bp = 0;
+                    uint64_t largest_gap = 0;
+                    for (auto s = begin;
+                         s != end; s = graph.get_next_step(s)) {
+                        handle_t h = graph.get_handle_of_step(s);
+                        uint64_t i = graph.get_id(h);
+                        if (!seen_nodes.count(i)) {
+                            novel_bp += graph.get_length(h);
+                            seen_nodes.insert(i);
+                        } else {
+                            largest_gap = std::max(novel_bp, largest_gap);
+                            novel_bp = 0;
+                        }
+                    }
+                    return largest_gap;
+                };
+
+        auto get_step_count =
+                [&](const step_handle_t begin,
+                    const step_handle_t end,
+                    const xg::XG &graph) {
+                    uint64_t count = 0;
+                    for (auto s = begin;
+                         s != end; s = graph.get_next_step(s)) {
+                        ++count;
+                    }
+                    return count;
+                };
+
 
         auto mark_seen_nodes =
                 [&](const step_handle_t begin,
@@ -430,17 +468,19 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         if (link.hash == best_hash) {
                             continue;
                         }
-                        uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
-                        // this filters out novel seqs that jump between different consensi
-                        // in practice including these tends to introduce artifacts downstream
-                        // specifically, we tend to generate looping regions made of link paths
-                        // which occur usually in repetitive sequences and have many SNPs and small indels between them
-                        // these are then preserved in the output graph, violating our expectations about the scale factor
-                        // but testing suggests that they can be removed relatively safely
-                        // TODO: evaluate ways of adding these safely, such as using mash dist clustering
-                        if (link.from_cons_path == link.to_cons_path
-                            && (link.jump_length >= consensus_jump_max
-                                || novel_bp >= consensus_jump_max)) {
+                        // use the largest gap to determine if the link path is over our scale threshold
+                        uint64_t largest_novel_gap_bp = largest_novel_gap(link.begin, link.end, seen_nodes, smoothed);
+                        //uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
+                        uint64_t step_count = get_step_count(link.begin, link.end, smoothed);
+                        // this complex filter attempts to keep representative link paths for indels above our consensus_jump_max
+                        // we either need the jump length (measured in terms of delta in our graph vector) to be over our jump max
+                        // *and* the link path should be empty or mostly novel
+                        // *or* we're adding in the specified amount of novel_bp of sequence
+                        if ((link.jump_length >= consensus_jump_max
+                             && link.jump_length < consensus_jump_limit
+                             && (link.length == 0 ||
+                                 (double)largest_novel_gap_bp / (double)step_count > 1))
+                            || largest_novel_gap_bp >= consensus_jump_max) {
                             link.rank = link_rank++;
                             consensus_links.push_back(link);
                             mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);
@@ -992,141 +1032,21 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         });
         */
 
-    // this unchop is necessary
     odgi::algorithms::unchop(*consensus, thread_count, false);
 
-    std::cerr << "[smoothxg::create_consensus_graph] trimming back link paths" << std::endl;
+    auto* copy = new odgi::graph_t();
+    graph_deep_copy(consensus, copy);
+    delete consensus;
+    consensus = copy;
 
-    link_paths.clear();
-    for (auto& n : link_path_names_to_keep) {
-        if (consensus->has_path(n)) {
-            link_paths.push_back(consensus->get_path_handle(n));
-        }
-    }
-
-    // it is still possible that there are nodes in the consensus graph with path depth > 1
-    // to fix this, for each non-consensus link path we chew back each end until its depth is 1
-    std::vector<uint64_t> node_coverage(consensus->get_node_count()+1);
-    consensus->for_each_handle(
-        [&](const handle_t& handle) {
-            node_coverage[consensus->get_id(handle)] = consensus->get_step_count(handle);
-        });
-
-    std::vector<std::pair<std::string, std::vector<handle_t>>> to_create;
-    for (auto& link : link_paths) {
-        //while (
-        step_handle_t step = consensus->path_begin(link);
-        nid_t id = consensus->get_id(consensus->get_handle_of_step(step));
-        while (
-            step != consensus->path_back(link)
-            && node_coverage[id] > 1) {
-            --node_coverage[id];
-            step = consensus->get_next_step(step);
-            id = consensus->get_id(consensus->get_handle_of_step(step));
-        }
-        step_handle_t begin = step;
-        step = consensus->path_back(link);
-        id = consensus->get_id(consensus->get_handle_of_step(step));
-        while (step != begin
-               && node_coverage[id] > 1) {
-            --node_coverage[id];
-            step = consensus->get_previous_step(step);
-            id = consensus->get_id(consensus->get_handle_of_step(step));
-        }
-        step_handle_t end = consensus->get_next_step(step);
-        std::vector<handle_t> new_path;
-        for (step = begin; step != end; step = consensus->get_next_step(step)) {
-            new_path.push_back(consensus->get_handle_of_step(step));
-        }
-        id = consensus->get_id(new_path.front());
-        if (new_path.size() == 0
-            || new_path.size() == 1
-            && node_coverage[id] > 1) {
-            --node_coverage[id];
-            // only destroy the path
-        } else {
-            std::string name = consensus->get_path_name(link);
-            to_create.push_back(std::make_pair(name, new_path));
-        }
-    }
-
-    link_path_names_to_keep.clear();
-    for (auto& p : to_create) {
-        link_path_names_to_keep.push_back(p.first);
-        path_handle_t path = consensus->create_path_handle(p.first); // the trimmed path
-        for (auto& handle : p.second) {
-            consensus->append_step(path, handle);
-        }
-    }
-    for (auto& link : link_paths) {
-        consensus->destroy_path(link);
-    }
-
-    // this unchop is necessary
     odgi::algorithms::unchop(*consensus, thread_count, false);
 
-    link_paths.clear();
-    for (auto& n : link_path_names_to_keep) {
-        if (consensus->has_path(n)) {
-            link_paths.push_back(consensus->get_path_handle(n));
-        }
-    }
-
-    // remove tips of link paths shorter than our consensus_jump_max
-        /// how were these created? --> maybe when:
-        // preserve topology of links by walking the path they derive from [see around lines 560]
-        // forward and backward and ensuring this is in the consensus graph [see around lines 560]
-    auto is_degree_1_tip =
-        [&](const handle_t& h) {
-            uint64_t deg_fwd = consensus->get_degree(h, false);
-            uint64_t deg_rev = consensus->get_degree(h, true);
-            return (deg_fwd == 0 || deg_rev == 0) && (deg_fwd + deg_rev == 1);
-        };
-    std::vector<handle_t> link_tips;
-    std::vector<path_handle_t> paths_to_remove;
-    for (auto& path : link_paths) {
-        // is the head or tail a tip shorter than consensus_jump_max?
-        handle_t h = consensus->get_handle_of_step(consensus->path_begin(path));
-        if (is_degree_1_tip(h) && consensus->get_length(h) < consensus_jump_max) {
-            link_tips.push_back(h);
-        }
-        handle_t t = consensus->get_handle_of_step(consensus->path_back(path));
-        if (t != h && is_degree_1_tip(t) && consensus->get_length(t) < consensus_jump_max) {
-            link_tips.push_back(t);
-        }
-    }
-    for (auto& t : link_tips) {
-        std::vector<step_handle_t> to_destroy;
-        consensus->for_each_step_on_handle(
-            t  ,
-            [&](const step_handle_t& step) {
-                to_destroy.push_back(step);
-            });
-        for (auto& step : to_destroy) {
-            consensus->rewrite_segment(step, step, {});
-        }
-    }
-
-    consensus->optimize();
-
-    empty_handles.clear();
-    consensus->for_each_handle(
-        [&](const handle_t& handle) {
-            uint64_t c = 0;
-            consensus->for_each_step_on_handle(
-                handle,
-                [&](const step_handle_t& s) {
-                    ++c;
-                });
-            if (c == 0) {
-                empty_handles.push_back(handle);
-            }
-        });
-    for (auto& handle : empty_handles) {
+    // remove 0-depth nodes and edges
+    auto handles_to_drop = odgi::algorithms::find_handles_exceeding_coverage_limits(*consensus, 1, 0);
+    for (auto& handle : handles_to_drop) {
         consensus->destroy_handle(handle);
     }
 
-    // this unchop is necessary
     odgi::algorithms::unchop(*consensus, thread_count, false);
 
     uint64_t consensus_nodes = 0;

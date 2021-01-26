@@ -7,9 +7,12 @@
 #include <odgi/unchop.hpp>
 #include <deps/cgranges/cpp/IITree.h>
 #include <deps/odgi/deps/flat_hash_map/flat_hash_map.hpp> // we are using odgi's flat_hash_map here, I suppose this is not a good idea? Maybe rather add the flat_hash_map to smoothxg itself?
+#include <odgi/coverage.hpp>
+#include <odgi/gfa_to_handle.hpp>
 #include <mmmultiset.hpp>
 #include <xg.hpp>
 #include "blocks.hpp"
+#include "utils.hpp"
 #include "atomic_bitvector.hpp"
 
 namespace smoothxg {
@@ -42,8 +45,9 @@ ostream& operator<<(ostream& o, const link_path_t& a);
 
 /// build a consensus graph consisting of consensus paths and link paths between them
 odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
-                                     const std::vector<std::string>& consensus_path_names,
-                                     const uint64_t& consensus_jump_max,
-                                     const uint64_t& thread_count,
-                                     const std::string& base);
+                                      const std::vector<std::string>& consensus_path_names,
+                                      const uint64_t& consensus_jump_max,
+                                      const uint64_t& consensus_jump_limit,
+                                      const uint64_t& thread_count,
+                                      const std::string& base);
 }

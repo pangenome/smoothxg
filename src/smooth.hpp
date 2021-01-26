@@ -11,6 +11,7 @@
 #include "odgi/unchop.hpp"
 #include "spoa/spoa.hpp"
 #include "xg.hpp"
+#include "utils.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
