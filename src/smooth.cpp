@@ -9,62 +9,12 @@
 #include "deps/cgranges/cpp/IITree.h"
 #include "atomic_bitvector.hpp"
 
-#include "deps/odgi/src/dna.hpp" //todo
-
+#include "deps/odgi/src/dna.hpp"
 
 #include "progress.hpp"
 
-static const char complement[256] = {'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 8
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 16
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 24
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 32
-                                     'N', 'N', 'N', '$', '#', 'N', 'N', 'N', // 40 GCSA stop/start characters
-                                     'N', 'N', 'N', 'N', 'N', '-', 'N', 'N', // 48
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 56
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 64
-                                     'N', 'T', 'V', 'G', 'H', 'N', 'N', 'C', // 72
-                                     'D', 'N', 'N', 'M', 'N', 'K', 'N', 'N', // 80
-                                     'N', 'Q', 'Y', 'W', 'A', 'A', 'B', 'S', // 88
-                                     'N', 'R', 'N', 'N', 'N', 'N', 'N', 'N', // 96
-                                     'N', 't', 'v', 'g', 'h', 'N', 'N', 'c', // 104
-                                     'd', 'N', 'N', 'm', 'N', 'k', 'n', 'N', // 112
-                                     'N', 'q', 'y', 'w', 'a', 'a', 'b', 's', // 120
-                                     'N', 'r', 'N', 'N', 'N', 'N', 'N', 'N', // 128
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 136
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 144
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 152
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 160
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 168
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 176
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 184
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 192
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 200
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 208
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 216
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 224
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 232
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 240
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', // 248
-                                     'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N'};// 256
-
-inline void reverse_complement_in_place(std::string& seq) {
-    size_t swap_size = seq.size() / 2;
-    for (size_t i = 0, j = seq.size() - 1; i < swap_size; i++, j--) {
-        char tmp = seq[i];
-        seq[i] = complement[seq[j]];
-        seq[j] = complement[tmp];
-    }
-
-    if (seq.size() % 2) {
-        seq[swap_size] = complement[seq[swap_size]];
-    }
-}
 
 namespace smoothxg {
-
-// klib stuff copied from abpoa_graph.c
-KDQ_INIT(int)
-#define kdq_int_t kdq_t(int)
 
 // to write each block to a FASTA and TSV
 //#define SMOOTH_WRITE_BLOCKS_FASTA true
@@ -495,10 +445,9 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
     int i = 0;
     for (auto &seq : seqs) {
         // std::cerr << names[i++] << "\t" << seq << std::endl;
-        // TODO determine alignment orientation somehow!!!!!!!!
-        // or try both orientations here
-        // we'll need to record the orientation in the path somehow
-        // to structure the lacing
+
+        // try both orientations here: we'll need to record the
+        // orientation in the path somehow to structure the lacing
         std::int32_t score_fwd = 0;
         auto alignment_fwd =
             alignment_engine->align(seq, poa_graph, &score_fwd);
@@ -608,9 +557,6 @@ void _put_block_in_group(
         bool new_block_on_the_left,
         bool flip_block_before_merging
 ){
-    //std::cerr << "_put_block_in_group (" << block_id << ")" << std::endl;
-    //std::cerr << "flip_block_before_merging (" << flip_block_before_merging << ")" << std::endl;
-
     uint64_t alignment_size_merged_maf_blocks =
             merged_maf_blocks.block_ids.empty() ? 0 : merged_maf_blocks.rows.begin()->second.begin() ->aligned_seq.length();
 
@@ -622,8 +568,6 @@ void _put_block_in_group(
         // Do not check the consensus (always forward)
         if (path_to_maf_rows.first != consensus_name){
             if (merged_maf_blocks.rows.count(path_to_maf_rows.first) == 0) {
-                //std::cerr << "\tNew seq (" << path_to_maf_rows.first << ") with new intervals" << std::endl;
-
                 merged_maf_blocks.rows.insert(std::pair<std::string, std::vector<maf_partial_row_t>>(
                         path_to_maf_rows.first,
                         std::vector<maf_partial_row_t>()
@@ -633,7 +577,7 @@ void _put_block_in_group(
                     uint64_t maf_row_record_start = flip_block_before_merging ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
 
                     if (flip_block_before_merging) {
-                        reverse_complement_in_place(maf_row.aligned_seq);
+                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
                     }
 
                     merged_maf_blocks.rows[path_to_maf_rows.first].push_back({
@@ -646,8 +590,6 @@ void _put_block_in_group(
                     });
                 }
             } else {
-                //std::cerr << "\tSeq (" << path_to_maf_rows.first << ") with intervals to merge" << std::endl;
-
                 // Try to merge all the mergeable intervals
 
                 std::vector<uint64_t> unmerged_rows;
@@ -661,8 +603,6 @@ void _put_block_in_group(
                     bool merged = false;
 
                     for (auto &merged_maf_prow : merged_maf_blocks.rows[path_to_maf_rows.first]) {
-                        //std::cerr << "merged_maf_prow " << path_to_maf_rows.first << std::endl;
-
                         // Check the length to avoid merging more rows from the same last block
                         if ((flip_block_before_merging ^ maf_row.is_reversed) == merged_maf_prow.is_reversed &&
                         merged_maf_prow.aligned_seq.length() == alignment_size_merged_maf_blocks){
@@ -670,13 +610,10 @@ void _put_block_in_group(
                                 if ((merged_maf_prow.path_length - merged_maf_prow.record_start) == (maf_row.path_length - (maf_row_record_start + maf_row.seq_size))) {
                                     // merged_maf_row_end == maf_row_begin, new row on the left
 
-                                    //std::cerr << "\t\trow+merged: " << maf_row_record_start << "," << maf_row.seq_size << " --- "
-                                    //<< merged_maf_prow.record_start << "," << merged_maf_prow.seq_size << std::endl;
-
                                     merged_maf_prow.record_start -= maf_row.seq_size;
 
                                     if (flip_block_before_merging) {
-                                        reverse_complement_in_place(maf_row.aligned_seq);
+                                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
                                     }
 
                                     merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq;
@@ -687,11 +624,8 @@ void _put_block_in_group(
                                 } else if ((maf_row.path_length - maf_row_record_start) == (merged_maf_prow.path_length - (merged_maf_prow.record_start + merged_maf_prow.seq_size))) {
                                     // maf_row_end == merged_maf_row_begin, new row on the right
 
-                                    //std::cerr << "\t\tmerged+row: " << merged_maf_prow.record_start << "," << merged_maf_prow.seq_size << " --- "
-                                    //          << maf_row.record_start << "," << maf_row.seq_size << std::endl;
-
                                     if (flip_block_before_merging) {
-                                        reverse_complement_in_place(maf_row.aligned_seq);
+                                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
                                     }
 
                                     merged_maf_prow.aligned_seq += maf_row.aligned_seq;
@@ -704,11 +638,8 @@ void _put_block_in_group(
                                 if ((merged_maf_prow.record_start + merged_maf_prow.seq_size) == maf_row_record_start) {
                                     // merged_maf_row_end == maf_row_begin, new row on the right
 
-                                    //std::cerr << "\t\tmerged+row: " << merged_maf_prow.record_start << "," << merged_maf_prow.seq_size << " --- "
-                                    //          << maf_row.record_start << "," << maf_row.seq_size << std::endl;
-
                                     if (flip_block_before_merging) {
-                                        reverse_complement_in_place(maf_row.aligned_seq);
+                                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
                                     }
 
                                     merged_maf_prow.aligned_seq += maf_row.aligned_seq;
@@ -719,13 +650,10 @@ void _put_block_in_group(
                                 } else if ((maf_row_record_start + maf_row.seq_size) == merged_maf_prow.record_start) {
                                     // maf_row_end == merged_maf_row_begin, new row on the left
 
-                                    //std::cerr << "\t\trow+merged: " << maf_row.record_start << "\t" << maf_row.seq_size << " --- "
-                                    //          << merged_maf_prow.record_start << "," << merged_maf_prow.seq_size << std::endl;
-
                                     merged_maf_prow.record_start -= maf_row.seq_size;
 
                                     if (flip_block_before_merging) {
-                                        reverse_complement_in_place(maf_row.aligned_seq);
+                                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
                                     }
 
                                     merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq ;
@@ -747,10 +675,8 @@ void _put_block_in_group(
                     auto& maf_row = path_to_maf_rows.second[rank_row];
                     uint64_t maf_row_record_start = flip_block_before_merging ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
 
-                    //std::cerr << "\t\tGap" << maf_row.record_start << "\t" << maf_row.seq_size << std::endl;
-
                     if (flip_block_before_merging) {
-                        reverse_complement_in_place(maf_row.aligned_seq);
+                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
                     }
 
                     merged_maf_blocks.rows[path_to_maf_rows.first].push_back({
@@ -770,17 +696,12 @@ void _put_block_in_group(
     // The merged consensus is created when the merged block is written into a file
     if (!consensus_name.empty()){
         // IMPORTANT: it assumes a single consensus sequence!
-        //std::cerr << "mafs[block_id].size() " << mafs[block_id].size() << std::endl;
-
         auto &maf_row = mafs[block_id][consensus_name][0];
 
         //uint64_t maf_row_record_start = flip_block_before_merging ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
         if (flip_block_before_merging) {
-            reverse_complement_in_place(maf_row.aligned_seq);
+            odgi::reverse_complement_in_place(maf_row.aligned_seq);
         }
-
-        //std::cerr << "consensus_name " << consensus_name << std::endl;
-        //std::cerr << "maf_row.seq_size " << maf_row.seq_size << std::endl;
 
         if (new_block_on_the_left){
             merged_maf_blocks.consensus_rows.insert(merged_maf_blocks.consensus_rows.begin(), std::pair<std::string, maf_partial_row_t>(
@@ -906,7 +827,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                         uint64_t num_seq_in_block = mafs[block_id].size();
                         //for (auto const& path_to_maf_rows : mafs[block_id]) { num_seq_in_block += path_to_maf_rows.second.size(); }
 
-
                         bool is_last_block = (block_id == num_blocks - 1);
 
                         bool prep_new_merge_group = false;
@@ -931,8 +851,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             } else {
                                 uint64_t num_contiguous_seq;
                                 for (auto flip_block : {false, true}) {
-                                    //std::cerr << "flip_block " << flip_block << std::endl;
-
                                     flip_block_before_merging = flip_block;
 
                                     prep_new_merge_group = false;
@@ -943,28 +861,19 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                     for (auto const& path_to_maf_rows : mafs[block_id]) {
                                         // Do not check the consensus (always forward)
                                         if (path_to_maf_rows.first != consensus_name){
-                                            //std::cerr << block_id << " - " << path_to_maf_rows.first << std::endl;
-
                                             // To merge a block, it has to contains new sequences...
                                             if (merged_maf_blocks.rows.count(path_to_maf_rows.first) != 0) {
                                                 // ...or mergeable ones.
 
                                                 bool found_contiguous_row = false;
                                                 for (auto &maf_row : path_to_maf_rows.second) {
-                                                    //std::cerr << "maf_row " << maf_row.record_start << " -- " << maf_row.seq_size << std::endl;
-
                                                     uint64_t maf_row_record_start = flip_block ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
 
                                                     for (auto &merged_maf_prow : merged_maf_blocks.rows[path_to_maf_rows.first]) {
-                                                        //std::cerr << "\tmerged_maf_prow: " << merged_maf_prow.record_start << " -- " << merged_maf_prow.seq_size << std::endl;
-
                                                         if ((flip_block ^ maf_row.is_reversed) == merged_maf_prow.is_reversed) {
                                                             if (flip_block ^ maf_row.is_reversed) {
-                                                                if (
-                                                                        (merged_maf_prow.path_length - merged_maf_prow.record_start) ==
-                                                                        (maf_row.path_length - (maf_row_record_start + maf_row.seq_size))\
-                                                                        )
-                                                                      {
+                                                                if ((merged_maf_prow.path_length - merged_maf_prow.record_start) ==
+                                                                    (maf_row.path_length - (maf_row_record_start + maf_row.seq_size))) {
                                                                     // merged_maf_row_end == maf_row_begin, new row on the right
 
                                                                     if (new_block_on_the_left == -1 || new_block_on_the_left == 1) {
@@ -974,7 +883,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                                                         found_contiguous_row = true;
                                                                         num_contiguous_seq += 1;
-                                                                        //std::cerr << "\t\tBREAK" << std::endl;
                                                                         break;
                                                                     }
                                                                 } else if ((maf_row.path_length - maf_row_record_start) ==
@@ -988,7 +896,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                                                         found_contiguous_row = true;
                                                                         num_contiguous_seq += 1;
-                                                                        //std::cerr << "\t\tBREAK" << std::endl;
                                                                         break;
                                                                     }
                                                                 }
@@ -1003,7 +910,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                                                         found_contiguous_row = true;
                                                                         num_contiguous_seq += 1;
-                                                                        //std::cerr << "\t\tBREAK" << std::endl;
                                                                         break;
                                                                     }
                                                                 } else if ((maf_row_record_start + maf_row.seq_size) == merged_maf_prow.record_start) {
@@ -1016,7 +922,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                                                         found_contiguous_row = true;
                                                                         num_contiguous_seq += 1;
-                                                                        //std::cerr << "\t\tBREAK" << std::endl;
                                                                         break;
                                                                     }
                                                                 }
@@ -1043,9 +948,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                     }
                                 }
 
-                                //if (block_id > 16) {
-                                //    merged = false;
-                               // }
                                 if (merged) {
                                     uint64_t num_merged_seq = merged_maf_blocks.rows.size();
                                     //for (auto &maf_prows : merged_maf_blocks.rows) { num_merged_seq += maf_prows.second.size(); }
@@ -1296,6 +1198,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                    << " to " << blockset->size() << " blocks:";
         progress_meter::ProgressMeter poa_progress(blockset->size(), poa_banner.str());
 
+        // Smooth blocks
 #pragma omp parallel for schedule(dynamic,1)
         for (uint64_t i = 0; i < blockset->size(); ++i) {
             uint64_t block_id = i;
@@ -1409,7 +1312,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         write_maf_thread.join();
     }
 
-
+    // Flip graphs
 #pragma omp parallel for schedule(dynamic,1)
     for (uint64_t block_id = 0; block_id < block_graphs.size(); ++block_id) {
         if (blok_to_flip.test(block_id)) {
@@ -1417,6 +1320,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
             unordered_map<handle_t, handle_t> forward_translation;
 
+            // make the flipped nodes
             block_graphs[block_id]->for_each_handle(
                     [&](const handle_t& old_handle) {
                         handle_t rev_handle = flipped_graph->create_handle(
@@ -1425,7 +1329,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                         forward_translation[old_handle] = rev_handle;
                     });
 
-            // make the edges
+            // make the flipped edges
             block_graphs[block_id]->for_each_edge([&](const edge_t& edge) {
                 // get the two sides in the correct orientation
                 handle_t rev_left, rev_right;
@@ -1457,6 +1361,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                         string path_name = block_graphs[block_id]->get_path_name(old_path);
                         path_handle_t new_path = flipped_graph->create_path_handle(path_name);
                         if (path_name != consensus_name) {
+                            // flip the path, but preserving its sequence
                             block_graphs[block_id]->for_each_step_in_path(old_path, [&](const step_handle_t& step) {
                                 handle_t old_handle = block_graphs[block_id]->get_handle_of_step(step);
                                 handle_t new_handle = flipped_graph->get_handle(
@@ -1465,6 +1370,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                 flipped_graph->append_step(new_path, new_handle);
                             });
                         } else {
+                            // the consensus has to be encoded in reverse complement, but it remains in the forward strand
                             block_graphs[block_id]->for_each_step_in_path(old_path, [&](const step_handle_t& step) {
                                 handle_t old_handle = block_graphs[block_id]->get_handle_of_step(step);
                                 handle_t new_handle = flipped_graph->get_handle(
@@ -1476,13 +1382,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                     });
 
-            //std::cerr << "block_id " << block_id << std::endl;
-            //std::ofstream a(std::to_string(block_id) + "A.gfa");
-            //block_graphs[block_id]->to_gfa(a);
-            //a.close();
-            //std::ofstream b(std::to_string(block_id) + "B.gfa");
-            //flipped_graph->to_gfa(b);
-            //b.close();
             delete block_graphs[block_id];
             block_graphs[block_id] = flipped_graph;
         }
@@ -1506,8 +1405,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     std::vector<uint64_t> id_mapping;
 
     std::stringstream add_graph_banner;
-    add_graph_banner << "[smoothxg::smooth_and_lace] adding "
-                     << block_graphs.size() << " graphs:";
+    add_graph_banner << "[smoothxg::smooth_and_lace] adding " << block_graphs.size() << " graphs:";
     progress_meter::ProgressMeter add_graph_progress(block_graphs.size(), add_graph_banner.str());
 
     for (auto block : block_graphs) {
@@ -1533,8 +1431,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     // through its block segments in order and linking them up in the output
     // graph
     std::stringstream lace_banner;
-    lace_banner << "[smoothxg::smooth_and_lace] embedding "
-                << path_mapping.size() << " path fragments:";
+    lace_banner << "[smoothxg::smooth_and_lace] embedding " << path_mapping.size() << " path fragments:";
     progress_meter::ProgressMeter lace_progress(path_mapping.size(), lace_banner.str());
     for (uint64_t i = 0; i < path_mapping.size(); ++i) {
         path_position_range_t *pos_range = &path_mapping[i];
@@ -1596,10 +1493,11 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         [&](const path_handle_t &path) {
             paths.push_back(path);
         });
+
     std::stringstream validate_banner;
-    validate_banner << "[smoothxg::smooth_and_lace] validating "
-                    << paths.size() << " path sequences:";
+    validate_banner << "[smoothxg::smooth_and_lace] validating " << paths.size() << " path sequences:";
     progress_meter::ProgressMeter validate_progress(paths.size(), validate_banner.str());
+
 #pragma omp parallel for schedule(static,1)
     for (uint64_t i = 0; i < paths.size(); ++i) {
         uint64_t path_id = i;
@@ -1631,17 +1529,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     validate_progress.finish();
 
     if (!consensus_mapping.empty()) {
-        std::cerr << "[smoothxg::smooth_and_lace] sorting consensus"
-                  << std::endl;
+        std::cerr << "[smoothxg::smooth_and_lace] sorting consensus" << std::endl;
 
         // consensus path and connections
-        /*ips4o::parallel::sort(
-            consensus_mapping.begin(), consensus_mapping.end(),
-            [](const path_position_range_t &a, const path_position_range_t &b) {
-                auto &a_id = as_integer(a.base_path);
-                auto &b_id = as_integer(b.base_path);
-                return (a_id < b_id || a_id == b_id && a.start_pos < b.start_pos);
-            });*/
+
         // Sort respect to the target_graph_id (== block_id), because in the merged_block_id_intervals_tree
         // there are the block_id_intervals expressed as first_block_id and last_block_id
         ips4o::parallel::sort(consensus_mapping.begin(), consensus_mapping.end(),
@@ -1649,9 +1540,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                   return (a.target_graph_id < b.target_graph_id);
                               });
 
-        // by definition, the consensus paths are embedded in our blocks, which
-        // simplifies things we'll still need to add a new path for each consensus
-        // path
+        // by definition, the consensus paths are embedded in our blocks, which simplifies
+        // things we'll still need to add a new path for each consensus path
 
         std::cerr << "[smoothxg::smooth_and_lace] embedding consensus" << std::endl;
 
