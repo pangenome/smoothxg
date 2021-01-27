@@ -8,6 +8,7 @@
 #include <vector>
 #include "mmmultimap.hpp"
 #include "xg.hpp"
+#include "utils.hpp"
 
 namespace smoothxg {
 
@@ -71,7 +72,8 @@ private:
 
 public:
     explicit blockset_t(const std::string& dir_work = "") {
-        _path_tmp_blocks = dir_work + ".temp";
+        auto* str = generate_random_string();
+        _path_tmp_blocks = dir_work + "." + *generate_random_string() + ".temp";
         std::remove(_path_tmp_blocks.c_str());
 
         _num_blocks = 0;
@@ -79,6 +81,7 @@ public:
         //_blocks.set_base_filename(
 
         _blocks->open_writer();
+        delete str;
     }
 
     ~blockset_t(){
