@@ -74,7 +74,7 @@ private:
 
 public:
     explicit blockset_t() {
-        _path_tmp_blocks = temp_file::create("");
+        _path_tmp_blocks = temp_file::create();
 
         _num_blocks = 0;
         _blocks = new mmmulti::map<uint64_t, ranked_path_range_t>(_path_tmp_blocks, {0});
@@ -86,7 +86,7 @@ public:
         //_blocks.close_writer();
         //_blocks.close_reader();
         delete _blocks;
-        //std::remove(_path_tmp_blocks.c_str()); // The temp_file are deleted automatically
+        //std::remove(_path_tmp_blocks.c_str()); // The temp_file is deleted automatically
     }
 
     [[nodiscard]] uint64_t size() const {
