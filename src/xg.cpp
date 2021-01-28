@@ -281,7 +281,7 @@ void XG::deserialize_members(std::istream& in) {
                     }
                     
                     // create the new node-to-path indexes
-                    index_node_to_path(temp_file::create("xg-"));
+                    index_node_to_path(temp_file::create());
                 }
                 else {
                     // we're in the more recent encoding, so we can load
@@ -798,7 +798,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
                           bool validate, std::string basename) {
 
     if (basename.empty()) {
-        basename = temp_file::create("xg-");
+        basename = temp_file::create();
     }
     node_count = 0;
     seq_length = 0;

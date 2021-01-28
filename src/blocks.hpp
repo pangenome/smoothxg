@@ -73,8 +73,8 @@ private:
     std::string _path_tmp_blocks;
 
 public:
-    explicit blockset_t(const std::string& suffix = "") {
-        _path_tmp_blocks = temp_file::create("blockset-") + suffix;
+    explicit blockset_t() {
+        _path_tmp_blocks = temp_file::create("");
 
         _num_blocks = 0;
         _blocks = new mmmulti::map<uint64_t, ranked_path_range_t>(_path_tmp_blocks, {0});
