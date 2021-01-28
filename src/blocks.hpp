@@ -9,9 +9,12 @@
 #include "mmmultimap.hpp"
 #include "xg.hpp"
 
+#include "tempfile.hpp"
+
 namespace smoothxg {
 
 using namespace handlegraph;
+
 
 inline uint64_t path_rank(const step_handle_t& step) {
     return as_integers(step)[0];
@@ -70,13 +73,11 @@ private:
     std::string _path_tmp_blocks;
 
 public:
-    explicit blockset_t(const std::string& dir_work = "") {
-        _path_tmp_blocks = dir_work + ".temp";
-        std::remove(_path_tmp_blocks.c_str());
+    explicit blockset_t() {
+        _path_tmp_blocks = temp_file::create();
 
         _num_blocks = 0;
         _blocks = new mmmulti::map<uint64_t, ranked_path_range_t>(_path_tmp_blocks, {0});
-        //_blocks.set_base_filename(
 
         _blocks->open_writer();
     }
@@ -85,7 +86,7 @@ public:
         //_blocks.close_writer();
         //_blocks.close_reader();
         delete _blocks;
-        std::remove(_path_tmp_blocks.c_str());
+        //std::remove(_path_tmp_blocks.c_str()); // The temp_file is deleted automatically
     }
 
     [[nodiscard]] uint64_t size() const {

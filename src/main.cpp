@@ -260,14 +260,13 @@ int main(int argc, char** argv) {
             gfa_in_name = args::get(gfa_in);
         }
         std::cerr << "[smoothxg::main] building xg index" << std::endl;
-        graph->from_gfa(gfa_in_name, args::get(validate),
-                       args::get(base).empty() ? gfa_in_name : args::get(base));
+        graph->from_gfa(gfa_in_name, args::get(validate), args::get(base));
         if (!args::get(keep_temp) && !args::get(no_prep)) {
             std::remove(gfa_in_name.c_str());
         }
     }
 
-    auto* blockset = new smoothxg::blockset_t("blocks");
+    auto* blockset = new smoothxg::blockset_t();
     smoothxg::smoothable_blocks(*graph,
                                 *blockset,
                                 max_block_weight,

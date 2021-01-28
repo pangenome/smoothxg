@@ -247,6 +247,7 @@ set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
 
 add_library(smoothxg_objs OBJECT
+  src/tempfile.cpp
   src/xg.cpp
   src/chain.cpp
   src/prep.cpp

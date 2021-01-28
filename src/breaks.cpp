@@ -82,7 +82,7 @@ namespace smoothxg {
         atomicbitvector::atomic_bv_t block_is_ready(blockset->size());
         std::vector<std::vector<block_t>> ready_blocks(blockset->size());
 
-        auto *broken_blockset = new smoothxg::blockset_t("blocks.broken");
+        auto *broken_blockset = new smoothxg::blockset_t();
 
         auto write_ready_blocks_lambda = [&]() {
             uint64_t num_blocks = block_is_ready.size();
