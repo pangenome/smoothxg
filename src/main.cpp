@@ -38,6 +38,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
     args::ValueFlag<std::string> _ref_paths(parser, "FILE", "a file listing (one per line) sequences to preserved as paths in the consensus output graphs", {'P', "ref-paths"});
+    args::Flag _only_ref_paths(parser, "", "use only the reference paths in the consensus graph, ignoring any other consensus paths", {'O', "only-ref-paths"});
     args::ValueFlag<std::string> _write_consensus_path_names(parser, "FILE", "write the consensus path names to this file", {'f', "write-consensus-path-names"});
     args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE", "don't smooth, just generate the consensus, taking the consensus path names from this file", {'H', "consensus-from"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
@@ -389,6 +390,9 @@ int main(int argc, char** argv) {
     if (write_consensus_graph) {
         // check if we have a reference path list
         if (_ref_paths) {
+            if (_only_ref_paths) {
+                consensus_path_names.clear();
+            }
             ifstream ref_paths(args::get(_ref_paths).c_str());
             std::string line;
             while (std::getline(ref_paths, line)) {
