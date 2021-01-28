@@ -27,31 +27,6 @@
 using namespace std;
 using namespace xg;
 
-/*
-std::string print_time(const double &_seconds) {
-    int days = 0, hours = 0, minutes = 0, seconds = 0;
-    distribute_seconds(days, hours, minutes, seconds, _seconds);
-    std::stringstream buffer;
-    buffer << std::setfill('0') << std::setw(2) << days << ":"
-           << std::setfill('0') << std::setw(2) << hours << ":"
-           << std::setfill('0') << std::setw(2) << minutes << ":"
-           << std::setfill('0') << std::setw(2) << seconds;
-    return buffer.str();
-}
-
-void distribute_seconds(int &days, int &hours, int &minutes, int &seconds, const double &input_seconds) {
-    const int cseconds_in_day = 86400;
-    const int cseconds_in_hour = 3600;
-    const int cseconds_in_minute = 60;
-    const int cseconds = 1;
-    days = std::floor(input_seconds / cseconds_in_day);
-    hours = std::floor(((int) input_seconds % cseconds_in_day) / cseconds_in_hour);
-    minutes = std::floor((((int) input_seconds % cseconds_in_day) % cseconds_in_hour) / cseconds_in_minute);
-    seconds = ((((int) input_seconds % cseconds_in_day) % cseconds_in_hour) % cseconds_in_minute) /
-              cseconds;
-}
- */
-
 
 int main(int argc, char** argv) {
     args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator");
@@ -62,8 +37,9 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> _smoothed_in_gfa(parser, "FILE", "read GFA from this file", {'F', "smoothed-in"});
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
     args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
+    args::ValueFlag<std::string> _ref_paths(parser, "FILE", "a file listing (one per line) sequences to preserved as paths in the consensus output graphs", {'P', "ref-paths"});
     args::ValueFlag<std::string> _write_consensus_path_names(parser, "FILE", "write the consensus path names to this file", {'f', "write-consensus-path-names"});
-    args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE", "read the consensus path names from this file", {'H', "read-consensus-path-names"});
+    args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE", "don't smooth, just generate the consensus, taking the consensus path names from this file", {'H', "consensus-from"});
     args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
     args::ValueFlag<std::string> _consensus_jump_max(parser, "jump_max[,jump_max]*", "preserve all divergences from the consensus paths greater than this length, with multiples allowed [default: 100]", {'C', "consensus-jump-max"});
     args::ValueFlag<uint64_t> _consensus_jump_limit(parser, "jump_limit", "ignore consensus jumps farther than this in the sort order of the smoothed graph [default: 1e6]", {'Q', "consensus-jump-limit"});
@@ -411,6 +387,14 @@ int main(int argc, char** argv) {
 
     // do we need to build the consensus graph?
     if (write_consensus_graph) {
+        // check if we have a reference path list
+        if (_ref_paths) {
+            ifstream ref_paths(args::get(_ref_paths).c_str());
+            std::string line;
+            while (std::getline(ref_paths, line)) {
+                consensus_path_names.push_back(line);
+            }
+        }
         // get the base name
         std::string consensus_base = args::get(write_consensus_graph);
         std::vector<uint64_t> jump_maxes;
