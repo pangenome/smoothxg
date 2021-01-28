@@ -11,6 +11,8 @@
 
 #include "gfakluge.hpp"
 
+#include "tempfile.hpp"
+
 //#define VERBOSE_DEBUG
 //#define debug_path_index
 //#define DEBUG_CONSTRUCTION
@@ -279,7 +281,7 @@ void XG::deserialize_members(std::istream& in) {
                     }
                     
                     // create the new node-to-path indexes
-                    index_node_to_path(temp_file::create());
+                    index_node_to_path(temp_file::create("xg-"));
                 }
                 else {
                     // we're in the more recent encoding, so we can load
@@ -796,7 +798,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
                           bool validate, std::string basename) {
 
     if (basename.empty()) {
-        basename = temp_file::create();
+        basename = temp_file::create("xg-");
     }
     node_count = 0;
     seq_length = 0;
@@ -2500,112 +2502,6 @@ pos_t XG::graph_pos_at_path_position(const path_handle_t& path_handle, size_t pa
     size_t x = path.step_rank_at_position(path_pos);
     handle_t handle = path.handle(x);
     return make_pos_t(get_id(handle), get_is_reverse(handle), path_pos - path.handle_start(x));
-}
-
-namespace temp_file {
-
-// We use this to make the API thread-safe
-std::recursive_mutex monitor;
-
-std::string temp_dir;
-
-/// Because the names are in a static object, we can delete them when
-/// std::exit() is called.
-struct Handler {
-    std::set<std::string> filenames;
-    std::string parent_directory;
-    ~Handler() {
-        // No need to lock in static destructor
-        for (auto& filename : filenames) {
-            std::remove(filename.c_str());
-        }
-        if (!parent_directory.empty()) {
-            // There may be extraneous files in the directory still (like .fai files)
-            auto directory = opendir(parent_directory.c_str());
-            
-            dirent* dp;
-            while ((dp = readdir(directory)) != nullptr) {
-                // For every item still in it, delete it.
-                // TODO: Maybe eventually recursively delete?
-                std::remove((parent_directory + "/" + dp->d_name).c_str());
-            }
-            closedir(directory);
-            
-            // Delete the directory itself
-            std::remove(parent_directory.c_str());
-        }
-    }
-} handler;
-
-std::string create(const std::string& base) {
-    std::lock_guard<recursive_mutex> lock(monitor);
-
-    if (handler.parent_directory.empty()) {
-        // Make a parent directory for our temp files
-        string tmpdirname_cpp = get_dir() + "/xg-XXXXXX";
-        char* tmpdirname = new char[tmpdirname_cpp.length() + 1];
-        strcpy(tmpdirname, tmpdirname_cpp.c_str());
-        auto got = mkdtemp(tmpdirname);
-        if (got != nullptr) {
-            // Save the directory we got
-            handler.parent_directory = got;
-        } else {
-            cerr << "[xg]: couldn't create temp directory: " << tmpdirname << endl;
-            exit(1);
-        }
-        delete [] tmpdirname;
-    }
-
-    std::string tmpname = handler.parent_directory + "/" + base + "XXXXXX";
-    // hack to use mkstemp to get us a safe temporary file name
-    int fd = mkstemp(&tmpname[0]);
-    if(fd != -1) {
-        // we don't leave it open; we are assumed to open it again externally
-        close(fd);
-    } else {
-        cerr << "[xg]: couldn't create temp file on base "
-             << base << " : " << tmpname << endl;
-        exit(1);
-    }
-    handler.filenames.insert(tmpname);
-    return tmpname;
-}
-
-std::string create() {
-    // No need to lock as we call this thing that locks
-    return create("xg-");
-}
-
-void remove(const std::string& filename) {
-    std::lock_guard<recursive_mutex> lock(monitor);
-    
-    std::remove(filename.c_str());
-    handler.filenames.erase(filename);
-}
-
-void set_dir(const std::string& new_temp_dir) {
-    std::lock_guard<recursive_mutex> lock(monitor);
-    
-    temp_dir = new_temp_dir;
-}
-
-std::string get_dir() {
-    std::lock_guard<recursive_mutex> lock(monitor);
-
-    // Get the default temp dir from environment variables.
-    if (temp_dir.empty()) {
-        const char* system_temp_dir = nullptr;
-        for(const char* var_name : {"TMPDIR", "TMP", "TEMP", "TEMPDIR", "USERPROFILE"}) {
-            if (system_temp_dir == nullptr) {
-                system_temp_dir = getenv(var_name);
-            }
-        }
-        temp_dir = (system_temp_dir == nullptr ? "/tmp" : system_temp_dir);
-    }
-
-    return temp_dir;
-}
-
 }
 
 int get_thread_count(void) {

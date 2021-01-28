@@ -267,7 +267,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    auto* blockset = new smoothxg::blockset_t("blocks");
+    auto* blockset = new smoothxg::blockset_t();
     smoothxg::smoothable_blocks(*graph,
                                 *blockset,
                                 max_block_weight,
