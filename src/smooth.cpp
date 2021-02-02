@@ -805,13 +805,13 @@ void _write_merged_maf_blocks(
                     merged_block_id_intervals_tree.add(
                             merged_maf_blocks.block_ids[i - 1],
                             merged_maf_blocks.block_ids[begin_pos] + 1,
-                            merged_block_id_intervals_tree.size()
+                            0
                     );
                 } else {
                     merged_block_id_intervals_tree.add(
                             merged_maf_blocks.block_ids[begin_pos],
                             merged_maf_blocks.block_ids[i - 1] + 1,
-                            merged_block_id_intervals_tree.size()
+                            0
                     );
                 }
 
@@ -829,13 +829,13 @@ void _write_merged_maf_blocks(
             merged_block_id_intervals_tree.add(
                     merged_maf_blocks.block_ids[merged_maf_blocks_size - 1],
                     merged_maf_blocks.block_ids[begin_pos] + 1,
-                    merged_block_id_intervals_tree.size()
+                    0
             );
         } else {
             merged_block_id_intervals_tree.add(
                     merged_maf_blocks.block_ids[begin_pos],
                     merged_maf_blocks.block_ids[merged_maf_blocks_size - 1] + 1,
-                    merged_block_id_intervals_tree.size()
+                    0
             );
         }
         block_id_ranges += std::to_string(merged_maf_blocks.block_ids[begin_pos]);
@@ -1614,14 +1614,12 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         graph.for_each_step_in_path(
             graph.get_path_handle(smoothed->get_path_name(path)),
             [&](const step_handle_t &step) {
-                orig_seq.append(
-                    graph.get_sequence(graph.get_handle_of_step(step)));
+                orig_seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
             });
         smoothed->for_each_step_in_path(
             path,
             [&](const step_handle_t &step) {
-                smoothed_seq.append(
-                    smoothed->get_sequence(smoothed->get_handle_of_step(step)));
+                smoothed_seq.append(smoothed->get_sequence(smoothed->get_handle_of_step(step)));
             });
         if (orig_seq != smoothed_seq) {
             std::cerr << "[smoothxg] error! path "
@@ -1733,6 +1731,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         for (uint64_t i = 0; i < merged_block_id_intervals_tree_vector.size(); ++i) {
             auto &merged_block_id_intervals_tree = merged_block_id_intervals_tree_vector[i];
 
+            bool inverted_intervals = inverted_merged_block_id_intervals_ranks.count(i) != 0;
+
             path_handle_t consensus_path = smoothed->get_path_handle(
                     consensus_base_name + block_id_ranges_vector[i]
             );
@@ -1740,18 +1740,32 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             std::vector<size_t> merged_block_id_intervals;
             merged_block_id_intervals_tree.overlap(0, block_graphs.size(), merged_block_id_intervals);
 
-            for (auto &merged_block_id_interval_idx : merged_block_id_intervals){
+            uint64_t start_interval = 0;
+            uint64_t end_interval = merged_block_id_intervals.size() - 1;
+            int8_t step_interval = 1;
+            int8_t step = 1;
+            if (inverted_intervals) {
+                start_interval = merged_block_id_intervals.size() - 1;
+                end_interval = 0;
+                step_interval = -1;
+                step = -1;
+            }
+
+            for (uint64_t j = start_interval; j != (end_interval + step_interval); j += step_interval) {
+                auto &merged_block_id_interval_idx = merged_block_id_intervals[j];
+
                 uint64_t start = merged_block_id_intervals_tree.start(merged_block_id_interval_idx);
                 uint64_t end = merged_block_id_intervals_tree.end(merged_block_id_interval_idx) - 1;
-                if (inverted_merged_block_id_intervals_ranks.count(merged_block_id_intervals_tree.data(merged_block_id_interval_idx)) != 0){
+                if (inverted_intervals){
                     uint64_t tmp = start;
                     start = end;
                     end = tmp;
-                }
 
-                int8_t step = 1;
-                if (start > end) {
-                    step = -1;
+                    /*{
+                        std::lock_guard<std::mutex> guard(consensus_path_is_merged_mutex);
+
+                        std::cerr << i << ": start-end " << start << "-" << end <<std::endl;
+                    }*/
                 }
 
                 for (uint64_t block_id = start; block_id != (end + step); block_id += step) {
