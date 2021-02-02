@@ -69,7 +69,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                               bool use_abpoa,
                               const std::string &consensus_name,
                               std::vector<std::string>& consensus_path_names,
-                              bool write_fasta_blocks);
+                              bool write_fasta_blocks,
+                              uint64_t max_merged_groups_in_memory);
 
 void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
                const std::vector<std::string> &sequence_names,

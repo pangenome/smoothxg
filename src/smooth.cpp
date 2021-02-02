@@ -988,7 +988,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                               bool use_abpoa,
                               const std::string &consensus_base_name,
                               std::vector<std::string>& consensus_path_names,
-                              bool write_fasta_blocks) {
+                              bool write_fasta_blocks,
+                              uint64_t max_merged_groups_in_memory) {
 
     bool add_consensus = !consensus_base_name.empty();
 
@@ -1021,7 +1022,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             if (produce_maf || (add_consensus && merge_blocks)) {
                 uint64_t block_id = 0;
 
-                uint8_t MAX_MERGED_GROUPS_IN_MEMORY = 10;
                 std::deque<maf_t> merged_maf_blocks_queue;
 
                 uint64_t num_blocks = blockset->size();
@@ -1211,7 +1211,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                         }
 
                         if (!merged) {
-                            if (merged_maf_blocks_queue.size() >= MAX_MERGED_GROUPS_IN_MEMORY){
+                            if (merged_maf_blocks_queue.size() >= max_merged_groups_in_memory){
                                 // Write the merged group on the left
                                 auto& merged_maf_blocks = merged_maf_blocks_queue.front();
 
