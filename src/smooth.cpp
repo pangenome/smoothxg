@@ -1665,17 +1665,27 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
         // Create first the path handles
         for (auto &pos_range : consensus_mapping) {
-            // TODO TO FIX
-//            if (!preserve_unmerged_consensus && are_there_merged_intervals){
-//                std::vector<size_t> result;
-//                merged_block_id_intervals_tree.overlap(pos_range.block_id, pos_range.block_id + 1, result);
-//
-//                if (!result.empty()) {
-//                    // Invalidate the position range (it will not be used anymore)
-//                    pos_range.end_pos = pos_range.start_pos;
-//                    continue; // skip the embedding for the single consensus sequence
-//                }
-//            }
+            if (!preserve_unmerged_consensus && are_there_merged_intervals){
+                ///////////////////////////////////////////////////
+                // TODO can we do this search better/faster?
+                bool found = false;
+                for (auto& merged_block_id_intervals_tree : merged_block_id_intervals_tree_vector) {
+                    std::vector<size_t> result;
+                    merged_block_id_intervals_tree.overlap(pos_range.block_id, pos_range.block_id + 1, result);
+
+                    if (!result.empty()) {
+                        found = true;
+                        break;
+                    }
+                }
+                ////////////////////////////////////////////////
+
+                if (found) {
+                    // Invalidate the position range (it will not be used anymore)
+                    pos_range.end_pos = pos_range.start_pos;
+                    continue; // skip the embedding for the single consensus sequence
+                }
+            }
 
             consensus_paths[pos_range.block_id] = smoothed->create_path_handle(
                     block_graphs[pos_range.block_id]->get_path_name(pos_range.target_path)
