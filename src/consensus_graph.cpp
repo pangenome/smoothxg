@@ -674,7 +674,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     }
 
     /// validate consensus graph until here
-    // FIXME can we parallelize things here?
+    // FIXME: this should check the actual path sequence for validation
+    // not each step
+    /*
     smoothed.for_each_path_handle(
             [&](const path_handle_t &p) {
                 if (is_consensus[as_integer(p)]) {
@@ -713,6 +715,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     });
                 }
             });
+    */
 
     consensus->for_each_path_handle(
         [&](const path_handle_t& path) {
