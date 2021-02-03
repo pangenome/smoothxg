@@ -1228,6 +1228,25 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                 merged_maf_blocks_queue.pop_front();
                             }
 
+                            // quietly groom by flipping the block to prefer the forward orientation of the lowest-ranked path
+                            auto& block_graph = block_graphs[block_id];
+                            uint64_t first_id = std::numeric_limits<uint64_t>::max();
+                            path_handle_t groom_target_path;
+                            block_graph->for_each_path_handle(
+                                [&](const path_handle_t& p) {
+                                    auto name_range = block_graph->get_path_name(p);
+                                    auto path_name = name_range.substr(0, name_range.find_last_of('_'));
+                                    uint64_t id = as_integer(graph.get_path_handle(path_name));
+                                    if (id < first_id) {
+                                        groom_target_path = p;
+                                        first_id = id;
+                                    }
+                                });
+                            assert(first_id < std::numeric_limits<uint64_t>::max());
+                            bool flip_block = block_graph->get_is_reverse(
+                                block_graph->get_handle_of_step(
+                                    block_graph->path_begin(groom_target_path)));
+
                             // Put the current block in a new group on the right
                             merged_maf_blocks_queue.emplace_back();
                             auto& merged_maf_blocks = merged_maf_blocks_queue.back();
@@ -1236,7 +1255,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             _put_block_in_group(
                                     merged_maf_blocks, block_id, num_seq_in_block, consensus_name, mafs,
                                     false,
-                                    false);
+                                    flip_block);
 
                             _clear_maf_block(mafs[block_id]);
                         }
