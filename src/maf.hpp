@@ -5,15 +5,6 @@
 #include <vector>
 #include <map>
 
-struct maf_row_t {
-    std::string path_name;
-    uint64_t record_start = 0;
-    uint64_t seq_size = 0;
-    bool is_reversed = false;
-    uint64_t path_length = 0;
-    std::string aligned_seq;
-};
-
 struct maf_partial_row_t {
     uint64_t record_start = 0;
     uint64_t seq_size = 0;
@@ -29,18 +20,18 @@ struct maf_t {
 };
 
 template<typename T>
-void clear_vector(std::vector<T>& vec) {
+inline void clear_vector(std::vector<T>& vec) {
     vec.clear();
     vec.shrink_to_fit();
     std::vector<T>().swap(vec);
 }
-void clear_string(std::string& str){
+inline void clear_string(std::string& str){
     str.clear();
     str.shrink_to_fit();
     std::string().swap(str);
 }
 
-void write_maf_rows(std::ofstream &out, const std::map<std::string, std::vector<maf_partial_row_t>>& maf) {
+inline void write_maf_rows(std::ofstream &out, const std::map<std::string, std::vector<maf_partial_row_t>>& maf) {
     // determine output widths for everything
     size_t max_src_length = 0;
     size_t max_start_length = 0;
