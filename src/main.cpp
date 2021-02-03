@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
     args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]", {'j', "path-jump-max"});
     args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]", {'e', "edge-jump-max"});
 
-    args::ValueFlag<uint64_t> _max_merged_groups_in_memory(parser, "N", "increasing this value, much more blocks that are not immediately contiguous along the graph will be merged [default: 20]", {'G', "max-block-groups-in-memory"});
+    args::ValueFlag<uint64_t> _max_merged_groups_in_memory(parser, "N", "increasing this value, much more blocks that are not immediately contiguous along the graph will be merged [default: 50]", {'G', "max-block-groups-in-memory"});
 
     // Block split
     args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N", "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]", {'L', "min-seq-len-mash"});
@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
     uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
     uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
 
-    uint64_t max_merged_groups_in_memory = _max_merged_groups_in_memory ? args::get(_max_merged_groups_in_memory) : 20;
+    uint64_t max_merged_groups_in_memory = _max_merged_groups_in_memory ? args::get(_max_merged_groups_in_memory) : 50;
 
     // Block split
     uint64_t min_length_mash_based_clustering =  _min_length_mash_based_clustering ? args::get(_min_length_mash_based_clustering) : 200;
