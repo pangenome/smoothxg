@@ -42,6 +42,7 @@ struct consensus_spec_t {
     std::string basename;
     int jump_max = 0;
     std::string ref_file;
+    std::string ref_file_sanitized;
     bool keep_consensus_paths;
 };
 

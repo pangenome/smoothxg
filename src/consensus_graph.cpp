@@ -48,13 +48,12 @@ std::vector<consensus_spec_t> parse_consensus_spec(const std::string& spec_str,
             spec.jump_max = std::stoi(vals[0]);
         }
         if (vals.size() > 1) {
-            std::string ref_path(vals[1].begin(), vals[1].end());
-            std::string delimiter = "/";
-            size_t pos = 0;
-            while ((pos = ref_path.find(delimiter)) != std::string::npos) {
-                ref_path.erase(0, pos + delimiter.length());
+            spec.ref_file = vals[1];
+            // sanitize file name
+            spec.ref_file_sanitized = spec.ref_file;
+            for (auto& c : spec.ref_file_sanitized) {
+                if (c == '/') c = '_';
             }
-            spec.ref_file = ref_path.substr(0, pos);
         }
         if (vals.size() > 2) {
             spec.keep_consensus_paths = (vals[2] == "y");
