@@ -32,6 +32,39 @@ ostream& operator<<(ostream& o, const link_path_t& a) {
     return o;
 }
 
+std::vector<consensus_spec_t> parse_consensus_spec(const std::string& spec_str,
+                                                   bool& requires_consensus) {
+    auto fields = split(spec_str, ',');
+    assert(fields.size() > 1);
+    auto& basename = fields.front();
+    std::vector<consensus_spec_t> specs;
+    for (int i = 1; i < fields.size(); ++i) {
+        // split the field, add the spec
+        specs.emplace_back();
+        auto& spec = specs.back();
+        spec.basename = basename;
+        auto vals = split(fields[i], ':');
+        if (vals.size() > 0) {
+            spec.jump_max = std::stoi(vals[0]);
+        }
+        if (vals.size() > 1) {
+            spec.ref_file = vals[1];
+            // sanitize file name
+            spec.ref_file_sanitized = spec.ref_file;
+            for (auto& c : spec.ref_file_sanitized) {
+                if (c == '/') c = '_';
+            }
+        }
+        if (vals.size() > 2) {
+            spec.keep_consensus_paths = (vals[2] == "y");
+        } else {
+            spec.keep_consensus_paths = true;
+        }
+        requires_consensus |= spec.keep_consensus_paths;
+    }
+    return specs;
+}
+
 // prep the graph into a given GFA file
 // we'll then build the xg index on top of that in low memory
 
@@ -65,7 +98,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     // record first step handle off a consensus path
     // detect consensus switches, writing the distance to the last consensus step, step
     // into an array of tuples
-    std::cerr << "[smoothxg::create_consensus_graph] deriving consensus graph with consensus-jump-max=" << consensus_jump_max << std::endl;
     
     std::vector<bool> is_consensus(smoothed.get_path_count()+1, false);
     for (auto& path : consensus_paths) {

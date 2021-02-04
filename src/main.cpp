@@ -36,13 +36,13 @@ int main(int argc, char** argv) {
     args::ValueFlag<std::string> smoothed_out(parser, "FILE", "write GFA to this file (not /dev/stdout if consensus graph is made)", {'o', "smoothed-out"});
     args::ValueFlag<std::string> _smoothed_in_gfa(parser, "FILE", "read GFA from this file", {'F', "smoothed-in"});
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE","write the multiple sequence alignments (MSAs) in MAF format in this file",{'m', "write-msa-in-maf-format"});
-    args::Flag add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
+    args::Flag _add_consensus(parser, "bool", "include consensus sequence in the smoothed graph", {'a', "add-consensus"});
     args::ValueFlag<std::string> _ref_paths(parser, "FILE", "a file listing (one per line) sequences to preserved as paths in the consensus output graphs", {'P', "ref-paths"});
-    args::Flag _only_ref_paths(parser, "", "use only the reference paths in the consensus graph, ignoring any other consensus paths", {'O', "only-ref-paths"});
+    //args::Flag _only_ref_paths(parser, "", "use only the reference paths in the consensus graph, ignoring any other consensus paths", {'O', "only-ref-paths"});
     args::ValueFlag<std::string> _write_consensus_path_names(parser, "FILE", "write the consensus path names to this file", {'f', "write-consensus-path-names"});
     args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE", "don't smooth, just generate the consensus, taking the consensus path names from this file", {'H', "consensus-from"});
-    args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[jump_max].gfa", {'s', "write-consensus-graph"});
-    args::ValueFlag<std::string> _consensus_jump_max(parser, "jump_max[,jump_max]*", "preserve all divergences from the consensus paths greater than this length, with multiples allowed [default: 100]", {'C', "consensus-jump-max"});
+    //args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[spec].gfa", {'s', "write-consensus-graph"});
+    args::ValueFlag<std::string> _consensus_spec(parser, "BASENAME[,jump_max[:refs[:(y|n)]?]?]*", "consensus graph specification: write the consensus graph to BASENAME.cons_[spec].gfa; where each spec contains at least a jump_max parameter (which defines the length of divergences from consensus paths to preserve in the output), optionally a file containing reference paths to preserve in the output, and a flag (y/n) indicating whether we should also use the POA consensus paths; implies -a; example: cons,100,1000:refs1.txt:n,1000:refs2.txt:y,10000 [default: unset]", {'C', "consensus-spec"});
     args::ValueFlag<uint64_t> _consensus_jump_limit(parser, "jump_limit", "ignore consensus jumps farther than this in the sort order of the smoothed graph [default: 1e6]", {'Q', "consensus-jump-limit"});
 
     // Merge blocks (for merging MAF blocks and consensus sequences)
@@ -103,18 +103,15 @@ int main(int argc, char** argv) {
 
     std::string smoothed_out_gfa = args::get(smoothed_out);
     std::vector<std::string> consensus_path_names;
+    std::vector<smoothxg::consensus_spec_t> consensus_specs;
+    bool requires_consensus = false;
+    bool write_consensus_graph = false;
 
     if (!_read_consensus_path_names) {
 
-    if (args::get(merge_blocks) && (!write_msa_in_maf_format && !args::get(add_consensus))) {
+    if (args::get(merge_blocks) && (!write_msa_in_maf_format && !args::get(_add_consensus))) {
         std::cerr << "[smoothxg::main] error: Please specify -m/--write-msa-in-maf-format and/or -a/--add-consensus "
                      "to use the -M/--merge-blocks option." << std::endl;
-        return 1;
-    }
-
-    if (!args::get(add_consensus) && write_consensus_graph) {
-        std::cerr << "[smoothxg::main] error: Please only use the -s/--write-consensus-graph parameter together with"
-                   "the -a/--add-consensus option." << std::endl;
         return 1;
     }
 
@@ -134,10 +131,20 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (_write_consensus_path_names && !add_consensus) {
-        std::cerr << "[smoothxg::main] error: Please use -f/--write-consensus-path-names only with -a/--add-consensus." << std::endl;
-        return 1;
+    bool add_consensus = false;
+    if (_write_consensus_path_names) {
+        add_consensus = true;
     }
+
+    if (_consensus_spec) {
+        consensus_specs = smoothxg::parse_consensus_spec(args::get(_consensus_spec), requires_consensus);
+        write_consensus_graph = true;
+    }
+
+    if (requires_consensus) {
+        add_consensus = true;
+    }
+
     double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 
     uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
@@ -349,7 +356,7 @@ int main(int argc, char** argv) {
                                                   args::get(write_msa_in_maf_format), maf_header,
                                                   args::get(merge_blocks), args::get(_preserve_unmerged_consensus), contiguous_path_jaccard,
                                                   !args::get(use_spoa),
-                                                  args::get(add_consensus) ? "Consensus_" : "",
+                                                  add_consensus ? "Consensus_" : "",
                                                   consensus_path_names,
                                                   args::get(write_block_fastas),
                                                   max_merged_groups_in_memory);
@@ -394,14 +401,10 @@ int main(int argc, char** argv) {
     // do we need to build the consensus graph?
     if (write_consensus_graph) {
         // check if we have a reference path list
+        /*
         if (_ref_paths) {
             if (_only_ref_paths) {
                 consensus_path_names.clear();
-            }
-            ifstream ref_paths(args::get(_ref_paths).c_str());
-            std::string line;
-            while (std::getline(ref_paths, line)) {
-                consensus_path_names.push_back(line);
             }
         }
         // get the base name
@@ -414,6 +417,7 @@ int main(int argc, char** argv) {
         } else {
             jump_maxes.push_back(100);
         }
+        */
         uint64_t jump_limit = (_consensus_jump_limit ? args::get(_consensus_jump_limit) : 1e6);
         std::cerr << "[smoothxg::main] building xg index from smoothed graph" << std::endl;
         XG smoothed_xg;
@@ -430,11 +434,35 @@ int main(int argc, char** argv) {
             smoothed_xg.from_gfa(smoothed_out_gfa, args::get(validate),
                                  args::get(base).empty() ? smoothed_out_gfa : args::get(base));
         }
-        for (auto jump_max : jump_maxes) {
+        for (auto& spec : consensus_specs) {
+            //for (auto jump_max : jump_maxes) {
+            std::vector<std::string> consensus_paths_to_use;
+            if (spec.ref_file.size()) {
+                ifstream ref_paths(spec.ref_file.c_str());
+                std::string line;
+                while (std::getline(ref_paths, line)) {
+                    consensus_paths_to_use.push_back(line);
+                }
+            }
+            if (spec.keep_consensus_paths) {
+                consensus_paths_to_use.insert(consensus_paths_to_use.begin(),
+                                              consensus_path_names.begin(),
+                                              consensus_path_names.end());
+            }
+            auto outname = spec.basename + "@" + std::to_string(spec.jump_max)
+                + (!spec.ref_file.empty() ? ":" + spec.ref_file_sanitized : "")
+                + (spec.keep_consensus_paths ? ":y" : ":n")
+                + ".gfa";
+            // log our specification
+            std::cerr << "[smoothxg::create_consensus_graph] deriving consensus graph with consensus-jump-max=" << spec.jump_max;
+            if (spec.ref_file.size()) std::cerr << " including reference paths in " << spec.ref_file;
+            if (spec.keep_consensus_paths) std::cerr << " and keeping consensus paths";
+            else std::cerr << " without consensus paths";
+            std::cerr << std::endl;
             odgi::graph_t* consensus_graph = smoothxg::create_consensus_graph(
-                smoothed_xg, consensus_path_names, jump_max, jump_limit, n_threads,
-                args::get(base).empty() ? args::get(write_consensus_graph) : args::get(base));
-            ofstream o(consensus_base + "@" + std::to_string(jump_max) + ".gfa");
+                smoothed_xg, consensus_paths_to_use, spec.jump_max, jump_limit, n_threads,
+                outname);
+            ofstream o(outname);
             consensus_graph->to_gfa(o);
             o.close();
             delete consensus_graph;
