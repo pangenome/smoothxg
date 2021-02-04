@@ -445,7 +445,9 @@ int main(int argc, char** argv) {
                 }
             }
             if (spec.keep_consensus_paths) {
-                consensus_paths_to_use = consensus_path_names;
+                consensus_paths_to_use.insert(consensus_paths_to_use.begin(),
+                                              consensus_path_names.begin(),
+                                              consensus_path_names.end());
             }
             auto outname = spec.basename + "@" + std::to_string(spec.jump_max)
                 + (spec.ref_file.size()? ":" + spec.ref_file : ":")
