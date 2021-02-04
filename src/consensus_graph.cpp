@@ -569,14 +569,19 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                        [&consensus, &smoothed, &path, &cur_handle_in_cons_graph, &path_cons_graph]
                                        (const step_handle_t& step) {
             handle_t h = smoothed.get_handle_of_step(step);
-            handle_t next_handle;
-            nid_t node_id = smoothed.get_id(h);
-            if (!consensus->has_node(node_id)) {
-               cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(h), node_id);
-            } else {
-               cur_handle_in_cons_graph = consensus->get_handle(node_id);
-            }
             bool rev = smoothed.get_is_reverse(h);
+            nid_t node_id = smoothed.get_id(h);
+            // we make a new node with the same sequence and relative orientation
+            if (!consensus->has_node(node_id)) {
+                if (!rev) {
+                    cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(h), node_id);
+                } else {
+                    cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(smoothed.flip(h)), node_id);
+                }
+            } else {
+                cur_handle_in_cons_graph = consensus->get_handle(node_id);
+            }
+            // our cur_handle_in_cons_graph is in forward orientation, so we have to match
             if (rev) {
                 consensus->append_step(path_cons_graph, consensus->flip(cur_handle_in_cons_graph));
             } else {
