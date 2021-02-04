@@ -37,7 +37,6 @@ void break_blocks(const xg::XG& graph,
                   const bool& order_paths_from_longest,
                   const bool& break_repeats,
                   const uint64_t& thread_count,
-                  const bool& consensus_graph,
                   const bool& write_block_to_split_fastas);
 
 }
