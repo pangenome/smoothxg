@@ -448,7 +448,7 @@ int main(int argc, char** argv) {
                 consensus_paths_to_use = consensus_path_names;
             }
             auto outname = spec.basename + "@" + std::to_string(spec.jump_max)
-                + (spec.ref_file.size()? ":" + spec.ref_file : ":")
+                + (!spec.ref_file.empty() ? ":" + spec.ref_file : "")
                 + (spec.keep_consensus_paths ? ":y" : ":n")
                 + ".gfa";
             // log our specification
