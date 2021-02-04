@@ -768,6 +768,7 @@ void _write_merged_maf_blocks(
         std::unordered_set<uint64_t> &inverted_merged_block_id_intervals_ranks,
         std::vector<IITree<uint64_t, uint64_t>> &merged_block_id_intervals_tree_vector,
         std::vector<std::string> &block_id_ranges_vector,
+        std::vector<bool> &is_block_in_a_merged_group,
         bool produce_maf, std::ofstream& out_maf,
         bool add_consensus, std::string consensus_base_name,
         bool fraction_below_threshold,
@@ -793,6 +794,10 @@ void _write_merged_maf_blocks(
 
         merged_block_id_intervals_tree_vector.emplace_back();
         auto& merged_block_id_intervals_tree = merged_block_id_intervals_tree_vector.back();
+
+        if (add_consensus) {
+            is_block_in_a_merged_group[merged_maf_blocks.block_ids[0]] = true;
+        }
 
         uint64_t begin_pos = 0;
         for (uint64_t i = 1; i < merged_maf_blocks_size; ++i) {
@@ -822,6 +827,10 @@ void _write_merged_maf_blocks(
                 block_id_ranges += "_";
 
                 begin_pos = i;
+            }
+
+            if (add_consensus) {
+                is_block_in_a_merged_group[merged_maf_blocks.block_ids[i]] = true;
             }
         }
 
@@ -1007,6 +1016,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     std::unordered_set<uint64_t> inverted_merged_block_id_intervals_ranks; // IITree can't store inverted intervals
 
     atomicbitvector::atomic_bv_t blok_to_flip(blockset->size());
+
+    std::vector<bool> is_block_in_a_merged_group((add_consensus && merge_blocks) ? blockset->size() : 0);
 
     {
         bool produce_maf = !path_output_maf.empty();
@@ -1219,6 +1230,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                                          inverted_merged_block_id_intervals_ranks,
                                                          merged_block_id_intervals_tree_vector,
                                                          block_id_ranges_vector,
+                                                         is_block_in_a_merged_group,
                                                          produce_maf, out_maf,
                                                          add_consensus, consensus_base_name,
                                                          fraction_below_threshold,
@@ -1299,6 +1311,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                              inverted_merged_block_id_intervals_ranks,
                                              merged_block_id_intervals_tree_vector,
                                              block_id_ranges_vector,
+                                             is_block_in_a_merged_group,
                                              produce_maf, out_maf,
                                              add_consensus, consensus_base_name,
                                              false,
@@ -1671,6 +1684,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         // by definition, the consensus paths are embedded in our blocks, which simplifies
         // things we'll still need to add a new path for each consensus path
 
+        // Is there something merged?
         if (!merged_block_id_intervals_tree_vector.empty()) {
 #pragma omp parallel for schedule(static,1)
             for (auto& merged_block_id_intervals_tree : merged_block_id_intervals_tree_vector) {
@@ -1682,19 +1696,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
 #pragma omp parallel for schedule(static,1)
                 for (auto &pos_range : consensus_mapping) {
-                    ///////////////////////////////////////////////////
-                    // TODO can we do this search better?
-                    for (auto& merged_block_id_intervals_tree : merged_block_id_intervals_tree_vector) {
-                        std::vector<size_t> result;
-                        merged_block_id_intervals_tree.overlap(pos_range.block_id, pos_range.block_id + 1, result);
-
-                        if (!result.empty()) {
-                            // Invalidate the position range (it will not be used anymore)
-                            pos_range.end_pos = pos_range.start_pos;
-                            break;
-                        }
+                    if (is_block_in_a_merged_group[pos_range.block_id]) {
+                        // Invalidate the position range (it will not be used anymore)
+                        pos_range.end_pos = pos_range.start_pos;
                     }
-                    ////////////////////////////////////////////////
                 }
             }
         }

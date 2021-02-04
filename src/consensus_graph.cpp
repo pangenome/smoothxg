@@ -580,7 +580,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
           };
 
     /// ???? could THIS run in parallel
-    std::cerr << "[smoothxg::create_consensus_graph] adding consensus paths" << std::endl;
     // add link paths and edges not in the consensus paths
     std::vector<std::string> link_path_names;
     for (auto& link : consensus_links) {
