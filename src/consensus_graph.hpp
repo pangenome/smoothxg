@@ -38,6 +38,15 @@ struct link_range_t {
     path_handle_t path;
 };
 
+struct consensus_spec_t {
+    std::string basename;
+    int jump_max = 0;
+    std::string ref_file;
+    bool keep_consensus_paths;
+};
+
+std::vector<consensus_spec_t> parse_consensus_spec(const std::string& spec_str, bool& requires_consensus);
+
 bool operator<(const link_path_t& a,
                const link_path_t& b);
 
