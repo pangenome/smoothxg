@@ -1686,20 +1686,27 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         for (auto &pos_range : consensus_mapping) {
             if (!preserve_unmerged_consensus && are_there_merged_intervals){
                 ///////////////////////////////////////////////////
-                // TODO can we do this search better/faster?
-                bool found = false;
+                // TODO can we do this search better?
+
+                std::atomic<bool> found;
+                found.store(false);
+
+#pragma omp parallel for schedule(static,1)
                 for (auto& merged_block_id_intervals_tree : merged_block_id_intervals_tree_vector) {
+                    if (found.load()) {
+                        continue;
+                    }
+
                     std::vector<size_t> result;
                     merged_block_id_intervals_tree.overlap(pos_range.block_id, pos_range.block_id + 1, result);
 
                     if (!result.empty()) {
-                        found = true;
-                        break;
+                        found.store(true);
                     }
                 }
                 ////////////////////////////////////////////////
 
-                if (found) {
+                if (found.load()) {
                     // Invalidate the position range (it will not be used anymore)
                     pos_range.end_pos = pos_range.start_pos;
                     continue; // skip the embedding for the single consensus sequence
