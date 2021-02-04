@@ -1526,6 +1526,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             return (a_id < b_id || a_id == b_id && a.start_pos < b.start_pos);
         });
 
+
     // build the sequence and edges into the output graph
     auto* smoothed = new odgi::graph_t();
 
@@ -1670,70 +1671,62 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         // by definition, the consensus paths are embedded in our blocks, which simplifies
         // things we'll still need to add a new path for each consensus path
 
-        // all raw consensus paths
-        std::vector<path_handle_t> consensus_paths(block_graphs.size());
+        if (!merged_block_id_intervals_tree_vector.empty()) {
+#pragma omp parallel for schedule(static,1)
+            for (auto& merged_block_id_intervals_tree : merged_block_id_intervals_tree_vector) {
+                merged_block_id_intervals_tree.index();
+            }
 
-        bool are_there_merged_intervals = merged_block_id_intervals_tree_vector.size() != 0;
+            if (!preserve_unmerged_consensus) {
+                std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: removing redundant single consensus" << std::endl;
 
 #pragma omp parallel for schedule(static,1)
-        for (auto& merged_block_id_intervals_tree : merged_block_id_intervals_tree_vector) {
-            merged_block_id_intervals_tree.index();
+                for (auto &pos_range : consensus_mapping) {
+                    ///////////////////////////////////////////////////
+                    // TODO can we do this search better?
+                    for (auto& merged_block_id_intervals_tree : merged_block_id_intervals_tree_vector) {
+                        std::vector<size_t> result;
+                        merged_block_id_intervals_tree.overlap(pos_range.block_id, pos_range.block_id + 1, result);
+
+                        if (!result.empty()) {
+                            // Invalidate the position range (it will not be used anymore)
+                            pos_range.end_pos = pos_range.start_pos;
+                            break;
+                        }
+                    }
+                    ////////////////////////////////////////////////
+                }
+            }
         }
+
+        // all raw consensus paths
+        std::vector<path_handle_t> consensus_paths(block_graphs.size());
 
         // Unmerged consensus sequences
         // First, create the path handles
         std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: creating path handles" << std::endl;
         for (auto &pos_range : consensus_mapping) {
-            if (!preserve_unmerged_consensus && are_there_merged_intervals){
-                ///////////////////////////////////////////////////
-                // TODO can we do this search better?
-
-                std::atomic<bool> found;
-                found.store(false);
-
-#pragma omp parallel for schedule(static,1)
-                for (auto& merged_block_id_intervals_tree : merged_block_id_intervals_tree_vector) {
-                    if (found.load()) {
-                        continue;
-                    }
-
-                    std::vector<size_t> result;
-                    merged_block_id_intervals_tree.overlap(pos_range.block_id, pos_range.block_id + 1, result);
-
-                    if (!result.empty()) {
-                        found.store(true);
-                    }
-                }
-                ////////////////////////////////////////////////
-
-                if (found.load()) {
-                    // Invalidate the position range (it will not be used anymore)
-                    pos_range.end_pos = pos_range.start_pos;
-                    continue; // skip the embedding for the single consensus sequence
-                }
-            }
-
-            consensus_paths[pos_range.block_id] = smoothed->create_path_handle(
-                    block_graphs[pos_range.block_id]->get_path_name(pos_range.target_path)
-            );
+            if (pos_range.start_pos != pos_range.end_pos) {
+                consensus_paths[pos_range.block_id] = smoothed->create_path_handle(
+                        block_graphs[pos_range.block_id]->get_path_name(pos_range.target_path)
+                );
+            } // else skip the embedding of the single consensus sequences
         }
 
         // Next, add the steps
         std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: creating step handles" << std::endl;
 #pragma omp parallel for schedule(static,1)
-        for(uint64_t i = 0; i < consensus_mapping.size(); ++i){
-            path_position_range_t *pos_range = &consensus_mapping[i];
-
-            if (pos_range->start_pos == pos_range->end_pos) {
+        for(auto& pos_range : consensus_mapping){
+            if (pos_range.start_pos == pos_range.end_pos) {
                 continue; // skip the embedding for the single consensus sequence
             }
 
-            auto block = block_graphs[pos_range->block_id];
-            path_handle_t smoothed_path = consensus_paths[pos_range->block_id];
+            auto block = block_graphs[pos_range.block_id];
+            path_handle_t smoothed_path = consensus_paths[pos_range.block_id];
 
-            auto &id_trans = id_mapping[pos_range->block_id];
+            auto &id_trans = id_mapping[pos_range.block_id];
             block->for_each_step_in_path(
-                pos_range->target_path, [&](const step_handle_t &step) {
+                pos_range.target_path, [&](const step_handle_t &step) {
                     handle_t h = block->get_handle_of_step(step);
                     handle_t t = smoothed->get_handle(block->get_id(h) + id_trans,
                                                       block->get_is_reverse(h));
