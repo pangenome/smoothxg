@@ -137,7 +137,7 @@ int main(int argc, char **argv) {
                            {'T', "prep-no-toposort"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
-    args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
+    //args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
 
     try {
         parser.ParseCLI(argc, argv);
