@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
                                               {'l', "poa-length-max"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)",
-                                            "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 2,4,4,2,24,1]",
+                                            "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 2,4,5,2,24,1]",
                                             {'p', "poa-params"});
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]",
                                          {'X', "chop-to"});
@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
 
         int poa_m = 2;
         int poa_n = 4;
-        int poa_g = 4;
+        int poa_g = 5;
         int poa_e = 2;
         int poa_q = 24;
         int poa_c = 1;
