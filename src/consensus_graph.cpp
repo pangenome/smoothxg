@@ -70,7 +70,7 @@ std::vector<consensus_spec_t> parse_consensus_spec(const std::string& spec_str,
 
 odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                       // TODO: GBWT
-                                      const std::vector<std::string>& consensus_path_names,
+                                      const std::vector<std::string>& _consensus_path_names,
                                       const uint64_t& consensus_jump_max,
                                       const uint64_t& consensus_jump_limit,
                                       // TODO: minimum allele frequency
@@ -82,9 +82,17 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     // OVERALL: https://www.acodersjourney.com/6-tips-supercharge-cpp-11-vector-performance/ -> check these things here
 
     std::vector<path_handle_t> consensus_paths;
-    consensus_paths.reserve(consensus_path_names.size());
-    for (auto& name : consensus_path_names) {
-        consensus_paths.push_back(smoothed.get_path_handle(name));
+    //consensus_paths.reserve(consensus_path_names.size());
+    std::vector<std::string> consensus_path_names;
+    for (auto& name : _consensus_path_names) {
+        if (smoothed.has_path(name)) {
+            consensus_paths.push_back(smoothed.get_path_handle(name));
+            consensus_path_names.push_back(name);
+        }
+    }
+    if (consensus_paths.empty()) {
+        std::cerr << "[smoothxg::create_consensus_graph] WARNING: no matching paths found, returning an empty graph" << std::endl;
+        return new odgi::graph_t();
     }
 
     std::vector<std::string*> cons_path_ptr(smoothed.get_path_count()+1, nullptr);
