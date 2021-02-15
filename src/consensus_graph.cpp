@@ -551,6 +551,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     }
 
     link_path_ms->close_reader();
+    link_path_ms.reset();
     std::remove(base_mmset.c_str());
 
     // create new consensus graph which only has the consensus and link paths in it
