@@ -53,12 +53,9 @@ int main(int argc, char **argv) {
                                                             "don't smooth, just generate the consensus, taking the consensus path names from this file",
                                                             {'H', "consensus-from"});
     //args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[spec].gfa", {'s', "write-consensus-graph"});
-    args::ValueFlag<std::string> _consensus_spec(parser, "BASENAME[,jump_max[:refs[:(y|n)]?]?]*",
-                                                 "consensus graph specification: write the consensus graph to BASENAME.cons_[spec].gfa; where each spec contains at least a jump_max parameter (which defines the length of divergences from consensus paths to preserve in the output), optionally a file containing reference paths to preserve in the output, and a flag (y/n) indicating whether we should also use the POA consensus paths; implies -a; example: cons,100,1000:refs1.txt:n,1000:refs2.txt:y,10000 [default: unset]",
+    args::ValueFlag<std::string> _consensus_spec(parser, "BASENAME[,min_len[:refs[:(y|n)[:min_cov[:max_len]?]?]?]?]*",
+                                                 "consensus graph specification: write the consensus graph to BASENAME.cons_[spec].gfa; where each spec contains at least a min_len parameter (which defines the length of divergences from consensus paths to preserve in the output), optionally a file containing reference paths to preserve in the output, a flag (y/n) indicating whether we should also use the POA consensus paths, a minimum coverage of consensus paths to retain (min_cov), and a maximum allele length (max_len, defaults to 1e6); implies -a; example: cons,100,1000:refs1.txt:n,1000:refs2.txt:y:2.3:1000000,10000 [default: unset]",
                                                  {'C', "consensus-spec"});
-    args::ValueFlag<uint64_t> _consensus_jump_limit(parser, "jump_limit",
-                                                    "ignore consensus jumps farther than this in the sort order of the smoothed graph [default: 1e6]",
-                                                    {'Q', "consensus-jump-limit"});
 
     // Merge blocks (for merging MAF blocks and consensus sequences)
     args::Flag merge_blocks(parser, "bool",
@@ -489,7 +486,7 @@ int main(int argc, char **argv) {
             jump_maxes.push_back(100);
         }
         */
-        uint64_t jump_limit = (_consensus_jump_limit ? args::get(_consensus_jump_limit) : 1e6);
+        //uint64_t jump_limit = (_consensus_jump_limit ? args::get(_consensus_jump_limit) : 1e6);
         std::cerr << "[smoothxg::main] building xg index from smoothed graph" << std::endl;
         XG smoothed_xg;
         if (_read_consensus_path_names) {
@@ -520,20 +517,15 @@ int main(int argc, char **argv) {
                                               consensus_path_names.begin(),
                                               consensus_path_names.end());
             }
-            auto outname = spec.basename + "@" + std::to_string(spec.jump_max)
-                           + (!spec.ref_file.empty() ? ":" + spec.ref_file_sanitized : "")
-                           + (spec.keep_consensus_paths ? ":y" : ":n")
-                           + ".gfa";
-            // log our specification
-            std::cerr << "[smoothxg::create_consensus_graph] deriving consensus graph with consensus-jump-max="
-                      << spec.jump_max;
-            if (spec.ref_file.size()) std::cerr << " including reference paths in " << spec.ref_file;
-            if (spec.keep_consensus_paths) std::cerr << " and keeping consensus paths";
-            else std::cerr << " without consensus paths";
-            std::cerr << std::endl;
-            odgi::graph_t *consensus_graph = smoothxg::create_consensus_graph(
-                    smoothed_xg, consensus_paths_to_use, spec.jump_max, jump_limit, n_threads,
-                    outname);
+            auto outname = displayname(spec) + ".gfa";
+            std::cerr << "[smoothxg::create_consensus_graph] deriving consensus graph " << outname << std::endl;
+            odgi::graph_t *consensus_graph = smoothxg::create_consensus_graph(smoothed_xg,
+                                                                              consensus_paths_to_use,
+                                                                              spec.min_allele_len,
+                                                                              spec.max_allele_len,
+                                                                              spec.min_consensus_path_cov,
+                                                                              n_threads,
+                                                                              outname);
             ofstream o(outname);
             consensus_graph->to_gfa(o);
             o.close();

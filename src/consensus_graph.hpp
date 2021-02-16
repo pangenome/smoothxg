@@ -40,11 +40,15 @@ struct link_range_t {
 
 struct consensus_spec_t {
     std::string basename;
-    int jump_max = 0;
+    int min_allele_len = 0;
+    int max_allele_len = 1e6;
     std::string ref_file;
     std::string ref_file_sanitized;
     bool keep_consensus_paths;
+    double min_consensus_path_cov = 0;
 };
+
+std::string displayname(const consensus_spec_t& spec);
 
 std::vector<consensus_spec_t> parse_consensus_spec(const std::string& spec_str, bool& requires_consensus);
 
@@ -56,8 +60,9 @@ ostream& operator<<(ostream& o, const link_path_t& a);
 /// build a consensus graph consisting of consensus paths and link paths between them
 odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                       const std::vector<std::string>& consensus_path_names,
-                                      const uint64_t& consensus_jump_max,
-                                      const uint64_t& consensus_jump_limit,
+                                      const uint64_t& min_allele_length,
+                                      const uint64_t& max_allele_length,
+                                      const double& min_consensus_path_coverage,
                                       const uint64_t& thread_count,
                                       const std::string& base);
 }
