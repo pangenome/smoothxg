@@ -308,8 +308,7 @@ int main(int argc, char **argv) {
                     gfa_in_name = args::get(base) + '/' + args::get(gfa_in) + ".prep.gfa";
                 }
                 std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
-                smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort),
-                               n_threads);
+                smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort), args::get(base), n_threads);
             } else {
                 gfa_in_name = args::get(gfa_in);
             }

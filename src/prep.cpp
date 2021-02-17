@@ -11,6 +11,7 @@ void prep(
     const uint64_t& max_node_length,
     const float& p_sgd_min_term_updates,
     const bool& toposort,
+    const std::string basename,
     const uint64_t& num_threads) {
 
     // load it into an odgi
@@ -55,7 +56,7 @@ void prep(
 
     std::cerr << "[smoothxg::prep] building path index" << std::endl;
     xp::XP path_index;
-    path_index.from_handle_graph(graph);
+    path_index.from_handle_graph(graph, basename);
 
     uint64_t sum_path_step_count = get_sum_path_step_count(path_sgd_use_paths, path_index);
     uint64_t path_sgd_min_term_updates = p_sgd_min_term_updates * sum_path_step_count;

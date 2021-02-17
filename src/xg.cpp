@@ -800,6 +800,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     if (basename.empty()) {
         basename = temp_file::create();
     }
+
     node_count = 0;
     seq_length = 0;
     edge_count = 0;
