@@ -759,6 +759,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     }
 
     /// TODO validate consensus graph until here
+
     // FIXME: this should check the actual path sequence for validation
     // not each step
     /*
@@ -802,7 +803,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
             });
     */
 
-    consensus->for_each_path_handle(
+    // TODO this does not seem to be necessary
+    /*consensus->for_each_path_handle(
         [&](const path_handle_t& path) {
             consensus->for_each_step_in_path(path, [&] (const step_handle_t step) {
                if (consensus->has_next_step(step)) {
@@ -814,10 +816,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                    }
                }
             });
-        });
+        });*/
 
-    // unchop the graph
-    // this unchop is necessary
+    // unchop the graph (this is necessary)
     odgi::algorithms::unchop(*consensus, thread_count, false);
 
     std::cerr << "[smoothxg::create_consensus_graph] removing edges connecting the path with a gap less than " << min_allele_length << "bp" << std::endl;
@@ -916,7 +917,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     // TODO this does not seem to be necessary
     /*
     consensus->for_each_path_handle(
-
         [&](const path_handle_t& path) {
             consensus->for_each_step_in_path(path, [&] (const step_handle_t step) {
                if (consensus->has_next_step(step)) {
