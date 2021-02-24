@@ -658,54 +658,31 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         });
     }
 
-    /// FIXME could THIS run in parallel
-    std::cerr << "[smoothxg::create_consensus_graph] adding link paths" << std::endl;
-    auto add_path_segment
-        = [&](const link_path_t& link,
-              const step_handle_t& begin,
-              const step_handle_t& end,
-              uint64_t& new_rank) {
-              // how long was the last path? should we include it?
-              stringstream s;
-              s << "Link_" << *link.from_cons_name << "_" << *link.to_cons_name << "_" << link.rank << "_" << new_rank++;
-              path_handle_t path_cons_graph = consensus->create_path_handle(s.str());
-              for (step_handle_t step = begin;
-                   step != end;
-                   step = smoothed.get_next_step(step)) {
-                  handle_t curr_handle = smoothed.get_handle_of_step(step);
-                  nid_t node_id = smoothed.get_id(curr_handle);
-                  handle_t curr_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(smoothed.get_handle(node_id)), node_id);
-                  bool rev = smoothed.get_is_reverse(curr_handle);
-                  if (rev) {
-                      consensus->append_step(path_cons_graph, consensus->flip(curr_handle_in_cons_graph));
-                  } else {
-                      consensus->append_step(path_cons_graph, curr_handle_in_cons_graph);
-                  }
-              }
-          };
+    std::cerr << "[smoothxg::create_consensus_graph] adding link paths: adding paths and nodes" << std::endl;
 
-    /// ???? could THIS run in parallel
+    /// FIXME could THIS run in parallel
     // add link paths and edges not in the consensus paths
     std::vector<std::string> link_path_names;
     for (auto& link : consensus_links) {
         //std::cerr << "making " << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank << std::endl;
         // create link paths and paths
-        // make the path name
         if (link.length > 0) {
             auto& novel_link = link;
+
+            // make the path name
             stringstream s;
             s << "Link_" << *novel_link.from_cons_name << "_" << *novel_link.to_cons_name << "_" << novel_link.rank;
             assert(!consensus->has_path(s.str()));
             path_handle_t path_cons_graph = consensus->create_path_handle(s.str());
             link_path_names.push_back(s.str());
             //link_paths.push_back(path_cons_graph);
-            handle_t cur_handle_in_cons_graph;
+
             // add the current node first, then add the step
+            handle_t cur_handle_in_cons_graph;
             for (step_handle_t step = novel_link.begin; //smoothed.get_next_step(novel_link.begin);
                  step != novel_link.end;
                  step = smoothed.get_next_step(step)) {
                 handle_t h = smoothed.get_handle_of_step(step);
-                handle_t next_handle;
                 nid_t node_id = smoothed.get_id(h);
                 if (!consensus->has_node(node_id)) {
                     //assert(false);
@@ -714,8 +691,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                 } else {
                     cur_handle_in_cons_graph = consensus->get_handle(node_id);
                 }
-                bool rev = smoothed.get_is_reverse(h);
-                if (rev) {
+
+                if (smoothed.get_is_reverse(h)) {
                     consensus->append_step(path_cons_graph, consensus->flip(cur_handle_in_cons_graph));
                 } else {
                     consensus->append_step(path_cons_graph, cur_handle_in_cons_graph);
@@ -724,6 +701,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         }
     }
 
+    std::cerr << "[smoothxg::create_consensus_graph] adding link paths: adding edges" << std::endl;
     // finally add the edges
     consensus->for_each_path_handle(
         [&](const path_handle_t& path) {
@@ -739,6 +717,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
             });
         });
 
+    std::cerr << "[smoothxg::create_consensus_graph] adding link paths: adding " << perfect_edges.size() << " perfect edges" << std::endl;
     for (auto& e : perfect_edges) {
         handle_t h = consensus->get_handle(
             smoothed.get_id(e.first),
@@ -764,6 +743,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
             }
         };
 
+
+    std::cerr << "[smoothxg::create_consensus_graph] adding link paths: walking the paths" << std::endl;
     // preserve topology of links by walking the path they derive from
     // forward and backward and ensuring this is in the consensus graph
     for (auto& link : consensus_links) {
