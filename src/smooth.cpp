@@ -1015,6 +1015,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     std::vector<std::string> block_id_ranges_vector;
     std::unordered_set<uint64_t> inverted_merged_block_id_intervals_ranks; // IITree can't store inverted intervals
 
+    std::atomic<uint64_t> num_flipped_graphs(0);
     atomicbitvector::atomic_bv_t blok_to_flip(blockset->size());
 
     std::vector<bool> is_block_in_a_merged_group((add_consensus && merge_blocks) ? blockset->size() : 0);
@@ -1218,6 +1219,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                             if (flip_block_before_merging_in_the_group) {
                                 blok_to_flip.set(block_id);
+                                ++num_flipped_graphs;
                             }
                         }
 
@@ -1452,7 +1454,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     }
 
     // Flip graphs
-    std::cerr << "[smoothxg::smooth_and_lace] flipping graphs" << std::endl;
+    std::stringstream flip_graphs_banner;
+    flip_graphs_banner << "[smoothxg::smooth_and_lace] flipping " << num_flipped_graphs << " block graphs:";
+    progress_meter::ProgressMeter flip_graphs_progress(block_graphs.size(), flip_graphs_banner.str());
+
 #pragma omp parallel for schedule(dynamic,1)
     for (uint64_t block_id = 0; block_id < block_graphs.size(); ++block_id) {
         if (blok_to_flip.test(block_id)) {
@@ -1491,7 +1496,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 flipped_graph->create_edge(rev_left, rev_right);
             });
 
-            //todo divide in 2 loops (for non-consensus paths and for consensus paths)
             std::string consensus_name;
             if (add_consensus){
                 consensus_name = consensus_base_name + std::to_string(block_id);
@@ -1525,8 +1529,11 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
             delete block_graphs[block_id];
             block_graphs[block_id] = flipped_graph;
+
+            flip_graphs_progress.increment(1);
         }
     }
+    flip_graphs_progress.finish();
 
     std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings" << std::endl;
     // sort the path range mappings by path handle id, then start position
