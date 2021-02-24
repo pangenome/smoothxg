@@ -80,10 +80,10 @@ std::string displayname(const consensus_spec_t& spec) {
     std::stringstream s;
     s << spec.basename << "@"
       << spec.min_allele_len
-      << ":" << (!spec.ref_file.empty() ? spec.ref_file_sanitized : "")
-      << ":" << (spec.keep_consensus_paths ? "y" : "n")
-      << ":" << spec.min_consensus_path_cov
-      << ":" << spec.max_allele_len;
+      << "_" << (!spec.ref_file.empty() ? spec.ref_file_sanitized : "")
+      << "_" << (spec.keep_consensus_paths ? "y" : "n")
+      << "_" << spec.min_consensus_path_cov
+      << "_" << spec.max_allele_len;
     return s.str();
 }
 
