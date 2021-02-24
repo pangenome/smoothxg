@@ -818,8 +818,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
             });
         });*/
 
-    // unchop the graph (this is necessary)
-    odgi::algorithms::unchop(*consensus, thread_count, false);
+    // This is necessary
+    odgi::algorithms::unchop(*consensus, thread_count, true);
 
     std::cerr << "[smoothxg::create_consensus_graph] removing edges connecting the path with a gap less than " << min_allele_length << "bp" << std::endl;
 
@@ -931,14 +931,15 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         });
         */
 
-    odgi::algorithms::unchop(*consensus, thread_count, false);
+    // This is necessary
+    odgi::algorithms::unchop(*consensus, thread_count, true);
 
     auto* copy = new odgi::graph_t();
     graph_deep_copy(consensus, copy);
     delete consensus;
     consensus = copy;
 
-    odgi::algorithms::unchop(*consensus, thread_count, false);
+    //odgi::algorithms::unchop(*consensus, thread_count, true);
 
     // remove 0-depth nodes and edges
     auto handles_to_drop = odgi::algorithms::find_handles_exceeding_coverage_limits(*consensus, 1, 0);
@@ -946,7 +947,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         consensus->destroy_handle(handle);
     }
 
-    odgi::algorithms::unchop(*consensus, thread_count, false);
+    odgi::algorithms::unchop(*consensus, thread_count, true);
 
     uint64_t consensus_nodes = 0;
     uint64_t consensus_length = 0;
