@@ -942,12 +942,14 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     //odgi::algorithms::unchop(*consensus, thread_count, true);
 
     // remove 0-depth nodes and edges
-    auto handles_to_drop = odgi::algorithms::find_handles_exceeding_coverage_limits(*consensus, 1, 0);
-    for (auto& handle : handles_to_drop) {
-        consensus->destroy_handle(handle);
-    }
+    std::vector<handle_t> handles_to_drop = odgi::algorithms::find_handles_exceeding_coverage_limits(*consensus, 1, 0);
+    if (!handles_to_drop.empty()) {
+        for (auto& handle : handles_to_drop) {
+            consensus->destroy_handle(handle);
+        }
 
-    odgi::algorithms::unchop(*consensus, thread_count, true);
+        odgi::algorithms::unchop(*consensus, thread_count, true);
+    }
 
     uint64_t consensus_nodes = 0;
     uint64_t consensus_length = 0;
