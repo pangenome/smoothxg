@@ -40,8 +40,6 @@ int main(int argc, char **argv) {
     args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE",
                                                          "write the multiple sequence alignments (MSAs) in MAF format in this file",
                                                          {'m', "write-msa-in-maf-format"});
-    args::Flag _add_consensus(parser, "bool", "include consensus sequence in the smoothed graph",
-                              {'a', "add-consensus"});
     args::ValueFlag<std::string> _ref_paths(parser, "FILE",
                                             "a file listing (one per line) sequences to preserved as paths in the consensus output graphs",
                                             {'P', "ref-paths"});
@@ -166,11 +164,19 @@ int main(int argc, char **argv) {
     }
 
     if (!_read_consensus_path_names) {
+        bool add_consensus = false;
+        if (_write_consensus_path_names) {
+            add_consensus = true;
+        }
 
-        if (args::get(merge_blocks) && (!write_msa_in_maf_format && !args::get(_add_consensus))) {
+        if (requires_consensus) {
+            add_consensus = true;
+        }
+
+        if (args::get(merge_blocks) && (!write_msa_in_maf_format && !add_consensus)) {
             std::cerr
-                    << "[smoothxg::main] error: Please specify -m/--write-msa-in-maf-format and/or -a/--add-consensus "
-                       "to use the -M/--merge-blocks option." << std::endl;
+                    << "[smoothxg::main] error: Please specify -m/--write-msa-in-maf-format and/or keep the consensus "
+                       "sequences in the smoothed graph to use the -M/--merge-blocks option." << std::endl;
             return 1;
         }
 
@@ -192,14 +198,7 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        bool add_consensus = false;
-        if (_write_consensus_path_names) {
-            add_consensus = true;
-        }
 
-        if (requires_consensus) {
-            add_consensus = true;
-        }
 
         double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 
