@@ -737,7 +737,13 @@ void _put_block_in_group(
     for (auto &path_to_maf_rows_m : merged_maf_blocks.rows){
         for (auto &merged_maf_prow : path_to_maf_rows_m.second){
             if (merged_maf_prow.aligned_seq.length() < alignment_size_merged_maf_blocks){
-                if (merged_maf_prow.is_reversed){
+                if (new_block_on_the_left){
+                    merged_maf_prow.aligned_seq = gaps + merged_maf_prow.aligned_seq;
+                } else {
+                    merged_maf_prow.aligned_seq += gaps;
+                }
+
+                /*if (merged_maf_prow.is_reversed){
                     if (new_block_on_the_left){
                         merged_maf_prow.aligned_seq += gaps;
                     } else {
@@ -749,7 +755,7 @@ void _put_block_in_group(
                     } else {
                         merged_maf_prow.aligned_seq += gaps;
                     }
-                }
+                }*/
             }
         }
     }
