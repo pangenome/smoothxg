@@ -316,10 +316,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                           << ":"
                           << seq;
                         link.hash = hash_seq(h.str());
-                        if (as_integer(link.from_cons_path) > as_integer(link.to_cons_path)) {
-                            std::swap(link.from_cons_path, link.to_cons_path);
-                            std::swap(link.from_cons_name, link.to_cons_name);
-                        }
                         link.jump_length = jump_length;
                         link_path_ms->append(link);
                         is_there_something.store(true);
