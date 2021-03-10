@@ -427,6 +427,16 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         // FIXME can we parallelize this?
         auto compute_link_paths =
                 [&](const std::vector<link_path_t> &links) {
+                    std::map<uint64_t, uint64_t> hash_counts;
+                    std::vector<link_path_t> unique_links;
+                    for (auto &link : links) {
+                        //std::cerr << link << std::endl;
+                        auto &c = hash_counts[link.hash];
+                        if (c == 0) {
+                            unique_links.push_back(link);
+                        }
+                        ++c;
+                    }
                     ska::flat_hash_set<uint64_t> seen_nodes;
                     std::vector<link_path_t> save_links;
                     uint64_t link_rank = 0;
@@ -434,7 +444,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     // min_allele_length which is the "variant scale factor" of the algorithm
                     // this preserves novel non-consensus sequences greater than this length
                     // TODO: this could be made to respect allele frequency
-                    for (auto link : links) {
+                    for (auto link : unique_links) {
                         uint64_t largest_novel_gap_bp = largest_novel_gap(link.begin, link.end, seen_nodes, smoothed);
                         //uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
                         uint64_t step_count = get_step_count(link.begin, link.end, smoothed);
@@ -627,8 +637,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     graph_deep_copy(consensus, copy);
     delete consensus;
     consensus = copy;
-
-    //odgi::algorithms::unchop(*consensus, thread_count, true);
 
     // remove 0-depth nodes and edges
     std::vector<handle_t> handles_to_drop = odgi::algorithms::find_handles_exceeding_coverage_limits(*consensus, 1, 0);
