@@ -349,6 +349,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     }
 
     std::vector<link_path_t> consensus_links;
+    std::vector<std::pair<handle_t, handle_t>> perfect_edges;
 
     if (is_there_something.load()) {
         link_path_ms->index(thread_count);
@@ -437,37 +438,152 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         }
                         ++c;
                     }
+                    std::map<uint64_t, uint64_t> hash_lengths;
+                    for (auto &link : links) {
+                        hash_lengths[link.hash] = link.length;
+                    }
+                    uint64_t best_count = 0;
+                    uint64_t best_hash;
+                    for (auto &c : hash_counts) {
+                        if (c.second > best_count) {
+                            best_hash = c.first;
+                            best_count = c.second;
+                        }
+                    }
+                    //std::cerr << "best hash be " << best_hash << std::endl;
+                    // save the best link path
+                    link_path_t most_frequent_link;
+                    for (auto &link : unique_links) {
+                        if (link.hash == best_hash) {
+                            most_frequent_link = link;
+                            break;
+                        }
+                    }
+
+                    // if we have a 0-length link between consensus ends, add it
+                    handle_t from_end_fwd
+                            = smoothed.get_handle_of_step(
+                                   smoothed.path_back(
+                                            most_frequent_link.from_cons_path));
+                    handle_t to_begin_fwd
+                            = smoothed.get_handle_of_step(
+                                    smoothed.path_begin(
+                                            most_frequent_link.to_cons_path));
+                    handle_t from_end_rev = smoothed.flip(to_begin_fwd);
+                    handle_t to_begin_rev = smoothed.flip(from_end_fwd);
+
+                    handle_t from_begin_fwd
+                            = smoothed.get_handle_of_step(
+                                    smoothed.path_begin(
+                                            most_frequent_link.from_cons_path));
+                    handle_t to_end_fwd
+                            = smoothed.get_handle_of_step(
+                                    smoothed.path_back(
+                                            most_frequent_link.to_cons_path));
+                    handle_t from_begin_rev = smoothed.flip(from_begin_fwd);
+                    handle_t to_end_rev = smoothed.flip(to_end_fwd);
+
+                    // if we can walk forward on the last handle of consensus a and reach consensus b
+                    // we should add a link and say we're perfect
+
+                    bool has_perfect_edge = false;
+                    bool has_perfect_link = false;
+                    link_path_t perfect_link;
+
+                    if (smoothed.has_edge(from_end_fwd, to_begin_fwd)) {
+                        auto p = std::make_pair(from_end_fwd, to_begin_fwd);
+#pragma omp critical (perfect_edges)
+                        perfect_edges.push_back(p);
+                        has_perfect_edge = true;
+                    } else if (smoothed.has_edge(to_end_fwd, from_begin_fwd)) {
+                        auto p = std::make_pair(to_end_fwd, from_begin_fwd);
+#pragma omp critical (perfect_edges)
+                        perfect_edges.push_back(p);
+                        has_perfect_edge = true;
+                    } else {
+                        for (auto &link : unique_links) {
+                            //path_handle_t from_cons;
+                            //path_handle_t to_cons;
+                            // are we just stepping from the end of one to the beginning of the other?
+                            for (step_handle_t s = link.begin;
+                                 s != link.end; s = smoothed.get_next_step(s)) {
+                                step_handle_t next = smoothed.get_next_step(s);
+                                handle_t b = smoothed.get_handle_of_step(s);
+                                handle_t e = smoothed.get_handle_of_step(next);
+                                if (b == from_end_fwd && e == to_begin_fwd
+                                    || b == from_end_rev && e == to_begin_rev
+                                    || b == to_begin_fwd && e == from_end_fwd
+                                    || b == to_begin_rev && e == from_end_rev) {
+                                    has_perfect_link = true;
+                                    perfect_link = link;
+                                    break;
+                                }
+                            }
+                            if (has_perfect_link) {
+                                break;
+                            }
+                        }
+                    }
+
                     ska::flat_hash_set<uint64_t> seen_nodes;
                     std::vector<link_path_t> save_links;
                     uint64_t link_rank = 0;
-                    // this part collects sequences that diverge from a consensus for the
-                    // min_allele_length which is the "variant scale factor" of the algorithm
-                    // this preserves novel non-consensus sequences greater than this length
-                    // TODO: this could be made to respect allele frequency
-                    for (auto link : unique_links) {
-                        uint64_t largest_novel_gap_bp = largest_novel_gap(link.begin, link.end, seen_nodes, smoothed);
-                        //uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
-                        uint64_t step_count = get_step_count(link.begin, link.end, smoothed);
-                        // this complex filter attempts to keep representative link paths for indels above our min_allele_length
-                        // we either need the jump length (measured in terms of delta in our graph vector) to be over our jump max
-                        // *and* the link path should be empty or mostly novel
-                        // *or* we're adding in the specified amount of novel_bp of sequence
-                        if ((link.from_cons_path != link.to_cons_path)
-                            || ((link.jump_length >= min_allele_length
-                                 && link.jump_length < max_allele_length
-                                 && (link.length == 0 ||
-                                     (double)largest_novel_gap_bp / (double)step_count > 1))
-                                || (largest_novel_gap_bp >= min_allele_length
-                                    && largest_novel_gap_bp < max_allele_length))) {
-                            link.rank = link_rank++;
-                            save_links.push_back(link);
-                            mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);
-                        }
+
+                    // this part attempts to preserve connectivity between consensus sequences
+                    // we're preserving the consensus graph topology
+                    if (has_perfect_edge) {
+                        // nothing to do
+                    } else if (has_perfect_link) {
+                        // nb: should be no nodes to mark
+                        mark_seen_nodes(perfect_link.begin, perfect_link.end, seen_nodes, smoothed);
+                        perfect_link.rank = link_rank++;
+                        save_links.push_back(perfect_link);
+                    } else if (most_frequent_link.from_cons_path != most_frequent_link.to_cons_path) {
+                        most_frequent_link.rank = link_rank++;
+                        save_links.push_back(most_frequent_link);
+                        mark_seen_nodes(most_frequent_link.begin, most_frequent_link.end, seen_nodes, smoothed);
                     }
+
+                    // if we can walk forward on the last handle of consensus a and reach consensus b
+                    // we should add a link and say we're perfect
+
+
+                    if (!has_perfect_edge) {
+                        // todo iterate through each pair of start/end positions
+                        // and keep only the best
+
+                        // this part collects sequences that diverge from a consensus for the
+                        // min_allele_length which is the "variant scale factor" of the algorithm
+                        // this preserves novel non-consensus sequences greater than this length
+                        // TODO: this could be made to respect allele frequency
+                        for (auto link : unique_links) {
+                            if (link.hash == best_hash) {
+                                continue;
+                            }
+                            uint64_t largest_novel_gap_bp = largest_novel_gap(link.begin, link.end, seen_nodes, smoothed);
+                            //uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
+                            uint64_t step_count = get_step_count(link.begin, link.end, smoothed);
+                            // this complex filter attempts to keep representative link paths for indels above our min_allele_length
+                            // we either need the jump length (measured in terms of delta in our graph vector) to be over our jump max
+                            // *and* the link path should be empty or mostly novel
+                            // *or* we're adding in the specified amount of novel_bp of sequence
+                            if ((link.from_cons_path != link.to_cons_path)
+                                || ((link.jump_length >= min_allele_length
+                                     && link.jump_length < max_allele_length
+                                     && (link.length == 0 ||
+                                         (double)largest_novel_gap_bp / (double)step_count > 1))
+                                    || (largest_novel_gap_bp >= min_allele_length
+                                        && largest_novel_gap_bp < max_allele_length))) {
+                                link.rank = link_rank++;
+                                save_links.push_back(link);
+                                mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);
+                            }
+                        }
 #pragma omp critical (consensus_links)
-                    {
-                        consensus_links.reserve(consensus_links.size() + distance(save_links.begin(), save_links.end()));
-                        consensus_links.insert(consensus_links.end(), save_links.begin(), save_links.end());
+                        {
+                            consensus_links.reserve(consensus_links.size() + distance(save_links.begin(), save_links.end()));
+                            consensus_links.insert(consensus_links.end(), save_links.begin(), save_links.end());
+                        }
                     }
                 };
 
@@ -597,6 +713,17 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                }
             });
         });
+
+    std::cerr << "[smoothxg::create_consensus_graph] adding link paths: adding " << perfect_edges.size() << " perfect edges" << std::endl;
+    for (auto& e : perfect_edges) {
+        handle_t h = consensus->get_handle(
+            smoothed.get_id(e.first),
+            smoothed.get_is_reverse(e.first));
+        handle_t j = consensus->get_handle(
+            smoothed.get_id(e.second),
+            smoothed.get_is_reverse(e.second));
+        consensus->create_edge(h, j);
+    }
 
     auto link_steps =
         [&](const step_handle_t& a, const step_handle_t& b) {
