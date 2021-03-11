@@ -495,12 +495,27 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 #pragma omp critical (perfect_edges)
                         perfect_edges.push_back(p);
                         has_perfect_edge = true;
-                    } else if (smoothed.has_edge(to_end_fwd, from_begin_fwd)) {
+                    }
+                    if (smoothed.has_edge(to_end_fwd, from_begin_fwd)) {
                         auto p = std::make_pair(to_end_fwd, from_begin_fwd);
 #pragma omp critical (perfect_edges)
                         perfect_edges.push_back(p);
                         has_perfect_edge = true;
-                    } else {
+                    }
+                    if (smoothed.has_edge(from_end_fwd, to_begin_rev)) {
+                        auto p = std::make_pair(from_end_fwd, to_begin_fwd);
+#pragma omp critical (perfect_edges)
+                        perfect_edges.push_back(p);
+                        has_perfect_edge = true;
+                    }
+                    if (smoothed.has_edge(to_end_fwd, from_begin_rev)) {
+                        auto p = std::make_pair(to_end_fwd, from_begin_fwd);
+#pragma omp critical (perfect_edges)
+                        perfect_edges.push_back(p);
+                        has_perfect_edge = true;
+                    }
+
+                    if (!has_perfect_edge) {
                         for (auto &link : unique_links) {
                             //path_handle_t from_cons;
                             //path_handle_t to_cons;
