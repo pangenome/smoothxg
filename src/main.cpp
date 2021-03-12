@@ -55,6 +55,9 @@ int main(int argc, char **argv) {
                                                  "consensus graph specification: write the consensus graph to BASENAME.cons_[spec].gfa; where each spec contains at least a min_len parameter (which defines the length of divergences from consensus paths to preserve in the output), optionally a file containing reference paths to preserve in the output, a flag (y/n) indicating whether we should also use the POA consensus paths, a minimum coverage of consensus paths to retain (min_cov), and a maximum allele length (max_len, defaults to 1e6); implies -a; example: cons,100,1000:refs1.txt:n,1000:refs2.txt:y:2.3:1000000,10000 [default: unset]",
                                                  {'C', "consensus-spec"});
 
+    args::ValueFlag<std::string> _consensus_path_prefix(parser, "PREFIX",
+                                                        "prepend the consensus path names with PREFIX [default: Consensus]",
+                                                        {'Q', "consensus-prefix"});
     // Merge blocks (for merging MAF blocks and consensus sequences)
     args::Flag merge_blocks(parser, "bool",
                             "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",
@@ -157,6 +160,7 @@ int main(int argc, char **argv) {
     std::vector<smoothxg::consensus_spec_t> consensus_specs;
     bool requires_consensus = false;
     bool write_consensus_graph = false;
+    std::string consensus_path_prefix = _consensus_path_prefix ? args::get(_consensus_path_prefix) : "Consensus_";
 
     if (_consensus_spec) {
         consensus_specs = smoothxg::parse_consensus_spec(args::get(_consensus_spec), requires_consensus);
@@ -421,7 +425,7 @@ int main(int argc, char **argv) {
                                                       args::get(merge_blocks), args::get(_preserve_unmerged_consensus),
                                                       contiguous_path_jaccard,
                                                       !args::get(use_spoa),
-                                                      add_consensus ? "Consensus_" : "",
+                                                      add_consensus ? consensus_path_prefix : "",
                                                       consensus_path_names,
                                                       args::get(write_block_fastas),
                                                       max_merged_groups_in_memory);
