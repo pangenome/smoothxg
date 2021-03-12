@@ -323,10 +323,12 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                           << seq;
                         link.hash = hash_seq(h.str());
                         link.jump_length = jump_length;
+                        /*
                         if (as_integer(link.from_cons_path) > as_integer(link.to_cons_path)) {
                             std::swap(link.from_cons_path, link.to_cons_path);
                             std::swap(link.from_cons_name, link.to_cons_name);
                         }
+                        */
                         link_path_ms->append(link);
                         is_there_something.store(true);
 
@@ -425,7 +427,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     }
                 };
 
-        // FIXME can we parallelize this?
         auto compute_link_paths =
                 [&](const std::vector<link_path_t> &links) {
                     std::map<uint64_t, uint64_t> hash_counts;
@@ -460,84 +461,90 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         }
                     }
 
-                    // if we have a 0-length link between consensus ends, add it
-                    handle_t from_end_fwd
+                    // keep all edges that directly hop into another consensus
+                    uint64_t perfect_edge_count = 0;
+                    if (most_frequent_link.from_cons_path
+                        != most_frequent_link.to_cons_path) {
+
+                        handle_t from_end_fwd
                             = smoothed.get_handle_of_step(
-                                   smoothed.path_back(
-                                            most_frequent_link.from_cons_path));
-                    handle_t to_begin_fwd
+                                smoothed.path_back(
+                                    most_frequent_link.from_cons_path));
+                        smoothed.follow_edges(
+                            from_end_fwd, false,
+                            [&](const handle_t& n) {
+                                smoothed.for_each_step_on_handle(
+                                    n,
+                                    [&](const step_handle_t& s) {
+                                        if (smoothed.get_path_handle_of_step(s)
+                                            == most_frequent_link.to_cons_path) {
+                                            auto p = std::make_pair(from_end_fwd, n);
+#pragma omp critical (perfect_edges)
+                                            perfect_edges.push_back(p);
+                                            ++perfect_edge_count;
+                                        }
+                                    });
+                            });
+
+                        handle_t to_end_fwd
                             = smoothed.get_handle_of_step(
-                                    smoothed.path_begin(
-                                            most_frequent_link.to_cons_path));
-                    handle_t from_end_rev = smoothed.flip(to_begin_fwd);
-                    handle_t to_begin_rev = smoothed.flip(from_end_fwd);
+                                smoothed.path_back(
+                                    most_frequent_link.to_cons_path));
+                        smoothed.follow_edges(
+                            to_end_fwd, false,
+                            [&](const handle_t& n) {
+                                smoothed.for_each_step_on_handle(
+                                    n,
+                                    [&](const step_handle_t& s) {
+                                        if (smoothed.get_path_handle_of_step(s)
+                                            == most_frequent_link.from_cons_path) {
+                                            auto p = std::make_pair(to_end_fwd, n);
+#pragma omp critical (perfect_edges)
+                                            perfect_edges.push_back(p);
+                                            ++perfect_edge_count;
+                                        }
+                                    });
+                            });
 
-                    handle_t from_begin_fwd
+                        handle_t from_begin_fwd
                             = smoothed.get_handle_of_step(
-                                    smoothed.path_begin(
-                                            most_frequent_link.from_cons_path));
-                    handle_t to_end_fwd
+                                smoothed.path_begin(
+                                    most_frequent_link.from_cons_path));
+                        smoothed.follow_edges(
+                            from_begin_fwd, true,
+                            [&](const handle_t& n) {
+                                smoothed.for_each_step_on_handle(
+                                    n,
+                                    [&](const step_handle_t& s) {
+                                        if (smoothed.get_path_handle_of_step(s)
+                                            == most_frequent_link.to_cons_path) {
+                                            auto p = std::make_pair(n, from_begin_fwd);
+#pragma omp critical (perfect_edges)
+                                            perfect_edges.push_back(p);
+                                            ++perfect_edge_count;
+                                        }
+                                    });
+                            });
+
+                        handle_t to_begin_fwd
                             = smoothed.get_handle_of_step(
-                                    smoothed.path_back(
-                                            most_frequent_link.to_cons_path));
-                    handle_t from_begin_rev = smoothed.flip(from_begin_fwd);
-                    handle_t to_end_rev = smoothed.flip(to_end_fwd);
-
-                    // if we can walk forward on the last handle of consensus a and reach consensus b
-                    // we should add a link and say we're perfect
-
-                    bool has_perfect_edge = false;
-                    bool has_perfect_link = false;
-                    link_path_t perfect_link;
-
-                    if (smoothed.has_edge(from_end_fwd, to_begin_fwd)) {
-                        auto p = std::make_pair(from_end_fwd, to_begin_fwd);
+                                smoothed.path_begin(
+                                    most_frequent_link.to_cons_path));
+                        smoothed.follow_edges(
+                            to_begin_fwd, true,
+                            [&](const handle_t& n) {
+                                smoothed.for_each_step_on_handle(
+                                    n,
+                                    [&](const step_handle_t& s) {
+                                        if (smoothed.get_path_handle_of_step(s)
+                                            == most_frequent_link.to_cons_path) {
+                                            auto p = std::make_pair(n, from_begin_fwd);
 #pragma omp critical (perfect_edges)
-                        perfect_edges.push_back(p);
-                        has_perfect_edge = true;
-                    }
-                    if (smoothed.has_edge(to_end_fwd, from_begin_fwd)) {
-                        auto p = std::make_pair(to_end_fwd, from_begin_fwd);
-#pragma omp critical (perfect_edges)
-                        perfect_edges.push_back(p);
-                        has_perfect_edge = true;
-                    }
-                    if (smoothed.has_edge(from_end_fwd, to_begin_rev)) {
-                        auto p = std::make_pair(from_end_fwd, to_begin_fwd);
-#pragma omp critical (perfect_edges)
-                        perfect_edges.push_back(p);
-                        has_perfect_edge = true;
-                    }
-                    if (smoothed.has_edge(to_end_fwd, from_begin_rev)) {
-                        auto p = std::make_pair(to_end_fwd, from_begin_fwd);
-#pragma omp critical (perfect_edges)
-                        perfect_edges.push_back(p);
-                        has_perfect_edge = true;
-                    }
-
-                    if (!has_perfect_edge) {
-                        for (auto &link : unique_links) {
-                            //path_handle_t from_cons;
-                            //path_handle_t to_cons;
-                            // are we just stepping from the end of one to the beginning of the other?
-                            for (step_handle_t s = link.begin;
-                                 s != link.end; s = smoothed.get_next_step(s)) {
-                                step_handle_t next = smoothed.get_next_step(s);
-                                handle_t b = smoothed.get_handle_of_step(s);
-                                handle_t e = smoothed.get_handle_of_step(next);
-                                if (b == from_end_fwd && e == to_begin_fwd
-                                    || b == from_end_rev && e == to_begin_rev
-                                    || b == to_begin_fwd && e == from_end_fwd
-                                    || b == to_begin_rev && e == from_end_rev) {
-                                    has_perfect_link = true;
-                                    perfect_link = link;
-                                    break;
-                                }
-                            }
-                            if (has_perfect_link) {
-                                break;
-                            }
-                        }
+                                            perfect_edges.push_back(p);
+                                            ++perfect_edge_count;
+                                        }
+                                    });
+                            });
                     }
 
                     ska::flat_hash_set<uint64_t> seen_nodes;
@@ -546,24 +553,20 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 
                     // this part attempts to preserve connectivity between consensus sequences
                     // we're preserving the consensus graph topology
-                    if (has_perfect_edge) {
+                    if (perfect_edge_count) {
                         // nothing to do
-                    } else if (has_perfect_link) {
+                        /* } else if (has_perfect_link) {
                         // nb: should be no nodes to mark
                         mark_seen_nodes(perfect_link.begin, perfect_link.end, seen_nodes, smoothed);
                         perfect_link.rank = link_rank++;
-                        save_links.push_back(perfect_link);
+                        save_links.push_back(perfect_link);*/
                     } else if (most_frequent_link.from_cons_path != most_frequent_link.to_cons_path) {
                         most_frequent_link.rank = link_rank++;
                         save_links.push_back(most_frequent_link);
                         mark_seen_nodes(most_frequent_link.begin, most_frequent_link.end, seen_nodes, smoothed);
                     }
 
-                    // if we can walk forward on the last handle of consensus a and reach consensus b
-                    // we should add a link and say we're perfect
-
-
-                    if (!has_perfect_edge) {
+                    if (perfect_edge_count == 0) {
                         // todo iterate through each pair of start/end positions
                         // and keep only the best
 
