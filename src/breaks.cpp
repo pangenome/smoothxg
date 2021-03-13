@@ -34,6 +34,39 @@ namespace smoothxg {
         write_fasta_for_block(graph, block, block_id, seqs, names, prefix, suffix);
     }
 
+double gap_compressed_identity(
+    const unsigned char* const alignment,
+    const int alignment_length) {
+    char move_c[] = {'=', 'I', 'D', 'X'};
+    int idx = 0;
+    int matches = 0;
+    int mismatches = 0;
+    int indels = 0;
+    bool last_is_gap = false;
+    while (idx < alignment_length) {
+        switch (move_c[alignment[idx++]]) {
+        case '=':
+            last_is_gap = false;
+            ++matches;
+            break;
+        case 'X':
+            last_is_gap = false;
+            ++mismatches;
+            break;
+        case 'I':
+        case 'D':
+            if (!last_is_gap) {
+                ++indels;
+                last_is_gap = true;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    return (double)(matches) / (double)(matches + mismatches + indels);
+}
+
 // break the path ranges at likely VNTR boundaries
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
     void break_blocks(const xg::XG &graph,
@@ -43,7 +76,6 @@ namespace smoothxg {
                       const double &block_group_est_identity,
                       const uint64_t &kmer_size,
                       const uint64_t& min_dedup_depth_for_mash_clustering,
-                      const double& short_long_seq_lengths_ratio,
                       const uint64_t &max_poa_length,
                       const uint64_t &min_copy_length,
                       const uint64_t &max_copy_length,
@@ -241,7 +273,6 @@ namespace smoothxg {
             // ensure that the sequences in the block are within our identity threshold
             // if not, peel them off into splits
             if ((block_group_identity > 0 || block_group_est_identity > 0) && block.path_ranges.size() > 1) {
-                bool use_containment_metric = short_long_seq_lengths_ratio > 0;
 
                 std::vector<std::pair<std::uint64_t, std::string>> rank_and_seqs_dedup;
                 std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
@@ -327,8 +358,8 @@ namespace smoothxg {
                     auto& curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
 
-                    uint64_t len_threshold_for_edit_clustering = use_containment_metric ? 0 :
-                            ceil(block_group_identity * (double) curr_fwd.length());
+                    uint64_t len_threshold_for_edit_clustering =
+                        ceil(block_group_identity * (double) curr_fwd.length());
 
                     double one_minus_block_group_id = 1.0 - block_group_identity;
 
@@ -336,12 +367,12 @@ namespace smoothxg {
                     uint64_t max_distance_for_edit_clustering = floor(one_minus_block_group_id * (double) curr_fwd.length()) + 1;
 
                     uint64_t len_threshold_for_mash_clustering = 0;
-                    if (mash_based_clustering_enabled && !use_containment_metric) {
+                    if (mash_based_clustering_enabled) {
                         double value = exp(-one_minus_block_group_id * kmer_size);
                         len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * value / (2.0 - value));
                     }
 
-                    const EdlibAlignMode edlib_align_mode = use_containment_metric ? EDLIB_MODE_HW : EDLIB_MODE_NW;
+                    const EdlibAlignMode edlib_align_mode = EDLIB_MODE_NW;
 
                     uint64_t best_group = 0;
                     bool cluster_found = false;
@@ -356,12 +387,6 @@ namespace smoothxg {
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto &other = rank_and_seqs_dedup[group[k]].second;
 
-                                if (use_containment_metric &&
-                                    ((double) other.length() / (double) curr.length() < short_long_seq_lengths_ratio)) {
-                                    // The curr_len/other_len is too low
-                                    break;
-                                }
-
                                 if (mash_based_clustering_enabled &&
                                     curr.length() >= min_length_mash_based_clustering &&
                                     other.length() >= min_length_mash_based_clustering) {
@@ -371,7 +396,7 @@ namespace smoothxg {
                                             break;
                                         }
 
-                                        double est_identity = 1 - rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer_size, use_containment_metric);
+                                        double est_identity = 1 - rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer_size, false);
                                         if (est_identity >= block_group_est_identity) {
                                             best_group = j;
                                             cluster_found = true;
@@ -390,21 +415,15 @@ namespace smoothxg {
                                     EdlibAlignResult result = edlibAlign(
                                             curr.c_str(), curr.size(), other.c_str(), other.size(),
                                             edlibNewAlignConfig(
-                                                    use_containment_metric ?
-                                                    floor(one_minus_block_group_id * (double) other.length()) + 1 :
                                                     max_distance_for_edit_clustering,
                                                     edlib_align_mode,
-                                                    EDLIB_TASK_DISTANCE, NULL, 0
+                                                    EDLIB_TASK_PATH, NULL, 0
                                                     )
                                     );
                                     if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
                                         //curr.size() >= other.size() by design
 
-                                        if (use_containment_metric) {
-                                            id = (double) ((int) other.size() - result.editDistance) / (double) (other.size());
-                                        } else {
-                                            id = (double) ((int) curr.size() - result.editDistance) / (double) (curr.size());
-                                        }
+                                        id = gap_compressed_identity(result.alignment, result.alignmentLength);
                                     }
                                     edlibFreeAlignResult(result);
 

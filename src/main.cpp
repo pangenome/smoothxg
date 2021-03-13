@@ -105,9 +105,6 @@ int main(int argc, char **argv) {
                                                                    {'D', "min-block-depth-mash"});
     args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]",
                                          {'k', "kmer-size-mash-distance"});
-    args::ValueFlag<double> _short_long_seq_lengths_ratio(parser, "N",
-                                                          "minimum short length / long length ratio to compare sequences for the containment metric in the clustering [default: 0, no containment metric]",
-                                                          {'R', "ratio-containment-metric"});
 
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]",
                                                {'c', "copy-length-min"});
@@ -243,9 +240,6 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        double short_long_seq_lengths_ratio = _short_long_seq_lengths_ratio ? args::get(_short_long_seq_lengths_ratio)
-                                                                            : 0;
-
         int poa_m = 2;
         int poa_n = 4;
         int poa_g = 6;
@@ -341,7 +335,6 @@ int main(int argc, char **argv) {
                                block_group_est_identity,
                                kmer_size,
                                min_dedup_depth_for_mash_clustering,
-                               short_long_seq_lengths_ratio,
                                max_poa_length,
                                min_copy_length,
                                max_copy_length,
@@ -406,8 +399,7 @@ int main(int argc, char **argv) {
                           " min_length_mash_based_clustering=" + std::to_string(min_length_mash_based_clustering) +
                           " min_dedup_depth_for_mash_clustering=" +
                           std::to_string(min_dedup_depth_for_mash_clustering) +
-                          " kmer_size=" + std::to_string(_kmer_size) +
-                          " short_long_seq_lengths_ratio=" + std::to_string(short_long_seq_lengths_ratio) + "\n";
+                          " kmer_size=" + std::to_string(_kmer_size) + "\n";
         }
 
         {
