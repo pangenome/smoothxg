@@ -461,123 +461,86 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         }
                     }
 
+                    // todo refactor the repetition below into a function
+                    //auto seek_perfect_edge = [&](const 
+
                     // keep all edges that directly hop into another consensus
                     uint64_t perfect_edge_count = 0;
+                    ska::flat_hash_set<uint64_t> seen_nodes;
+
+                    auto link_cons_end =
+                        [&](const step_handle_t& s_end, bool go_rev, const path_handle_t& target_path) {
+                            auto cons_end = smoothed.get_handle_of_step(s_end);
+                            smoothed.follow_edges(
+                                cons_end, go_rev,
+                                [&](const handle_t& n) {
+                                    smoothed.for_each_step_on_handle(
+                                        n,
+                                        [&](const step_handle_t& s) {
+                                            if (smoothed.get_path_handle_of_step(s)
+                                                == target_path) {
+                                                auto p = (!go_rev ? std::make_pair(cons_end, n) :
+                                                          std::make_pair(n, cons_end));
+#pragma omp critical (perfect_edges)
+                                                perfect_edges.push_back(p);
+                                                //mark_seen_nodes(, most_frequent_link.end, seen_nodes, smoothed);
+                                                uint64_t i = smoothed.get_id(cons_end);
+                                                if (!seen_nodes.count(i)) { seen_nodes.insert(i); }
+                                                i = smoothed.get_id(n);
+                                                if (!seen_nodes.count(i)) { seen_nodes.insert(i); }
+                                                ++perfect_edge_count;
+                                            }
+                                        });
+                                });
+                        };
+
+                    /*
                     if (most_frequent_link.from_cons_path
                         != most_frequent_link.to_cons_path) {
+                    */
+                    {
 
-                        handle_t from_end_fwd
-                            = smoothed.get_handle_of_step(
-                                smoothed.path_back(
-                                    most_frequent_link.from_cons_path));
-                        smoothed.follow_edges(
-                            from_end_fwd, false,
-                            [&](const handle_t& n) {
-                                smoothed.for_each_step_on_handle(
-                                    n,
-                                    [&](const step_handle_t& s) {
-                                        if (smoothed.get_path_handle_of_step(s)
-                                            == most_frequent_link.to_cons_path) {
-                                            auto p = std::make_pair(from_end_fwd, n);
-#pragma omp critical (perfect_edges)
-                                            perfect_edges.push_back(p);
-                                            ++perfect_edge_count;
-                                        }
-                                    });
-                            });
+                        auto a = most_frequent_link.from_cons_path;
+                        auto b = most_frequent_link.to_cons_path;
+                        
+                        //handle_t from_end_fwd
+                        link_cons_end(smoothed.path_back(a), false, b);
+                        link_cons_end(smoothed.path_begin(a), true, b);
+                        link_cons_end(smoothed.path_back(b), false, a);
+                        link_cons_end(smoothed.path_begin(b), true, a);
+                        
+                        link_cons_end(smoothed.path_back(a), true, b);
+                        link_cons_end(smoothed.path_begin(a), false, b);
+                        link_cons_end(smoothed.path_back(b), true, a);
+                        link_cons_end(smoothed.path_begin(b), false, a);
 
-                        handle_t to_end_fwd
-                            = smoothed.get_handle_of_step(
-                                smoothed.path_back(
-                                    most_frequent_link.to_cons_path));
-                        smoothed.follow_edges(
-                            to_end_fwd, false,
-                            [&](const handle_t& n) {
-                                smoothed.for_each_step_on_handle(
-                                    n,
-                                    [&](const step_handle_t& s) {
-                                        if (smoothed.get_path_handle_of_step(s)
-                                            == most_frequent_link.from_cons_path) {
-                                            auto p = std::make_pair(to_end_fwd, n);
-#pragma omp critical (perfect_edges)
-                                            perfect_edges.push_back(p);
-                                            ++perfect_edge_count;
-                                        }
-                                    });
-                            });
-
-                        handle_t from_begin_fwd
-                            = smoothed.get_handle_of_step(
-                                smoothed.path_begin(
-                                    most_frequent_link.from_cons_path));
-                        smoothed.follow_edges(
-                            from_begin_fwd, true,
-                            [&](const handle_t& n) {
-                                smoothed.for_each_step_on_handle(
-                                    n,
-                                    [&](const step_handle_t& s) {
-                                        if (smoothed.get_path_handle_of_step(s)
-                                            == most_frequent_link.to_cons_path) {
-                                            auto p = std::make_pair(n, from_begin_fwd);
-#pragma omp critical (perfect_edges)
-                                            perfect_edges.push_back(p);
-                                            ++perfect_edge_count;
-                                        }
-                                    });
-                            });
-
-                        handle_t to_begin_fwd
-                            = smoothed.get_handle_of_step(
-                                smoothed.path_begin(
-                                    most_frequent_link.to_cons_path));
-                        smoothed.follow_edges(
-                            to_begin_fwd, true,
-                            [&](const handle_t& n) {
-                                smoothed.for_each_step_on_handle(
-                                    n,
-                                    [&](const step_handle_t& s) {
-                                        if (smoothed.get_path_handle_of_step(s)
-                                            == most_frequent_link.to_cons_path) {
-                                            auto p = std::make_pair(n, from_begin_fwd);
-#pragma omp critical (perfect_edges)
-                                            perfect_edges.push_back(p);
-                                            ++perfect_edge_count;
-                                        }
-                                    });
-                            });
                     }
 
-                    ska::flat_hash_set<uint64_t> seen_nodes;
                     std::vector<link_path_t> save_links;
                     uint64_t link_rank = 0;
 
                     // this part attempts to preserve connectivity between consensus sequences
                     // we're preserving the consensus graph topology
-                    if (perfect_edge_count) {
+                    //if (perfect_edge_count) {
                         // nothing to do
                         /* } else if (has_perfect_link) {
                         // nb: should be no nodes to mark
                         mark_seen_nodes(perfect_link.begin, perfect_link.end, seen_nodes, smoothed);
                         perfect_link.rank = link_rank++;
                         save_links.push_back(perfect_link);*/
-                    } else if (most_frequent_link.from_cons_path != most_frequent_link.to_cons_path) {
-                        most_frequent_link.rank = link_rank++;
-                        save_links.push_back(most_frequent_link);
-                        mark_seen_nodes(most_frequent_link.begin, most_frequent_link.end, seen_nodes, smoothed);
-                    }
-
-                    if (perfect_edge_count == 0) {
+                    {
                         // todo iterate through each pair of start/end positions
                         // and keep only the best
-
+                        { //if (most_frequent_link.from_cons_path != most_frequent_link.to_cons_path) {
+                            most_frequent_link.rank = link_rank++;
+                            save_links.push_back(most_frequent_link);
+                            mark_seen_nodes(most_frequent_link.begin, most_frequent_link.end, seen_nodes, smoothed);
+                        }
                         // this part collects sequences that diverge from a consensus for the
                         // min_allele_length which is the "variant scale factor" of the algorithm
                         // this preserves novel non-consensus sequences greater than this length
                         // TODO: this could be made to respect allele frequency
                         for (auto link : unique_links) {
-                            if (link.hash == best_hash) {
-                                continue;
-                            }
                             uint64_t largest_novel_gap_bp = largest_novel_gap(link.begin, link.end, seen_nodes, smoothed);
                             //uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
                             uint64_t step_count = get_step_count(link.begin, link.end, smoothed);
@@ -585,8 +548,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                             // we either need the jump length (measured in terms of delta in our graph vector) to be over our jump max
                             // *and* the link path should be empty or mostly novel
                             // *or* we're adding in the specified amount of novel_bp of sequence
-                            if ((link.from_cons_path != link.to_cons_path)
-                                || ((link.jump_length >= min_allele_length
+                            if (//(link.from_cons_path != link.to_cons_path)
+                                ((link.jump_length >= min_allele_length
                                      && link.jump_length < max_allele_length
                                      && (link.length == 0 ||
                                          (double)largest_novel_gap_bp / (double)step_count > 1))
