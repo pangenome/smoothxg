@@ -366,16 +366,11 @@ double gap_compressed_identity(
                             std::numeric_limits<uint64_t>::max() :
                             ceil(block_group_identity / one_minus_block_group_id);
 
-                    // Not for the containment metric
-                    uint64_t max_distance_for_edit_clustering = floor(one_minus_block_group_id * (double) curr_len) + 1;
-
                     uint64_t len_threshold_for_mash_clustering = 0;
                     if (mash_based_clustering_enabled) {
                         double value = exp(-one_minus_block_group_id * kmer_size);
                         len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * value / (2.0 - value));
                     }
-
-                    const EdlibAlignMode edlib_align_mode = EDLIB_MODE_NW;
 
                     uint64_t best_group = 0;
                     bool cluster_found = false;
@@ -420,10 +415,10 @@ double gap_compressed_identity(
 
                                     double id = -1;
                                     EdlibAlignResult result = edlibAlign(
-                                            curr.c_str(), curr.size(), other.c_str(), other.size(),
+                                            curr.c_str(), curr_len, other.c_str(), other_len,
                                             edlibNewAlignConfig(
-                                                    max_distance_for_edit_clustering,
-                                                    edlib_align_mode,
+                                                    -1,
+                                                    EDLIB_MODE_NW,
                                                     EDLIB_TASK_PATH, NULL, 0
                                                     )
                                     );
