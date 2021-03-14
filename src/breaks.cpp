@@ -357,14 +357,17 @@ double gap_compressed_identity(
                 for (uint64_t i = 1; i < rank_and_seqs_dedup.size(); ++i) {
                     auto& curr_fwd = rank_and_seqs_dedup[i].second;
                     auto curr_rev = odgi::reverse_complement(curr_fwd);
-
-                    uint64_t len_threshold_for_edit_clustering =
-                        ceil(block_group_identity * (double) curr_fwd.length());
+                    uint64_t curr_len = curr_fwd.length();
 
                     double one_minus_block_group_id = 1.0 - block_group_identity;
 
+                    uint64_t len_threshold_for_edit_clustering = one_minus_block_group_id == 0 ?
+                            // Skip always the alignment
+                            std::numeric_limits<uint64_t>::max() :
+                            ceil(block_group_identity / one_minus_block_group_id);
+
                     // Not for the containment metric
-                    uint64_t max_distance_for_edit_clustering = floor(one_minus_block_group_id * (double) curr_fwd.length()) + 1;
+                    uint64_t max_distance_for_edit_clustering = floor(one_minus_block_group_id * (double) curr_len) + 1;
 
                     uint64_t len_threshold_for_mash_clustering = 0;
                     if (mash_based_clustering_enabled) {
@@ -386,10 +389,11 @@ double gap_compressed_identity(
                             // Start looking at from the last added sequence to the group
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto &other = rank_and_seqs_dedup[group[k]].second;
+                                auto other_len = other.length();
 
                                 if (mash_based_clustering_enabled &&
-                                    curr.length() >= min_length_mash_based_clustering &&
-                                    other.length() >= min_length_mash_based_clustering) {
+                                    curr_len >= min_length_mash_based_clustering &&
+                                    other_len >= min_length_mash_based_clustering) {
                                     if (fwd_or_rev) {
                                         if (seq_hashes[group[k]].size() < len_threshold_for_mash_clustering) {
                                             // With a mash-based clustering, the identity would be above the threshold
@@ -406,7 +410,10 @@ double gap_compressed_identity(
 
                                     } //else: With the mash distance, we already manage the strandness, and here we already tried to align the curr sequence in the other strand
                                 } else {
-                                    if (other.length() < len_threshold_for_edit_clustering) {
+                                    if (
+                                            // With the gap_compressed_identity, if other_len == curr_len, the alignment is inevitable
+                                            other_len < curr_len &&
+                                            other_len < len_threshold_for_edit_clustering) {
                                         // With an edit-based clustering, the identity would be below the threshold
                                         break;
                                     }
