@@ -532,8 +532,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     auto a = most_frequent_link.from_cons_path;
                     auto b = most_frequent_link.to_cons_path;
 
-                    { /*if (most_frequent_link.from_cons_path
-                        != most_frequent_link.to_cons_path) {*/
+                    if (most_frequent_link.from_cons_path
+                        != most_frequent_link.to_cons_path) {
                         
                         //handle_t from_end_fwd
                         link_cons_end(smoothed.path_back(a), false, b);
