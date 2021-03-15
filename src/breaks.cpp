@@ -365,12 +365,12 @@ double gap_compressed_identity(
                     uint64_t len_threshold_for_edit_clustering = one_minus_block_group_id == 0 ?
                             // Skip always the alignment
                             std::numeric_limits<uint64_t>::max() :
-                            ceil(block_group_identity / one_minus_block_group_id);
+                            block_group_identity / one_minus_block_group_id;
 
                     uint64_t len_threshold_for_mash_clustering = 0;
                     if (mash_based_clustering_enabled) {
                         double value = exp(-one_minus_block_group_id * kmer_size);
-                        len_threshold_for_mash_clustering = ceil((double) seq_hashes[i].size() * value / (2.0 - value));
+                        len_threshold_for_mash_clustering = (double) seq_hashes[i].size() * value / (2.0 - value);
                     }
 
                     uint64_t best_group = 0;
