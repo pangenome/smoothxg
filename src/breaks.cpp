@@ -386,10 +386,11 @@ double gap_compressed_identity(
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto &other = rank_and_seqs_dedup[group[k]].second;
                                 auto other_len = other.length();
-                                double length_ratio = (other_len > curr_len
-                                                       ? (double)curr_len / (double)other_len
-                                                       : (double)other_len / (double)curr_len);
-                                if (length_ratio < length_ratio_min) continue;
+                                // other_len <= curr_len by design
+                                double length_ratio = (double)other_len / (double)curr_len;
+
+                                // Other sequences in the group will be shorter
+                                if (length_ratio < length_ratio_min) break;
 
                                 if (mash_based_clustering_enabled &&
                                     curr_len >= min_length_mash_based_clustering &&
