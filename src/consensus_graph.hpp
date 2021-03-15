@@ -27,7 +27,6 @@ struct link_path_t {
     step_handle_t begin; // first step off consensus path
     step_handle_t end; // one-past last step
     path_handle_t path;
-    bool is_rev; // if we're going forward or reverse on the graph partial order
     uint64_t jump_length; // jump in the partial order
     uint64_t rank;
 };
