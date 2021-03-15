@@ -91,18 +91,22 @@ int main(int argc, char **argv) {
                                                            {'G', "max-block-groups-in-memory"});
 
     // Block split
-    args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N",
-                                                                "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]",
-                                                                {'L', "min-seq-len-mash"});
     args::ValueFlag<double> _block_group_identity(parser, "N",
                                                   "minimum edit-based identity to cluster sequences [default: 0.5]",
                                                   {'I', "block-id-min"});
-    args::ValueFlag<double> _block_group_est_identity(parser, "N",
-                                                      "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]",
-                                                      {'E', "block-est-id-max"});
+    args::ValueFlag<double> _block_length_ratio_min(parser, "N",
+                                                    "minimum small / large length ratio to cluster in a block [default: 0.05]",
+                                                    {'R', "block-ratio-min"});
     args::ValueFlag<uint64_t> _min_dedup_depth_for_mash_clustering(parser, "N",
                                                                    "minimum (deduplicated) block depth for applying the mash-based clustering [default: 12000, 0 to disable it]",
                                                                    {'D', "min-block-depth-mash"});
+    args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N",
+                                                                "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]",
+                                                                {'L', "min-seq-len-mash"});
+    args::ValueFlag<double> _block_group_est_identity(parser, "N",
+                                                      "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]",
+                                                      {'E', "block-est-id-max"});
+
     args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]",
                                          {'k', "kmer-size-mash-distance"});
 
@@ -214,6 +218,7 @@ int main(int argc, char **argv) {
                                                                             : 50;
 
         // Block split
+        double block_length_ratio_min = _block_length_ratio_min ? args::get(_block_length_ratio_min) : 0.05;
         uint64_t min_length_mash_based_clustering = _min_length_mash_based_clustering ? args::get(
                 _min_length_mash_based_clustering) : 200;
         uint64_t kmer_size = _kmer_size ? args::get(_kmer_size) : 17;
@@ -330,6 +335,7 @@ int main(int argc, char **argv) {
 
         smoothxg::break_blocks(*graph,
                                blockset,
+                               block_length_ratio_min,
                                min_length_mash_based_clustering,
                                block_group_identity,
                                block_group_est_identity,

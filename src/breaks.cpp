@@ -71,6 +71,7 @@ double gap_compressed_identity(
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
     void break_blocks(const xg::XG &graph,
                       blockset_t *&blockset,
+                      const double &length_ratio_min,
                       const uint64_t &min_length_mash_based_clustering,
                       const double &block_group_identity,
                       const double &block_group_est_identity,
@@ -143,7 +144,7 @@ double gap_compressed_identity(
         };
         std::thread write_ready_blocks_thread(write_ready_blocks_lambda);
 
-#pragma omp parallel for schedule(static, 1) num_threads(thread_count)
+#pragma omp parallel for schedule(dynamic, 1) num_threads(thread_count)
         for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id) {
             auto block = blockset->get_block(block_id);
 
@@ -385,6 +386,10 @@ double gap_compressed_identity(
                             for (int64_t k = group.size() - 1; k >= 0; --k) {
                                 auto &other = rank_and_seqs_dedup[group[k]].second;
                                 auto other_len = other.length();
+                                double length_ratio = (other_len > curr_len
+                                                       ? (double)curr_len / (double)other_len
+                                                       : (double)other_len / (double)curr_len);
+                                if (length_ratio < length_ratio_min) continue;
 
                                 if (mash_based_clustering_enabled &&
                                     curr_len >= min_length_mash_based_clustering &&
