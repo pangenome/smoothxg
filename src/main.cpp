@@ -55,6 +55,9 @@ int main(int argc, char **argv) {
                                                  "consensus graph specification: write the consensus graph to BASENAME.cons_[spec].gfa; where each spec contains at least a min_len parameter (which defines the length of divergences from consensus paths to preserve in the output), optionally a file containing reference paths to preserve in the output, a flag (y/n) indicating whether we should also use the POA consensus paths, a minimum coverage of consensus paths to retain (min_cov), and a maximum allele length (max_len, defaults to 1e6); implies -a; example: cons,100,1000:refs1.txt:n,1000:refs2.txt:y:2.3:1000000,10000 [default: unset]",
                                                  {'C', "consensus-spec"});
 
+    args::ValueFlag<std::string> _consensus_path_prefix(parser, "PREFIX",
+                                                        "prepend the consensus path names with PREFIX [default: Consensus]",
+                                                        {'Q', "consensus-prefix"});
     // Merge blocks (for merging MAF blocks and consensus sequences)
     args::Flag merge_blocks(parser, "bool",
                             "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",
@@ -88,23 +91,24 @@ int main(int argc, char **argv) {
                                                            {'G', "max-block-groups-in-memory"});
 
     // Block split
-    args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N",
-                                                                "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]",
-                                                                {'L', "min-seq-len-mash"});
     args::ValueFlag<double> _block_group_identity(parser, "N",
                                                   "minimum edit-based identity to cluster sequences [default: 0.5]",
                                                   {'I', "block-id-min"});
-    args::ValueFlag<double> _block_group_est_identity(parser, "N",
-                                                      "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]",
-                                                      {'E', "block-est-id-max"});
+    args::ValueFlag<double> _block_length_ratio_min(parser, "N",
+                                                    "minimum small / large length ratio to cluster in a block [default: 0.05]",
+                                                    {'R', "block-ratio-min"});
     args::ValueFlag<uint64_t> _min_dedup_depth_for_mash_clustering(parser, "N",
                                                                    "minimum (deduplicated) block depth for applying the mash-based clustering [default: 12000, 0 to disable it]",
                                                                    {'D', "min-block-depth-mash"});
+    args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N",
+                                                                "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]",
+                                                                {'L', "min-seq-len-mash"});
+    args::ValueFlag<double> _block_group_est_identity(parser, "N",
+                                                      "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]",
+                                                      {'E', "block-est-id-max"});
+
     args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]",
                                          {'k', "kmer-size-mash-distance"});
-    args::ValueFlag<double> _short_long_seq_lengths_ratio(parser, "N",
-                                                          "minimum short length / long length ratio to compare sequences for the containment metric in the clustering [default: 0, no containment metric]",
-                                                          {'R', "ratio-containment-metric"});
 
     args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]",
                                                {'c', "copy-length-min"});
@@ -115,7 +119,7 @@ int main(int argc, char **argv) {
                                               {'l', "poa-length-max"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)",
-                                            "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 2,4,6,2,24,1]",
+                                            "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 1,4,6,2,26,1]",
                                             {'p', "poa-params"});
     args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]",
                                          {'X', "chop-to"});
@@ -157,6 +161,7 @@ int main(int argc, char **argv) {
     std::vector<smoothxg::consensus_spec_t> consensus_specs;
     bool requires_consensus = false;
     bool write_consensus_graph = false;
+    std::string consensus_path_prefix = _consensus_path_prefix ? args::get(_consensus_path_prefix) : "Consensus_";
 
     if (_consensus_spec) {
         consensus_specs = smoothxg::parse_consensus_spec(args::get(_consensus_spec), requires_consensus);
@@ -213,6 +218,7 @@ int main(int argc, char **argv) {
                                                                             : 50;
 
         // Block split
+        double block_length_ratio_min = _block_length_ratio_min ? args::get(_block_length_ratio_min) : 0.05;
         uint64_t min_length_mash_based_clustering = _min_length_mash_based_clustering ? args::get(
                 _min_length_mash_based_clustering) : 200;
         uint64_t kmer_size = _kmer_size ? args::get(_kmer_size) : 17;
@@ -239,14 +245,11 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        double short_long_seq_lengths_ratio = _short_long_seq_lengths_ratio ? args::get(_short_long_seq_lengths_ratio)
-                                                                            : 0;
-
-        int poa_m = 2;
+        int poa_m = 1;
         int poa_n = 4;
         int poa_g = 6;
         int poa_e = 2;
-        int poa_q = 24;
+        int poa_q = 26;
         int poa_c = 1;
 
         if (!args::get(poa_params).empty()) {
@@ -332,12 +335,12 @@ int main(int argc, char **argv) {
 
         smoothxg::break_blocks(*graph,
                                blockset,
+                               block_length_ratio_min,
                                min_length_mash_based_clustering,
                                block_group_identity,
                                block_group_est_identity,
                                kmer_size,
                                min_dedup_depth_for_mash_clustering,
-                               short_long_seq_lengths_ratio,
                                max_poa_length,
                                min_copy_length,
                                max_copy_length,
@@ -402,8 +405,7 @@ int main(int argc, char **argv) {
                           " min_length_mash_based_clustering=" + std::to_string(min_length_mash_based_clustering) +
                           " min_dedup_depth_for_mash_clustering=" +
                           std::to_string(min_dedup_depth_for_mash_clustering) +
-                          " kmer_size=" + std::to_string(_kmer_size) +
-                          " short_long_seq_lengths_ratio=" + std::to_string(short_long_seq_lengths_ratio) + "\n";
+                          " kmer_size=" + std::to_string(_kmer_size) + "\n";
         }
 
         {
@@ -421,7 +423,7 @@ int main(int argc, char **argv) {
                                                       args::get(merge_blocks), args::get(_preserve_unmerged_consensus),
                                                       contiguous_path_jaccard,
                                                       !args::get(use_spoa),
-                                                      add_consensus ? "Consensus_" : "",
+                                                      add_consensus ? consensus_path_prefix : "",
                                                       consensus_path_names,
                                                       args::get(write_block_fastas),
                                                       max_merged_groups_in_memory);
