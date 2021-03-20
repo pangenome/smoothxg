@@ -1016,37 +1016,28 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
     auto get_block_graph =
         [&](const uint64_t& block_id) {
-            std::cerr << "loading block graph " << block_id << std::endl;
             std::string data;
-            std::cerr << "loading a block with " << block_graphs[block_id]->size() << " chars" << std::endl;
             zstdutil::DecompressString(*block_graphs[block_id], data);
             stringstream ss;
             ss << data;
             ss.seekg(0,std::ios_base::beg);
-            auto block_graph = new odgi::graph_t;
-            std::cerr << "Here" << std::endl;
+            auto block_graph = std::make_unique<odgi::graph_t>();
             block_graph->deserialize_members(ss);
-            std::cerr << "loaded block graph " << block_graph->get_node_count() << std::endl;
             return block_graph;
         };
 
     auto save_block_graph =
         [&](const uint64_t& block_id,
             const odgi::graph_t* block_graph) {
-            std::cerr << "saving block graph " << block_id << std::endl;
             std::stringstream ss;
             block_graph->serialize_members(ss);
-            std::cerr << "saving block graph" << std::endl;
             std::string*& s = block_graphs[block_id];
             if (s == nullptr) {
                 s = new std::string;
             } else {
                 s->clear();
             }
-            std::cerr << "uhh " << ss.str().size() << std::endl;
             zstdutil::CompressString(ss.str(), *s);
-            std::cerr << "compressed " << s->size() << std::endl;
-            std::cerr << "saved block graph" << std::endl;
         };
 
     std::vector<path_position_range_t> path_mapping;
@@ -1286,8 +1277,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             // quietly groom by flipping the block to prefer the forward orientation of the lowest-ranked path
                             //
 
-                            //std::string dat = ss.str();
-                            std::cerr << "heree??????" << std::endl;
                             auto block_graph = get_block_graph(block_id);
                             uint64_t first_id = std::numeric_limits<uint64_t>::max();
                             path_handle_t groom_target_path;
@@ -1305,8 +1294,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             bool flip_block = block_graph->get_is_reverse(
                                 block_graph->get_handle_of_step(
                                     block_graph->path_begin(groom_target_path)));
-
-                            delete block_graph;
 
                             // Put the current block in a new group on the right
                             merged_maf_blocks_queue.emplace_back();
@@ -1433,10 +1420,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                           write_fasta_blocks);
             }
 
-            if (produce_maf || (add_consensus && merge_blocks)){
-                mafs_ready.set(block_id);
-            }
-
             // std::cerr << std::endl;
             // std::cerr << "After block graph. Exiting for now....." <<
             // std::endl; exit(0);
@@ -1495,6 +1478,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             save_block_graph(block_id, block_graph);
             delete block_graph;
             poa_progress.increment(1);
+            if (produce_maf || (add_consensus && merge_blocks)){
+                mafs_ready.set(block_id);
+            }
         }
 
         poa_progress.finish();
@@ -1582,7 +1568,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                 save_block_graph(block_id, flipped_graph);
                 delete flipped_graph;
-                delete block_graph;
 
                 flip_graphs_progress.increment(1);
             }
@@ -1616,11 +1601,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         for (uint64_t idx = 0; idx < block_graphs.size(); ++idx) {
             uint64_t id_trans = smoothed->get_node_count();
             // record the id translation
-            std::cerr << "second" << std::endl;
             auto block = get_block_graph(idx);
             id_mapping.push_back(id_trans);
             if (block->get_node_count() == 0) {
-                delete block;
                 continue;
             }
             block->for_each_handle([&](const handle_t &h) {
@@ -1631,7 +1614,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                         smoothed->get_handle(id_trans + block->get_id(e.first)),
                         smoothed->get_handle(id_trans + block->get_id(e.second)));
             });
-            delete block;
             add_graph_progress.increment(1);
         }
         add_graph_progress.finish();
@@ -1661,7 +1643,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     assert(false); // assert that we've included all sequence in blocks
                 }
                 // write the path steps into the graph using the id translation
-                std::cerr << "loading a graph here" << std::endl;
                 auto block = get_block_graph(pos_range->block_id);
                 auto id_trans = id_mapping.at(pos_range->block_id);
                 bool first = true;
@@ -1680,7 +1661,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                 }
                             }
                         });
-                delete block;
                 last_step = smoothed->path_back(smoothed_path);
                 last_end_pos = pos_range->end_pos;
                 if (i + 1 == path_mapping.size() ||
@@ -1788,12 +1768,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: creating path handles" << std::endl;
         for (auto &pos_range : consensus_mapping) {
             if (pos_range.start_pos != pos_range.end_pos) {
-                std::cerr << "loading a graph thar" << std::endl;
                 auto block = get_block_graph(pos_range.block_id);
                 consensus_paths[pos_range.block_id] = smoothed->create_path_handle(
                     block->get_path_name(pos_range.target_path)
                 );
-                delete block;
             } // else skip the embedding of the single consensus sequences
         }
 
@@ -1805,7 +1783,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 continue; // skip the embedding for the single consensus sequence
             }
 
-            std::cerr << "loading a graph thon" << std::endl;
             auto block = get_block_graph(pos_range.block_id);
             path_handle_t smoothed_path = consensus_paths[pos_range.block_id];
 
@@ -1886,7 +1863,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             consensus_path_is_merged.insert(as_integer(consensus_paths[block_id]));
                         }
 
-                        std::cerr << "loading a graph dummm" << std::endl;
                         auto block = get_block_graph(block_id);
                         auto &id_trans = id_mapping[block_id];
                         block->for_each_step_in_path(consensus_mapping[block_id].target_path, [&](const step_handle_t &step) {
