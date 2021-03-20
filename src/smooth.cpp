@@ -1505,7 +1505,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                 unordered_map<handle_t, handle_t> forward_translation;
 
-                std::cerr << "first" << std::endl;
                 auto block_graph = get_block_graph(block_id);
 
                 // make the flipped nodes
