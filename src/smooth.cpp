@@ -1011,8 +1011,34 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     //
     // record the start and end points of all the path ranges and the consensus
     //
-    std::vector<odgi::graph_t*> block_graphs;
+    std::vector<std::string*> block_graphs;
     block_graphs.resize(blockset->size(), nullptr);
+
+    auto get_block_graph =
+        [&](const uint64_t& block_id) {
+            std::string data;
+            zstdutil::DecompressString(*block_graphs[block_id], data);
+            stringstream ss;
+            ss << data;
+            ss.seekg(0,std::ios_base::beg);
+            auto block_graph = std::make_unique<odgi::graph_t>();
+            block_graph->deserialize_members(ss);
+            return block_graph;
+        };
+
+    auto save_block_graph =
+        [&](const uint64_t& block_id,
+            const odgi::graph_t* block_graph) {
+            std::stringstream ss;
+            block_graph->serialize_members(ss);
+            std::string*& s = block_graphs[block_id];
+            if (s == nullptr) {
+                s = new std::string;
+            } else {
+                s->clear();
+            }
+            zstdutil::CompressString(ss.str(), *s);
+        };
 
     std::vector<path_position_range_t> path_mapping;
     std::vector<path_position_range_t> consensus_mapping;
@@ -1253,7 +1279,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             }
 
                             // quietly groom by flipping the block to prefer the forward orientation of the lowest-ranked path
-                            auto& block_graph = block_graphs[block_id];
+                            //
+
+                            auto block_graph = get_block_graph(block_id);
                             uint64_t first_id = std::numeric_limits<uint64_t>::max();
                             path_handle_t groom_target_path;
                             block_graph->for_each_path_handle(
@@ -1361,7 +1389,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             }
 
             // std::cerr << "on block " << block_id+1 << " of " << blockset->size() << std::endl;
-            auto& block_graph = block_graphs[block_id];
+            odgi::graph_t* block_graph = nullptr;
 
             if (use_abpoa) {
                 block_graph = smooth_abpoa(graph,
@@ -1394,10 +1422,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                           produce_maf,
                                           consensus_name,
                                           write_fasta_blocks);
-            }
-
-            if (produce_maf || (add_consensus && merge_blocks)){
-                mafs_ready.set(block_id);
             }
 
             // std::cerr << std::endl;
@@ -1455,7 +1479,12 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     }
                 }
             }
+            save_block_graph(block_id, block_graph);
+            delete block_graph;
             poa_progress.increment(1);
+            if (produce_maf || (add_consensus && merge_blocks)){
+                mafs_ready.set(block_id);
+            }
         }
 
         poa_progress.finish();
@@ -1476,28 +1505,30 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                 unordered_map<handle_t, handle_t> forward_translation;
 
+                auto block_graph = get_block_graph(block_id);
+
                 // make the flipped nodes
-                block_graphs[block_id]->for_each_handle(
+                block_graph->for_each_handle(
                         [&](const handle_t& old_handle) {
                             handle_t rev_handle = flipped_graph->create_handle(
-                                    block_graphs[block_id]->get_sequence(block_graphs[block_id]->flip(old_handle)),
-                                    block_graphs[block_id]->get_id(old_handle));
+                                    block_graph->get_sequence(block_graph->flip(old_handle)),
+                                    block_graph->get_id(old_handle));
                             forward_translation[old_handle] = rev_handle;
                         });
 
                 // make the flipped edges
-                block_graphs[block_id]->for_each_edge([&](const edge_t& edge) {
+                block_graph->for_each_edge([&](const edge_t& edge) {
                     // get the two sides in the correct orientation
                     handle_t rev_left, rev_right;
-                    if (block_graphs[block_id]->get_is_reverse(edge.first)) {
-                        rev_left = flipped_graph->flip(forward_translation[block_graphs[block_id]->flip(edge.first)]);
+                    if (block_graph->get_is_reverse(edge.first)) {
+                        rev_left = flipped_graph->flip(forward_translation[block_graph->flip(edge.first)]);
                     }
                     else {
                         rev_left = flipped_graph->flip(forward_translation[edge.first]);
                     }
 
-                    if (!block_graphs[block_id]->get_is_reverse(edge.second)) {
-                        rev_right = flipped_graph->flip(forward_translation[block_graphs[block_id]->flip(edge.second)]);
+                    if (!block_graph->get_is_reverse(edge.second)) {
+                        rev_right = flipped_graph->flip(forward_translation[block_graph->flip(edge.second)]);
                     }
                     else {
                         rev_right = flipped_graph->flip(forward_translation[edge.second]);
@@ -1512,34 +1543,34 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     consensus_name = consensus_base_name + std::to_string(block_id);
                 }
 
-                block_graphs[block_id]->for_each_path_handle(
+                block_graph->for_each_path_handle(
                         [&](const path_handle_t& old_path) {
-                            string path_name = block_graphs[block_id]->get_path_name(old_path);
+                            string path_name = block_graph->get_path_name(old_path);
                             path_handle_t new_path = flipped_graph->create_path_handle(path_name);
                             if (path_name != consensus_name) {
                                 // flip the path, but preserving its sequence
-                                block_graphs[block_id]->for_each_step_in_path(old_path, [&](const step_handle_t& step) {
-                                    handle_t old_handle = block_graphs[block_id]->get_handle_of_step(step);
+                                block_graph->for_each_step_in_path(old_path, [&](const step_handle_t& step) {
+                                    handle_t old_handle = block_graph->get_handle_of_step(step);
                                     handle_t new_handle = flipped_graph->get_handle(
-                                            block_graphs[block_id]->get_id(old_handle),
-                                            !block_graphs[block_id]->get_is_reverse(old_handle));
+                                            block_graph->get_id(old_handle),
+                                            !block_graph->get_is_reverse(old_handle));
                                     flipped_graph->append_step(new_path, new_handle);
                                 });
                             } else {
                                 // the consensus has to be encoded in reverse complement, but it remains in the forward strand
-                                block_graphs[block_id]->for_each_step_in_path(old_path, [&](const step_handle_t& step) {
-                                    handle_t old_handle = block_graphs[block_id]->get_handle_of_step(step);
+                                block_graph->for_each_step_in_path(old_path, [&](const step_handle_t& step) {
+                                    handle_t old_handle = block_graph->get_handle_of_step(step);
                                     handle_t new_handle = flipped_graph->get_handle(
-                                            block_graphs[block_id]->get_id(old_handle),
-                                            block_graphs[block_id]->get_is_reverse(old_handle));
+                                            block_graph->get_id(old_handle),
+                                            block_graph->get_is_reverse(old_handle));
                                     flipped_graph->prepend_step(new_path, new_handle);
                                 });
                             }
 
                         });
 
-                delete block_graphs[block_id];
-                block_graphs[block_id] = flipped_graph;
+                save_block_graph(block_id, flipped_graph);
+                delete flipped_graph;
 
                 flip_graphs_progress.increment(1);
             }
@@ -1570,9 +1601,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         add_graph_banner << "[smoothxg::smooth_and_lace] adding " << block_graphs.size() << " graphs:";
         progress_meter::ProgressMeter add_graph_progress(block_graphs.size(), add_graph_banner.str());
 
-        for (auto block : block_graphs) {
+        for (uint64_t idx = 0; idx < block_graphs.size(); ++idx) {
             uint64_t id_trans = smoothed->get_node_count();
             // record the id translation
+            auto block = get_block_graph(idx);
             id_mapping.push_back(id_trans);
             if (block->get_node_count() == 0) {
                 continue;
@@ -1614,7 +1646,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     assert(false); // assert that we've included all sequence in blocks
                 }
                 // write the path steps into the graph using the id translation
-                auto block = block_graphs.at(pos_range->block_id);
+                auto block = get_block_graph(pos_range->block_id);
                 auto id_trans = id_mapping.at(pos_range->block_id);
                 bool first = true;
                 block->for_each_step_in_path(
@@ -1739,8 +1771,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: creating path handles" << std::endl;
         for (auto &pos_range : consensus_mapping) {
             if (pos_range.start_pos != pos_range.end_pos) {
+                auto block = get_block_graph(pos_range.block_id);
                 consensus_paths[pos_range.block_id] = smoothed->create_path_handle(
-                        block_graphs[pos_range.block_id]->get_path_name(pos_range.target_path)
+                    block->get_path_name(pos_range.target_path)
                 );
             } // else skip the embedding of the single consensus sequences
         }
@@ -1753,7 +1786,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 continue; // skip the embedding for the single consensus sequence
             }
 
-            auto block = block_graphs[pos_range.block_id];
+            auto block = get_block_graph(pos_range.block_id);
             path_handle_t smoothed_path = consensus_paths[pos_range.block_id];
 
             auto &id_trans = id_mapping[pos_range.block_id];
@@ -1833,7 +1866,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             consensus_path_is_merged.insert(as_integer(consensus_paths[block_id]));
                         }
 
-                        auto block = block_graphs[block_id];
+                        auto block = get_block_graph(block_id);
                         auto &id_trans = id_mapping[block_id];
                         block->for_each_step_in_path(consensus_mapping[block_id].target_path, [&](const step_handle_t &step) {
                             handle_t h = block->get_handle_of_step(step);

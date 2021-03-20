@@ -257,6 +257,7 @@ add_library(smoothxg_objs OBJECT
   src/breaks.cpp
   src/smooth.cpp
   src/utils.cpp
+  src/zstdutil.cpp
   ${sautocorr_INCLUDE}/sautocorr.cpp
   src/maf.hpp
   src/consensus_graph.cpp)
@@ -355,7 +356,8 @@ target_link_libraries(smoothxg edlib)
 # -lz is needed for abPOA, as indicated in the example.c
 # https://github.com/yangao07/abPOA/blob/17d7b287b905bcd0e684ca5015a78e5a73a40798/example.c#L3
 find_package(ZLIB)
-target_link_libraries(smoothxg ZLIB::ZLIB)
+#find_package(ZSTD)
+target_link_libraries(smoothxg ZLIB::ZLIB zstd)
 
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
