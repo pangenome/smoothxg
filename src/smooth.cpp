@@ -1115,12 +1115,12 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                     bool flip_block_before_merging;
 
-                                    uint64_t num_contiguous_seq;
+                                    uint64_t num_contiguous_ranges;
                                     for (auto flip_block : {false, true}) {
                                         flip_block_before_merging = flip_block;
 
                                         merged = true;
-                                        num_contiguous_seq = 0;
+                                        num_contiguous_ranges = 0;
 
                                         for (auto const& path_to_maf_rows : mafs[block_id]) {
                                             // Do not check the consensus (always forward)
@@ -1146,7 +1146,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                                                             new_block_on_the_left = 1;
 
                                                                             found_contiguous_row = true;
-                                                                            num_contiguous_seq += 1;
+                                                                            num_contiguous_ranges += 1;
                                                                             break;
                                                                         }
                                                                     } else if ((maf_row.path_length - maf_row_record_start) ==
@@ -1159,7 +1159,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                                                             new_block_on_the_left = 0;
 
                                                                             found_contiguous_row = true;
-                                                                            num_contiguous_seq += 1;
+                                                                            num_contiguous_ranges += 1;
                                                                             break;
                                                                         }
                                                                     }
@@ -1173,7 +1173,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                                                             new_block_on_the_left = 0;
 
                                                                             found_contiguous_row = true;
-                                                                            num_contiguous_seq += 1;
+                                                                            num_contiguous_ranges += 1;
                                                                             break;
                                                                         }
                                                                     } else if ((maf_row_record_start + maf_row.seq_size) == merged_maf_prow.record_start) {
@@ -1185,7 +1185,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                                                             new_block_on_the_left = 1;
 
                                                                             found_contiguous_row = true;
-                                                                            num_contiguous_seq += 1;
+                                                                            num_contiguous_ranges += 1;
                                                                             break;
                                                                         }
                                                                     }
@@ -1193,11 +1193,12 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                                             }
                                                         }
 
-                                                        if (found_contiguous_row) { break; }
+                                                        // Commented out because we want to check if all ranges are mergeable
+                                                        //if (found_contiguous_row) { break; }
                                                     }
 
                                                     if (!found_contiguous_row) {
-                                                        merged = false; // Current block not mergeable, so write the blocks which are waiting in memory
+                                                        merged = false; // Current block not mergeable
                                                         break;
                                                     }
                                                 }
@@ -1205,13 +1206,16 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                         }
 
                                         if (merged) {
-                                            uint64_t num_merged_seq = merged_maf_blocks.rows.size();
-                                            //for (auto &maf_prows : merged_maf_blocks.rows) { num_merged_seq += maf_prows.second.size(); }
+                                            uint64_t num_ranges_in_merged_block = 0;
+                                            for (auto &maf_prows : merged_maf_blocks.rows) { num_ranges_in_merged_block += maf_prows.second.size(); }
+
+                                            uint64_t num_ranges_in_block_to_merge = 0;
+                                            for (auto &maf_prows : mafs[block_id]) { num_ranges_in_block_to_merge += maf_prows.second.size(); }
 
                                             double current_contiguous_path_jaccard =
-                                                    (double) num_contiguous_seq /
-                                                    (double) (num_seq_in_block - (add_consensus ? 1 : 0) + num_merged_seq -
-                                                              num_contiguous_seq);
+                                                    (double) num_contiguous_ranges /
+                                                    (double) (num_ranges_in_block_to_merge - (add_consensus ? 1 : 0) + num_ranges_in_merged_block -
+                                                            num_contiguous_ranges);
 
                                             if (current_contiguous_path_jaccard >= contiguous_path_jaccard && current_contiguous_path_jaccard > best_jaccard) {
                                                 best_jaccard = current_contiguous_path_jaccard;
