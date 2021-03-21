@@ -337,8 +337,8 @@ set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
-  "${handlegraph_LIB}/libhandlegraph.a"
   "${odgi_LIB}/libodgi.a"
+  "${handlegraph_LIB}/libhandlegraph.a"
   "${abPOA_LIB}/libabpoa.a"
   "-latomic"
   )
