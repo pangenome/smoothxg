@@ -1639,7 +1639,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         std::stringstream lace_banner;
         lace_banner << "[smoothxg::smooth_and_lace] embedding " << path_mapping.size() << " path fragments:";
         progress_meter::ProgressMeter lace_progress(path_mapping.size(), lace_banner.str());
+        std::vector<std::tuple<path_handle_t, uint64_t, uint64_t>> path_range_in_mappings;
         for (uint64_t i = 0; i < path_mapping.size(); ++i) {
+            uint64_t begin = i;
             path_position_range_t *pos_range = &path_mapping[i];
             step_handle_t last_step = {0, 0};
             uint64_t last_end_pos = 0;
@@ -1649,6 +1651,41 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     graph.get_path_name(pos_range->base_path));
             // walk the path from start to end
             while (true) {
+                // if we find a segment that's not included in any block, we'll add
+                // it to the final graph and link it in to do so, we detect a gap in
+                // length, collect the sequence in the gap and add it to the graph
+                // as a node then add it as a traversal to the path
+                if (pos_range->start_pos - last_end_pos > 0) {
+                    assert(false); // assert that we've included all sequence in blocks
+                }
+                last_end_pos = pos_range->end_pos;
+                if (i + 1 == path_mapping.size() ||
+                    path_mapping.at(i + 1).base_path != pos_range->base_path) {
+                    break;
+                } else {
+                    ++i;
+                    pos_range = &path_mapping[i];
+                }
+                //lace_progress.increment(1);
+            }
+            // now add in any final sequence in the path
+            // and add it to the path, add the edge
+            if (graph.get_path_length(pos_range->base_path) > last_end_pos) {
+                assert(false); // assert that we've included all sequence in the blocks
+            }
+            // store the path range in path_mapping
+            path_range_in_mappings.push_back({smoothed_path, begin, i});
+        }
+
+#pragma omp parallel for schedule(dynamic,1)
+        for (auto& path_mapping_range : path_range_in_mappings) {
+            auto& smoothed_path = std::get<0>(path_mapping_range);
+            uint64_t range_begin = std::get<1>(path_mapping_range);
+            uint64_t range_end = std::get<2>(path_mapping_range);
+            step_handle_t last_step = {0, 0};
+            uint64_t last_end_pos = 0;
+            for (uint64_t i = range_begin; i <= range_end; ++i) {
+                path_position_range_t *pos_range = &path_mapping[i];
                 // if we find a segment that's not included in any block, we'll add
                 // it to the final graph and link it in to do so, we detect a gap in
                 // length, collect the sequence in the gap and add it to the graph
@@ -1677,18 +1714,11 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                         });
                 last_step = smoothed->path_back(smoothed_path);
                 last_end_pos = pos_range->end_pos;
-                if (i + 1 == path_mapping.size() ||
-                    path_mapping.at(i + 1).base_path != pos_range->base_path) {
-                    break;
-                } else {
-                    ++i;
-                    pos_range = &path_mapping[i];
-                }
-                lace_progress.increment(1);
             }
+            lace_progress.increment(1);
             // now add in any final sequence in the path
             // and add it to the path, add the edge
-            if (graph.get_path_length(pos_range->base_path) > last_end_pos) {
+            if (graph.get_path_length(path_mapping[range_begin].base_path) > last_end_pos) {
                 assert(false); // assert that we've included all sequence in the blocks
             }
         }
