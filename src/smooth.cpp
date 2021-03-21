@@ -1595,10 +1595,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
     // add the nodes and edges to the graph
     std::vector<uint64_t> id_mapping;
-
     {
         std::stringstream add_graph_banner;
-        add_graph_banner << "[smoothxg::smooth_and_lace] adding " << block_graphs.size() << " graphs:";
+        add_graph_banner << "[smoothxg::smooth_and_lace] adding nodes from " << block_graphs.size() << " graphs:";
         progress_meter::ProgressMeter add_graph_progress(block_graphs.size(), add_graph_banner.str());
 
         for (uint64_t idx = 0; idx < block_graphs.size(); ++idx) {
@@ -1612,6 +1611,18 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block->for_each_handle([&](const handle_t &h) {
                 smoothed->create_handle(block->get_sequence(h));
             });
+            add_graph_progress.increment(1);
+        }
+    }
+
+    {
+        std::stringstream add_graph_banner;
+        add_graph_banner << "[smoothxg::smooth_and_lace] adding edges from " << block_graphs.size() << " graphs:";
+        progress_meter::ProgressMeter add_graph_progress(block_graphs.size(), add_graph_banner.str());
+#pragma omp parallel for schedule(dynamic,1)
+        for (uint64_t idx = 0; idx < block_graphs.size(); ++idx) {
+            auto& id_trans = id_mapping[idx];
+            auto block = get_block_graph(idx);
             block->for_each_edge([&](const edge_t &e) {
                 smoothed->create_edge(
                         smoothed->get_handle(id_trans + block->get_id(e.first)),
