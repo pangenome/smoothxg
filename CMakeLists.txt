@@ -331,7 +331,8 @@ set(smoothxg_INCLUDES
   "${abPOA_src_INCLUDE}"
   "${bbhash_INCLUDE}"
   "${mkmh_INCLUDE}"
-  "deps/edlib/edlib/include")
+  "deps/edlib/edlib/include"
+  "deps/patchmap")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"

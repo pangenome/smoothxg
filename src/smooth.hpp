@@ -13,6 +13,7 @@
 #include "xg.hpp"
 #include "utils.hpp"
 #include "zstdutil.hpp"
+#include "patchmap.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>

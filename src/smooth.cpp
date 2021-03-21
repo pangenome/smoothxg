@@ -28,16 +28,18 @@ static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
     return (t = v >> 16) ? 16 + abpt->LogTable65536[t] : abpt->LogTable65536[v];
 }
 
-void _clear_maf_block(std::map<std::string, std::vector<maf_partial_row_t>> &maf){
-    for (auto &path_to_maf_rows : maf){
+/*
+void _clear_maf_block(whash::patchmap<std::string, std::vector<maf_partial_row_t>> &maf){
+    for (const auto &path_to_maf_rows : maf){
         for (auto &maf_row : path_to_maf_rows.second) {
             clear_string(maf_row.aligned_seq);
         }
     }
 
     maf.clear();
-    std::map<std::string, std::vector<maf_partial_row_t>>().swap(maf);
+    whash::patchmap<std::string, std::vector<maf_partial_row_t>>().swap(maf);
 }
+*/
 
 // if we want a vectorized layout representation of the block
 void write_tsv_for_block(const xg::XG &graph,
@@ -56,7 +58,7 @@ void write_tsv_for_block(const xg::XG &graph,
             graph.get_path_handle_of_step(path_range.begin));
         uint64_t rank = 0;
         uint64_t pos = 0;
-        std::map<uint64_t, uint64_t> visits;
+        whash::patchmap<uint64_t, uint64_t> visits;
         for (step_handle_t step = path_range.begin; step != path_range.end;
              step = graph.get_next_step(step)) {
             handle_t h = graph.get_handle_of_step(step);
@@ -92,7 +94,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                             int poa_m, int poa_n, int poa_g,
                             int poa_e, int poa_q, int poa_c,
                             bool local_alignment,
-                            std::map<std::string, std::vector<maf_partial_row_t>> *maf, bool keep_sequence,
+                            std::unique_ptr<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
                             bool banded_alignment,
                             const std::string &consensus_name,
                             bool save_block_fastas) {
@@ -394,7 +396,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                            std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                            bool local_alignment,
-                           std::map<std::string, std::vector<maf_partial_row_t>> *maf, bool keep_sequence,
+                           std::unique_ptr<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
                            const std::string &consensus_name,
                            bool save_block_fastas) {
 
@@ -551,7 +553,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 void _put_block_in_group(
         maf_t &merged_maf_blocks, uint64_t block_id, uint64_t num_seq_in_block,
         std::string consensus_name,
-        std::vector<std::map<std::string, std::vector<maf_partial_row_t>>> &mafs,
+        std::vector<std::unique_ptr<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>> &mafs,
         bool new_block_on_the_left,
         bool flip_block_before_merging
 ){
@@ -562,7 +564,7 @@ void _put_block_in_group(
     std::string gaps = "";
     for (uint64_t j = 0; j < alignment_size_merged_maf_blocks; j++){ gaps += "-"; }
 
-    for (auto& path_to_maf_rows : mafs[block_id]) {
+    for (const auto& path_to_maf_rows : *mafs[block_id]) {
         // Do not check the consensus (always forward)
         if (path_to_maf_rows.first != consensus_name){
             if (merged_maf_blocks.rows.count(path_to_maf_rows.first) == 0) {
@@ -694,7 +696,7 @@ void _put_block_in_group(
     // The merged consensus is created when the merged block is written into a file
     if (!consensus_name.empty()){
         // IMPORTANT: it assumes a single consensus sequence!
-        auto &maf_row = mafs[block_id][consensus_name][0];
+        auto &maf_row = (*mafs[block_id])[consensus_name][0];
 
         //uint64_t maf_row_record_start = flip_block_before_merging ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
         if (flip_block_before_merging) {
@@ -729,12 +731,12 @@ void _put_block_in_group(
     // Put gaps for paths not present in the last merged block (block_id) respect to the merged group
 
     // I take the length from a one of the path present in the last merged block
-    uint64_t num_gaps_to_add = mafs[block_id].begin()->second[0].aligned_seq.size();
+    uint64_t num_gaps_to_add = mafs[block_id]->begin()->second[0].aligned_seq.size();
     alignment_size_merged_maf_blocks += num_gaps_to_add;
 
     for (uint64_t  i = 0; i < num_gaps_to_add; i++){ gaps += "-"; }
 
-    for (auto &path_to_maf_rows_m : merged_maf_blocks.rows){
+    for (const auto &path_to_maf_rows_m : merged_maf_blocks.rows){
         for (auto &merged_maf_prow : path_to_maf_rows_m.second){
             if (merged_maf_prow.aligned_seq.length() < alignment_size_merged_maf_blocks){
                 if (new_block_on_the_left){
@@ -864,19 +866,19 @@ void _write_merged_maf_blocks(
     if (produce_maf) {
         bool contains_loops = false;
 
-        std::map<std::string, std::vector<maf_partial_row_t>> maf;
-        for (auto &maf_prows : merged_maf_blocks.rows) {
+        auto maf = std::make_unique<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>();
+        for (const auto &maf_prows : merged_maf_blocks.rows) {
             if (!contains_loops && maf_prows.second.size() > 1) {
                 contains_loops = true;
             }
 
-            maf.insert(std::pair<std::string, std::vector<maf_partial_row_t>>(
+            maf->insert(std::pair<std::string, std::vector<maf_partial_row_t>>(
                     maf_prows.first,
                     std::vector<maf_partial_row_t>()
             ));
 
             for (auto &maf_prow : maf_prows.second) {
-                maf[maf_prows.first].push_back(
+                (*maf)[maf_prows.first].push_back(
                         {
                                 maf_prow.record_start,
                                 maf_prow.seq_size,
@@ -907,12 +909,12 @@ void _write_merged_maf_blocks(
                     pos += maf_cons_prow.second.aligned_seq.length();
                     for (; pos < length_alignment; pos++) { gapped_cons += "-"; }
 
-                    maf.insert(std::pair<std::string, std::vector<maf_partial_row_t>>(
+                    maf->insert(std::pair<std::string, std::vector<maf_partial_row_t>>(
                             maf_cons_prow.first,
                             std::vector<maf_partial_row_t>()
                     ));
 
-                    maf[maf_cons_prow.first].push_back(
+                    (*maf)[maf_cons_prow.first].push_back(
                             {
                                     maf_cons_prow.second.record_start,
                                     maf_cons_prow.second.seq_size,
@@ -938,12 +940,12 @@ void _write_merged_maf_blocks(
             if (merged_maf_blocks_size > 1) {
                 // Write the merged consensus
 
-                maf.insert(std::pair<std::string, std::vector<maf_partial_row_t>>(
+                maf->insert(std::pair<std::string, std::vector<maf_partial_row_t>>(
                         consensus_base_name + block_id_ranges + " ",
                         std::vector<maf_partial_row_t>()
                 ));
 
-                maf[consensus_base_name + block_id_ranges + " "].push_back(
+                (*maf)[consensus_base_name + block_id_ranges + " "].push_back(
                         {
                                 merged_maf_blocks.consensus_rows.begin()->second.record_start,
                                 merged_consensus_seq_size,
@@ -968,16 +970,16 @@ void _write_merged_maf_blocks(
         }
         out_maf << std::endl;
 
-        write_maf_rows(out_maf, maf);
+        write_maf_rows(out_maf, *maf);
 
-        _clear_maf_block(maf);
     }
 
     // Cleaning
+    /*
     clear_string(block_id_ranges);
 
     clear_vector(merged_maf_blocks.block_ids);
-    for (auto &maf_prows : merged_maf_blocks.rows) {
+    for (const auto &maf_prows : merged_maf_blocks.rows) {
         for (auto &maf_prow : maf_prows.second) {
             clear_string(maf_prow.aligned_seq);
         }
@@ -989,6 +991,7 @@ void _write_merged_maf_blocks(
         clear_string(maf_cons_prow.second.aligned_seq);
     }
     clear_vector(merged_maf_blocks.consensus_rows);
+    */
 }
 
 odgi::graph_t* smooth_and_lace(const xg::XG &graph,
@@ -1059,14 +1062,14 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
         // If merged consensus sequences have to be embedded, this structures are needed to keep the blocks' coordinates,
         // but the sequences will be considered (and kept in memory) only if a MAF has to be produced
-        std::vector<std::map<std::string, std::vector<maf_partial_row_t>>> mafs(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
+        std::vector<std::unique_ptr<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>> mafs(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
         atomicbitvector::atomic_bv_t mafs_ready(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
 
         auto write_maf_lambda = [&]() {
             if (produce_maf || (add_consensus && merge_blocks)) {
                 uint64_t block_id = 0;
 
-                std::deque<maf_t> merged_maf_blocks_queue;
+                std::deque<std::unique_ptr<maf_t>> merged_maf_blocks_queue;
 
                 uint64_t num_blocks = blockset->size();
 
@@ -1081,7 +1084,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     if (mafs_ready.test(block_id)) {
                         //std::cerr << "block_id (" << block_id << ")" << std::endl;
 
-                        uint64_t num_seq_in_block = mafs[block_id].size();
+                        uint64_t num_seq_in_block = mafs[block_id]->size();
                         //for (auto const& path_to_maf_rows : mafs[block_id]) { num_seq_in_block += path_to_maf_rows.second.size(); }
 
                         bool merged = false;
@@ -1099,7 +1102,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                         if (merge_blocks) {
                             if (merged_maf_blocks_queue.empty()) {
-                                merged_maf_blocks_queue.emplace_back();
+                                merged_maf_blocks_queue.push_back(std::make_unique<maf_t>());
                                 index_group_where_merge = 0;
 
                                 merged = true;
@@ -1107,7 +1110,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                 double best_jaccard = -1;
 
                                 for(uint64_t num_group = 0; num_group < merged_maf_blocks_queue.size(); ++num_group) {
-                                    auto& merged_maf_blocks = merged_maf_blocks_queue[num_group];
+                                    auto& merged_maf_blocks = *merged_maf_blocks_queue[num_group];
 
                                     int8_t new_block_on_the_left = merged_maf_blocks.block_ids.size() > 1 ? (
                                             (merged_maf_blocks.block_ids.front() > merged_maf_blocks.block_ids.back() ? 1 : 0)
@@ -1122,7 +1125,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                         merged = true;
                                         num_contiguous_ranges = 0;
 
-                                        for (auto const& path_to_maf_rows : mafs[block_id]) {
+                                        for (auto const& path_to_maf_rows : *mafs[block_id]) {
                                             // Do not check the consensus (always forward)
                                             if (path_to_maf_rows.first != consensus_name){
                                                 // To merge a block, it has to contains new sequences...
@@ -1207,10 +1210,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                                         if (merged) {
                                             uint64_t num_ranges_in_merged_block = 0;
-                                            for (auto &maf_prows : merged_maf_blocks.rows) { num_ranges_in_merged_block += maf_prows.second.size(); }
+                                            for (const auto &maf_prows : merged_maf_blocks.rows) { num_ranges_in_merged_block += maf_prows.second.size(); }
 
                                             uint64_t num_ranges_in_block_to_merge = 0;
-                                            for (auto &maf_prows : mafs[block_id]) { num_ranges_in_block_to_merge += maf_prows.second.size(); }
+                                            for (const auto &maf_prows : *mafs[block_id]) { num_ranges_in_block_to_merge += maf_prows.second.size(); }
 
                                             double current_contiguous_path_jaccard =
                                                     (double) num_contiguous_ranges /
@@ -1247,11 +1250,12 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             auto& merged_maf_blocks = merged_maf_blocks_queue[index_group_where_merge];
 
                             _put_block_in_group(
-                                    merged_maf_blocks, block_id, num_seq_in_block, consensus_name,mafs,
+                                    *merged_maf_blocks, block_id, num_seq_in_block, consensus_name, mafs,
                                     new_block_on_the_left_in_the_group == 1,
                                     flip_block_before_merging_in_the_group);
 
-                            _clear_maf_block(mafs[block_id]);
+                            //_clear_maf_block(mafs[block_id]);
+                            mafs[block_id].reset(nullptr);
 
                             if (flip_block_before_merging_in_the_group) {
                                 blok_to_flip.set(block_id);
@@ -1264,7 +1268,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                 // Write the merged group on the left
                                 auto& merged_maf_blocks = merged_maf_blocks_queue.front();
 
-                                _write_merged_maf_blocks(merged_maf_blocks,
+                                _write_merged_maf_blocks(*merged_maf_blocks,
                                                          inverted_merged_block_id_intervals_ranks,
                                                          merged_block_id_intervals_tree_vector,
                                                          block_id_ranges_vector,
@@ -1275,6 +1279,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                                          preserve_unmerged_consensus);
 
                                 // Remove the merged group on the left from the queue
+                                //delete merged_maf_blocks; //merged_maf_blocks_queue.front();
                                 merged_maf_blocks_queue.pop_front();
                             }
 
@@ -1300,16 +1305,18 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                     block_graph->path_begin(groom_target_path)));
 
                             // Put the current block in a new group on the right
-                            merged_maf_blocks_queue.emplace_back();
+                            merged_maf_blocks_queue.push_back(std::make_unique<maf_t>());
                             auto& merged_maf_blocks = merged_maf_blocks_queue.back();
 
                             // The last merge failed and the current un-merged block becomes the first one of the next group
                             _put_block_in_group(
-                                    merged_maf_blocks, block_id, num_seq_in_block, consensus_name, mafs,
+                                    *merged_maf_blocks, block_id, num_seq_in_block, consensus_name, mafs,
                                     false,
                                     flip_block);
 
-                            _clear_maf_block(mafs[block_id]);
+                            //_clear_maf_block(mafs[block_id]);
+                            //delete mafs[block_id];
+                            mafs[block_id].reset(nullptr);
                         }
 
                         block_id++;
@@ -1347,7 +1354,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 while (!merged_maf_blocks_queue.empty()) {
                     auto& merged_maf_blocks = merged_maf_blocks_queue.front();
 
-                    _write_merged_maf_blocks(merged_maf_blocks,
+                    _write_merged_maf_blocks(*merged_maf_blocks,
                                              inverted_merged_block_id_intervals_ranks,
                                              merged_block_id_intervals_tree_vector,
                                              block_id_ranges_vector,
@@ -1358,6 +1365,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                              preserve_unmerged_consensus);
 
                     // Remove the merged group on the left from the queue
+                    //delete merged_maf_blocks; //merged_maf_blocks_queue.front();
                     merged_maf_blocks_queue.pop_front();
                 }
 
@@ -1365,7 +1373,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     out_maf.close();
                 }
 
-                clear_vector(mafs);
+                //clear_vector(mafs);
             }
         };
         std::thread write_maf_thread(write_maf_lambda);
@@ -1376,6 +1384,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                    << (use_abpoa ? "abPOA" : "SPOA")
                    << " to " << blockset->size() << " blocks:";
         progress_meter::ProgressMeter poa_progress(blockset->size(), poa_banner.str());
+        std::unique_ptr<whash::patchmap<std::string, std::vector<maf_partial_row_t>>> empty_maf_block(nullptr);
 
         // Smooth blocks
 #pragma omp parallel for schedule(dynamic,1)
@@ -1390,6 +1399,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
             // std::cerr << "on block " << block_id+1 << " of " << blockset->size() << std::endl;
             odgi::graph_t* block_graph = nullptr;
+            if (produce_maf || (add_consensus && merge_blocks)) {
+                mafs[block_id] = std::make_unique<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>();
+            }
 
             if (use_abpoa) {
                 block_graph = smooth_abpoa(graph,
@@ -1402,7 +1414,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                            poa_q,
                                            poa_c,
                                            local_alignment,
-                                           (produce_maf || (add_consensus && merge_blocks)) ? &mafs[block_id] : nullptr,
+                                           (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                            produce_maf,
                                            true, // banded alignment
                                            consensus_name,
@@ -1418,7 +1430,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                           -poa_q,
                                           -poa_c,
                                           local_alignment,
-                                          (produce_maf || (add_consensus && merge_blocks)) ? &mafs[block_id] : nullptr,
+                                          (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                           produce_maf,
                                           consensus_name,
                                           write_fasta_blocks);

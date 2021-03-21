@@ -49,3 +49,6 @@
 [submodule "deps/mkmh"]
 	path = deps/mkmh
 	url = https://github.com/AndreaGuarracino/mkmh.git
+[submodule "deps/patchmap"]
+	path = deps/patchmap
+	url = https://github.com/1ykos/patchmap.git

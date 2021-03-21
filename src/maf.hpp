@@ -3,7 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <map>
+#include "patchmap.hpp"
 
 struct maf_partial_row_t {
     uint64_t record_start = 0;
@@ -15,7 +15,7 @@ struct maf_partial_row_t {
 
 struct maf_t {
     std::vector<uint64_t> block_ids;
-    std::map<std::string, std::vector<maf_partial_row_t>> rows;
+    whash::patchmap<std::string, std::vector<maf_partial_row_t>> rows;
     std::vector<std::pair<std::string, maf_partial_row_t>> consensus_rows;
 };
 
@@ -31,7 +31,7 @@ inline void clear_string(std::string& str){
     std::string().swap(str);
 }
 
-inline void write_maf_rows(std::ofstream &out, const std::map<std::string, std::vector<maf_partial_row_t>>& maf) {
+inline void write_maf_rows(std::ofstream &out, const whash::patchmap<std::string, std::vector<maf_partial_row_t>>& maf) {
     // determine output widths for everything
     size_t max_src_length = 0;
     size_t max_start_length = 0;
@@ -39,8 +39,8 @@ inline void write_maf_rows(std::ofstream &out, const std::map<std::string, std::
     size_t max_is_rev_length = 1;
     size_t max_src_size_length = 0;
     size_t max_text_length = 0;
-    for (auto& path_to_maf_rows : maf) {
-        for (auto &row : path_to_maf_rows.second) {
+    for (const auto& path_to_maf_rows : maf) {
+        for (const auto &row : path_to_maf_rows.second) {
             max_src_length = std::max(max_src_length, path_to_maf_rows.first.size());
             max_start_length = std::max(max_start_length, std::to_string(row.record_start).size());
             max_seq_size_length = std::max(max_seq_size_length, std::to_string(row.seq_size).size());
@@ -49,9 +49,9 @@ inline void write_maf_rows(std::ofstream &out, const std::map<std::string, std::
         }
     }
 
-    for (auto& path_to_maf_rows : maf) {
+    for (const auto& path_to_maf_rows : maf) {
         // write and pad them
-        for (auto &row : path_to_maf_rows.second) {
+        for (const auto &row : path_to_maf_rows.second) {
             out << "s "
                 << path_to_maf_rows.first << std::string(max_src_length - path_to_maf_rows.first.size(), ' ')
                 << std::setw(max_start_length+1) << row.record_start
