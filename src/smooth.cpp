@@ -29,7 +29,7 @@ static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
 }
 
 /*
-void _clear_maf_block(whash::patchmap<std::string, std::vector<maf_partial_row_t>> &maf){
+void _clear_maf_block(ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>> &maf){
     for (const auto &path_to_maf_rows : maf){
         for (auto &maf_row : path_to_maf_rows.second) {
             clear_string(maf_row.aligned_seq);
@@ -37,7 +37,7 @@ void _clear_maf_block(whash::patchmap<std::string, std::vector<maf_partial_row_t
     }
 
     maf.clear();
-    whash::patchmap<std::string, std::vector<maf_partial_row_t>>().swap(maf);
+    ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>().swap(maf);
 }
 */
 
@@ -58,7 +58,7 @@ void write_tsv_for_block(const xg::XG &graph,
             graph.get_path_handle_of_step(path_range.begin));
         uint64_t rank = 0;
         uint64_t pos = 0;
-        whash::patchmap<uint64_t, uint64_t> visits;
+        ska::flat_hash_map<uint64_t, uint64_t> visits;
         for (step_handle_t step = path_range.begin; step != path_range.end;
              step = graph.get_next_step(step)) {
             handle_t h = graph.get_handle_of_step(step);
@@ -94,7 +94,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                             int poa_m, int poa_n, int poa_g,
                             int poa_e, int poa_q, int poa_c,
                             bool local_alignment,
-                            std::unique_ptr<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
+                            std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
                             bool banded_alignment,
                             const std::string &consensus_name,
                             bool save_block_fastas) {
@@ -396,7 +396,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                            std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                            bool local_alignment,
-                           std::unique_ptr<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
+                           std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
                            const std::string &consensus_name,
                            bool save_block_fastas) {
 
@@ -553,7 +553,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 void _put_block_in_group(
         maf_t &merged_maf_blocks, uint64_t block_id, uint64_t num_seq_in_block,
         std::string consensus_name,
-        std::vector<std::unique_ptr<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>> &mafs,
+        std::vector<std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>> &mafs,
         bool new_block_on_the_left,
         bool flip_block_before_merging
 ){
@@ -577,7 +577,7 @@ void _put_block_in_group(
                     uint64_t maf_row_record_start = flip_block_before_merging ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
 
                     if (flip_block_before_merging) {
-                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
+                        odgi::reverse_complement_in_place((std::string&)maf_row.aligned_seq);
                     }
 
                     merged_maf_blocks.rows[path_to_maf_rows.first].push_back({
@@ -613,7 +613,7 @@ void _put_block_in_group(
                                     merged_maf_prow.record_start -= maf_row.seq_size;
 
                                     if (flip_block_before_merging) {
-                                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
+                                        odgi::reverse_complement_in_place((std::string&)maf_row.aligned_seq);
                                     }
 
                                     merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq;
@@ -625,7 +625,7 @@ void _put_block_in_group(
                                     // maf_row_end == merged_maf_row_begin, new row on the right
 
                                     if (flip_block_before_merging) {
-                                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
+                                        odgi::reverse_complement_in_place((std::string&)maf_row.aligned_seq);
                                     }
 
                                     merged_maf_prow.aligned_seq += maf_row.aligned_seq;
@@ -639,7 +639,7 @@ void _put_block_in_group(
                                     // merged_maf_row_end == maf_row_begin, new row on the right
 
                                     if (flip_block_before_merging) {
-                                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
+                                        odgi::reverse_complement_in_place((std::string&)maf_row.aligned_seq);
                                     }
 
                                     merged_maf_prow.aligned_seq += maf_row.aligned_seq;
@@ -653,7 +653,7 @@ void _put_block_in_group(
                                     merged_maf_prow.record_start -= maf_row.seq_size;
 
                                     if (flip_block_before_merging) {
-                                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
+                                        odgi::reverse_complement_in_place((std::string&)maf_row.aligned_seq);
                                     }
 
                                     merged_maf_prow.aligned_seq = maf_row.aligned_seq + merged_maf_prow.aligned_seq ;
@@ -676,7 +676,7 @@ void _put_block_in_group(
                     uint64_t maf_row_record_start = flip_block_before_merging ? maf_row.path_length - (maf_row.record_start + maf_row.seq_size) : maf_row.record_start;
 
                     if (flip_block_before_merging) {
-                        odgi::reverse_complement_in_place(maf_row.aligned_seq);
+                        odgi::reverse_complement_in_place((std::string&)maf_row.aligned_seq);
                     }
 
                     merged_maf_blocks.rows[path_to_maf_rows.first].push_back({
@@ -704,7 +704,7 @@ void _put_block_in_group(
         }
 
         if (new_block_on_the_left){
-            merged_maf_blocks.consensus_rows.insert(merged_maf_blocks.consensus_rows.begin(), std::pair<std::string, maf_partial_row_t>(
+            merged_maf_blocks.consensus_rows.push_front(std::pair<std::string, maf_partial_row_t>(
                     consensus_name,
                     {
                             maf_row.record_start,//maf_row_record_start,
@@ -736,7 +736,7 @@ void _put_block_in_group(
 
     for (uint64_t  i = 0; i < num_gaps_to_add; i++){ gaps += "-"; }
 
-    for (const auto &path_to_maf_rows_m : merged_maf_blocks.rows){
+    for (auto &path_to_maf_rows_m : merged_maf_blocks.rows){
         for (auto &merged_maf_prow : path_to_maf_rows_m.second){
             if (merged_maf_prow.aligned_seq.length() < alignment_size_merged_maf_blocks){
                 if (new_block_on_the_left){
@@ -773,7 +773,7 @@ void _put_block_in_group(
 
 void _write_merged_maf_blocks(
         maf_t& merged_maf_blocks,
-        std::unordered_set<uint64_t> &inverted_merged_block_id_intervals_ranks,
+        ska::flat_hash_set<uint64_t> &inverted_merged_block_id_intervals_ranks,
         std::vector<IITree<uint64_t, uint64_t>> &merged_block_id_intervals_tree_vector,
         std::vector<std::string> &block_id_ranges_vector,
         std::vector<bool> &is_block_in_a_merged_group,
@@ -866,7 +866,7 @@ void _write_merged_maf_blocks(
     if (produce_maf) {
         bool contains_loops = false;
 
-        auto maf = std::make_unique<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>();
+        auto maf = std::make_unique<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>();
         for (const auto &maf_prows : merged_maf_blocks.rows) {
             if (!contains_loops && maf_prows.second.size() > 1) {
                 contains_loops = true;
@@ -1048,7 +1048,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
     std::vector<IITree<uint64_t, uint64_t>> merged_block_id_intervals_tree_vector;
     std::vector<std::string> block_id_ranges_vector;
-    std::unordered_set<uint64_t> inverted_merged_block_id_intervals_ranks; // IITree can't store inverted intervals
+    ska::flat_hash_set<uint64_t> inverted_merged_block_id_intervals_ranks; // IITree can't store inverted intervals
 
     std::atomic<uint64_t> num_flipped_graphs(0);
     atomicbitvector::atomic_bv_t blok_to_flip(blockset->size());
@@ -1062,7 +1062,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
         // If merged consensus sequences have to be embedded, this structures are needed to keep the blocks' coordinates,
         // but the sequences will be considered (and kept in memory) only if a MAF has to be produced
-        std::vector<std::unique_ptr<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>> mafs(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
+        std::vector<std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>> mafs(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
         atomicbitvector::atomic_bv_t mafs_ready(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
 
         auto write_maf_lambda = [&]() {
@@ -1326,7 +1326,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                             if (!merged && !prep_new_merge_group) {
                                 if (produce_maf) {
                                     bool contains_loops = false;
-                                    std::unordered_set<path_handle_t> seen_paths;
+                                    ska::flat_hash_map<path_handle_t> seen_paths;
                                     for (auto &path_range : blockset->get_block(block_id).path_ranges) {
                                         path_handle_t path = graph.get_path_handle_of_step(path_range.begin);
                                         if (seen_paths.count(path)) {
@@ -1384,7 +1384,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                    << (use_abpoa ? "abPOA" : "SPOA")
                    << " to " << blockset->size() << " blocks:";
         progress_meter::ProgressMeter poa_progress(blockset->size(), poa_banner.str());
-        std::unique_ptr<whash::patchmap<std::string, std::vector<maf_partial_row_t>>> empty_maf_block(nullptr);
+        std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>> empty_maf_block(nullptr);
 
         // Smooth blocks
 #pragma omp parallel for schedule(dynamic,1)
@@ -1400,7 +1400,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             // std::cerr << "on block " << block_id+1 << " of " << blockset->size() << std::endl;
             odgi::graph_t* block_graph = nullptr;
             if (produce_maf || (add_consensus && merge_blocks)) {
-                mafs[block_id] = std::make_unique<whash::patchmap<std::string, std::vector<maf_partial_row_t>>>();
+                mafs[block_id] = std::make_unique<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>();
             }
 
             if (use_abpoa) {
@@ -1515,7 +1515,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             if (blok_to_flip.test(block_id)) {
                 auto* flipped_graph = new odgi::graph_t();
 
-                unordered_map<handle_t, handle_t> forward_translation;
+                ska::flat_hash_map<handle_t, handle_t> forward_translation;
 
                 auto block_graph = get_block_graph(block_id);
 

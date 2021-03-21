@@ -3,7 +3,8 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include "patchmap.hpp"
+//#include "patchmap.hpp"
+#include "flat_hash_map.hpp"
 
 struct maf_partial_row_t {
     uint64_t record_start = 0;
@@ -15,8 +16,8 @@ struct maf_partial_row_t {
 
 struct maf_t {
     std::vector<uint64_t> block_ids;
-    whash::patchmap<std::string, std::vector<maf_partial_row_t>> rows;
-    std::vector<std::pair<std::string, maf_partial_row_t>> consensus_rows;
+    ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>> rows;
+    std::deque<std::pair<std::string, maf_partial_row_t>> consensus_rows;
 };
 
 template<typename T>
@@ -31,7 +32,7 @@ inline void clear_string(std::string& str){
     std::string().swap(str);
 }
 
-inline void write_maf_rows(std::ofstream &out, const whash::patchmap<std::string, std::vector<maf_partial_row_t>>& maf) {
+inline void write_maf_rows(std::ofstream &out, const ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>& maf) {
     // determine output widths for everything
     size_t max_src_length = 0;
     size_t max_start_length = 0;
