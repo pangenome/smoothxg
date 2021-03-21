@@ -1651,10 +1651,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     graph.get_path_name(pos_range->base_path));
             // walk the path from start to end
             while (true) {
-                // if we find a segment that's not included in any block, we'll add
-                // it to the final graph and link it in to do so, we detect a gap in
-                // length, collect the sequence in the gap and add it to the graph
-                // as a node then add it as a traversal to the path
                 if (pos_range->start_pos - last_end_pos > 0) {
                     assert(false); // assert that we've included all sequence in blocks
                 }
@@ -1666,10 +1662,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     ++i;
                     pos_range = &path_mapping[i];
                 }
-                //lace_progress.increment(1);
             }
-            // now add in any final sequence in the path
-            // and add it to the path, add the edge
             if (graph.get_path_length(pos_range->base_path) > last_end_pos) {
                 assert(false); // assert that we've included all sequence in the blocks
             }
@@ -1686,10 +1679,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             uint64_t last_end_pos = 0;
             for (uint64_t i = range_begin; i <= range_end; ++i) {
                 path_position_range_t *pos_range = &path_mapping[i];
-                // if we find a segment that's not included in any block, we'll add
-                // it to the final graph and link it in to do so, we detect a gap in
-                // length, collect the sequence in the gap and add it to the graph
-                // as a node then add it as a traversal to the path
                 if (pos_range->start_pos - last_end_pos > 0) {
                     assert(false); // assert that we've included all sequence in blocks
                 }
@@ -1714,17 +1703,14 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                         });
                 last_step = smoothed->path_back(smoothed_path);
                 last_end_pos = pos_range->end_pos;
+                lace_progress.increment(1);
             }
-            lace_progress.increment(1);
-            // now add in any final sequence in the path
-            // and add it to the path, add the edge
             if (graph.get_path_length(path_mapping[range_begin].base_path) > last_end_pos) {
                 assert(false); // assert that we've included all sequence in the blocks
             }
         }
         lace_progress.finish();
     }
-
 
     // now verify that smoothed has paths that are equal to the base graph
     // and that all the paths are fully embedded in the graph
@@ -1739,7 +1725,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         validate_banner << "[smoothxg::smooth_and_lace] validating " << paths.size() << " path sequences:";
         progress_meter::ProgressMeter validate_progress(paths.size(), validate_banner.str());
 
-#pragma omp parallel for schedule(static,1)
+#pragma omp parallel for schedule(dynamic,1)
         for (uint64_t i = 0; i < paths.size(); ++i) {
             uint64_t path_id = i;
             auto path = paths[path_id];
