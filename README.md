@@ -19,6 +19,8 @@ The path-guided stochastic gradient descent based 1D sort implemented in `odgi s
 `smoothxg` uses cmake to build itself and its dependencies. At least GCC V10.1 is required for compilation.
 
 ```
+sudo apt-get update && sudo apt-get install -y libatomic-ops-dev libgsl-dev zlib1g-dev libzstd-dev
+
 git clone --recursive https://github.com/pangenome/smoothxg.git
 cd smoothxg
 cmake -H. -Bbuild && cmake --build build -- -j 4
