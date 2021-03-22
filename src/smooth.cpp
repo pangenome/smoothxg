@@ -789,12 +789,14 @@ void _write_merged_maf_blocks(
         if (i != 0) { joined_block_ids << ","; }
         joined_block_ids << merged_maf_blocks.block_ids[i];
     }*/
+
     // get the min/max
-    uint64_t min_block_id = std::numeric_limits<uint64_t>::max();
-    uint64_t max_block_id = std::numeric_limits<uint64_t>::min();
-    for (auto& id : merged_maf_blocks.block_ids) {
-        min_block_id = std::min(min_block_id, id);
-        max_block_id = std::max(max_block_id, id);
+    uint64_t min_block_id = merged_maf_blocks.block_ids.front();
+    uint64_t max_block_id = merged_maf_blocks.block_ids.back();
+    if (min_block_id > max_block_id) {
+        // It means that the blocks have been joined from the left
+        min_block_id = max_block_id;
+        max_block_id = merged_maf_blocks.block_ids.front();
     }
 
     std::string block_id_ranges = std::to_string(min_block_id);
