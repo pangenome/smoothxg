@@ -1014,8 +1014,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     //
     // record the start and end points of all the path ranges and the consensus
     //
-    std::vector<std::string*> block_graphs;
-    block_graphs.resize(blockset->size(), nullptr);
+    uint64_t block_count = blockset->size();
+    auto _block_graphs = std::make_unique<std::vector<std::string*>>(block_count, nullptr);
+    auto& block_graphs = *_block_graphs; // get a ref
 
     auto get_block_graph =
         [&](const uint64_t& block_id) {
@@ -1508,10 +1509,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     {
         std::stringstream flip_graphs_banner;
         flip_graphs_banner << "[smoothxg::smooth_and_lace] flipping " << num_flipped_graphs << " block graphs:";
-        progress_meter::ProgressMeter flip_graphs_progress(block_graphs.size(), flip_graphs_banner.str());
+        progress_meter::ProgressMeter flip_graphs_progress(block_count, flip_graphs_banner.str());
 
 #pragma omp parallel for schedule(dynamic,1)
-        for (uint64_t block_id = 0; block_id < block_graphs.size(); ++block_id) {
+        for (uint64_t block_id = 0; block_id < block_count; ++block_id) {
             if (blok_to_flip.test(block_id)) {
                 auto* flipped_graph = new odgi::graph_t();
 
@@ -1604,18 +1605,33 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
     // build the sequence and edges into the output graph
     auto* smoothed = new odgi::graph_t();
+    std::vector<path_handle_t> paths; // for parallel iteration
 
     // add the nodes and edges to the graph
     std::vector<uint64_t> id_mapping;
     {
-        std::stringstream add_graph_banner;
-        add_graph_banner << "[smoothxg::smooth_and_lace] adding nodes from " << block_graphs.size() << " graphs:";
-        progress_meter::ProgressMeter add_graph_progress(block_graphs.size(), add_graph_banner.str());
+        std::vector<std::unique_ptr<odgi::graph_t>> graphs(block_count);
+#pragma omp parallel for schedule(dynamic,1)
+        for (uint64_t idx = 0; idx < block_count; ++idx) {
+            std::string data;
+            zstdutil::DecompressString(*block_graphs[idx], data);
+            stringstream ss;
+            ss << data;
+            ss.seekg(0,std::ios_base::beg);
+            graphs[idx] = std::make_unique<odgi::graph_t>();
+            graphs[idx]->deserialize_members(ss);
+            delete block_graphs[idx];
+        }
+        _block_graphs.reset(nullptr); // we've decompressed these, now clear our block graphs
 
-        for (uint64_t idx = 0; idx < block_graphs.size(); ++idx) {
+        std::stringstream add_graph_banner;
+        add_graph_banner << "[smoothxg::smooth_and_lace] adding nodes from " << block_count << " graphs:";
+        progress_meter::ProgressMeter add_graph_progress(block_count, add_graph_banner.str());
+
+        for (uint64_t idx = 0; idx < block_count; ++idx) {
             uint64_t id_trans = smoothed->get_node_count();
             // record the id translation
-            auto block = get_block_graph(idx);
+            auto& block = graphs[idx];
             id_mapping.push_back(id_trans);
             if (block->get_node_count() == 0) {
                 continue;
@@ -1625,27 +1641,23 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             });
             add_graph_progress.increment(1);
         }
-    }
 
-    {
-        std::stringstream add_graph_banner;
-        add_graph_banner << "[smoothxg::smooth_and_lace] adding edges from " << block_graphs.size() << " graphs:";
-        progress_meter::ProgressMeter add_graph_progress(block_graphs.size(), add_graph_banner.str());
+        std::stringstream add_edges_banner;
+        add_edges_banner << "[smoothxg::smooth_and_lace] adding edges from " << block_count << " graphs:";
+        progress_meter::ProgressMeter add_edges_progress(block_count, add_edges_banner.str());
 #pragma omp parallel for schedule(dynamic,1)
-        for (uint64_t idx = 0; idx < block_graphs.size(); ++idx) {
+        for (uint64_t idx = 0; idx < block_count; ++idx) {
             auto& id_trans = id_mapping[idx];
-            auto block = get_block_graph(idx);
+            auto& block = graphs[idx];
             block->for_each_edge([&](const edge_t &e) {
                 smoothed->create_edge(
                         smoothed->get_handle(id_trans + block->get_id(e.first)),
                         smoothed->get_handle(id_trans + block->get_id(e.second)));
             });
-            add_graph_progress.increment(1);
+            add_edges_progress.increment(1);
         }
-        add_graph_progress.finish();
-    }
+        add_edges_progress.finish();
 
-    {
         // then for each path, ensure that it's embedded in the graph by walking through
         // its block segments in order and linking them up in the output graph
         std::stringstream lace_banner;
@@ -1695,7 +1707,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     assert(false); // assert that we've included all sequence in blocks
                 }
                 // write the path steps into the graph using the id translation
-                auto block = get_block_graph(pos_range->block_id);
+                auto& block = graphs[pos_range->block_id];
                 auto id_trans = id_mapping.at(pos_range->block_id);
                 bool first = true;
                 block->for_each_step_in_path(
@@ -1722,236 +1734,228 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             }
         }
         lace_progress.finish();
-    }
 
-    // now verify that smoothed has paths that are equal to the base graph
-    // and that all the paths are fully embedded in the graph
-    std::vector<path_handle_t> paths;
-    smoothed->for_each_path_handle(
-        [&](const path_handle_t &path) {
-            paths.push_back(path);
-        });
+        // now verify that smoothed has paths that are equal to the base graph
+        // and that all the paths are fully embedded in the graph
+        smoothed->for_each_path_handle(
+            [&](const path_handle_t &path) {
+                paths.push_back(path);
+            });
 
-    {
-        std::stringstream validate_banner;
-        validate_banner << "[smoothxg::smooth_and_lace] validating " << paths.size() << " path sequences:";
-        progress_meter::ProgressMeter validate_progress(paths.size(), validate_banner.str());
+        {
+            std::stringstream validate_banner;
+            validate_banner << "[smoothxg::smooth_and_lace] validating " << paths.size() << " path sequences:";
+            progress_meter::ProgressMeter validate_progress(paths.size(), validate_banner.str());
 
 #pragma omp parallel for schedule(dynamic,1)
-        for (uint64_t i = 0; i < paths.size(); ++i) {
-            uint64_t path_id = i;
-            auto path = paths[path_id];
-            std::string orig_seq, smoothed_seq;
-            graph.for_each_step_in_path(
+            for (uint64_t i = 0; i < paths.size(); ++i) {
+                uint64_t path_id = i;
+                auto path = paths[path_id];
+                std::string orig_seq, smoothed_seq;
+                graph.for_each_step_in_path(
                     graph.get_path_handle(smoothed->get_path_name(path)),
                     [&](const step_handle_t &step) {
                         orig_seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
                     });
-            smoothed->for_each_step_in_path(
+                smoothed->for_each_step_in_path(
                     path,
                     [&](const step_handle_t &step) {
                         smoothed_seq.append(smoothed->get_sequence(smoothed->get_handle_of_step(step)));
                     });
-            if (orig_seq != smoothed_seq) {
-                std::cerr << "[smoothxg] error! path "
-                          << smoothed->get_path_name(path)
-                          << " was corrupted in the smoothed graph" << std::endl
-                          << "original\t" << orig_seq << std::endl
-                          << "smoothed\t" << smoothed_seq << std::endl;
-                exit(1);
+                if (orig_seq != smoothed_seq) {
+                    std::cerr << "[smoothxg] error! path "
+                              << smoothed->get_path_name(path)
+                              << " was corrupted in the smoothed graph" << std::endl
+                              << "original\t" << orig_seq << std::endl
+                              << "smoothed\t" << smoothed_seq << std::endl;
+                    exit(1);
+                }
+                assert(orig_seq == smoothed_seq);
+                validate_progress.increment(1);
             }
-            assert(orig_seq == smoothed_seq);
-            validate_progress.increment(1);
+            validate_progress.finish();
         }
-        validate_progress.finish();
-    }
 
+        if (!consensus_mapping.empty()) {
+            std::cerr << "[smoothxg::smooth_and_lace] sorting consensus" << std::endl;
 
-    if (!consensus_mapping.empty()) {
-        std::cerr << "[smoothxg::smooth_and_lace] sorting consensus" << std::endl;
+            // consensus path and connections
 
-        // consensus path and connections
+            // Sort respect to the block_id (== block_id), because in the merged_block_id_intervals_tree
+            // there are the block_id_intervals expressed as first_block_id and last_block_id
+            ips4o::parallel::sort(consensus_mapping.begin(), consensus_mapping.end(),
+                                  [](const path_position_range_t &a, const path_position_range_t &b) {
+                                      return (a.block_id < b.block_id);
+                                  });
 
-        // Sort respect to the block_id (== block_id), because in the merged_block_id_intervals_tree
-        // there are the block_id_intervals expressed as first_block_id and last_block_id
-        ips4o::parallel::sort(consensus_mapping.begin(), consensus_mapping.end(),
-                              [](const path_position_range_t &a, const path_position_range_t &b) {
-                                  return (a.block_id < b.block_id);
-                              });
+            // by definition, the consensus paths are embedded in our blocks, which simplifies
+            // things we'll still need to add a new path for each consensus path
 
-        // by definition, the consensus paths are embedded in our blocks, which simplifies
-        // things we'll still need to add a new path for each consensus path
+            // Is there something merged?
+            if (!merged_block_id_intervals_tree_vector.empty()) {
+#pragma omp parallel for schedule(dynamic,1)
+                for (auto& merged_block_id_intervals_tree : merged_block_id_intervals_tree_vector) {
+                    merged_block_id_intervals_tree.index();
+                }
 
-        // Is there something merged?
-        if (!merged_block_id_intervals_tree_vector.empty()) {
-#pragma omp parallel for schedule(static,1)
-            for (auto& merged_block_id_intervals_tree : merged_block_id_intervals_tree_vector) {
-                merged_block_id_intervals_tree.index();
-            }
+                if (!preserve_unmerged_consensus) {
+                    std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: removing redundant single consensus" << std::endl;
 
-            if (!preserve_unmerged_consensus) {
-                std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: removing redundant single consensus" << std::endl;
-
-#pragma omp parallel for schedule(static,1)
-                for (auto &pos_range : consensus_mapping) {
-                    if (is_block_in_a_merged_group[pos_range.block_id]) {
-                        // Invalidate the position range (it will not be used anymore)
-                        pos_range.end_pos = pos_range.start_pos;
+#pragma omp parallel for schedule(dynamic,1)
+                    for (auto &pos_range : consensus_mapping) {
+                        if (is_block_in_a_merged_group[pos_range.block_id]) {
+                            // Invalidate the position range (it will not be used anymore)
+                            pos_range.end_pos = pos_range.start_pos;
+                        }
                     }
                 }
             }
-        }
 
-        // all raw consensus paths
-        std::vector<path_handle_t> consensus_paths(block_graphs.size());
+            // all raw consensus paths
+            std::vector<path_handle_t> consensus_paths(block_count);
 
-        // Unmerged consensus sequences
-        // First, create the path handles
-        std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: creating path handles" << std::endl;
-        for (auto &pos_range : consensus_mapping) {
-            if (pos_range.start_pos != pos_range.end_pos) {
-                auto block = get_block_graph(pos_range.block_id);
-                consensus_paths[pos_range.block_id] = smoothed->create_path_handle(
-                    block->get_path_name(pos_range.target_path)
-                );
-            } // else skip the embedding of the single consensus sequences
-        }
-
-        // Next, add the steps
-        std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: creating step handles" << std::endl;
-#pragma omp parallel for schedule(static,1)
-        for(auto& pos_range : consensus_mapping){
-            if (pos_range.start_pos == pos_range.end_pos) {
-                continue; // skip the embedding for the single consensus sequence
-            }
-
-            auto block = get_block_graph(pos_range.block_id);
-            path_handle_t smoothed_path = consensus_paths[pos_range.block_id];
-
-            auto &id_trans = id_mapping[pos_range.block_id];
-            block->for_each_step_in_path(
-                pos_range.target_path, [&](const step_handle_t &step) {
-                    handle_t h = block->get_handle_of_step(step);
-                    handle_t t = smoothed->get_handle(block->get_id(h) + id_trans,
-                                                      block->get_is_reverse(h));
-                    smoothed->append_step(smoothed_path, t);
-                    // nb: by definition of our construction of smoothed
-                    // the consensus paths should have all their edges embedded
-                });
-        }
-
-        // Merged consensus sequences
-        if (!merged_block_id_intervals_tree_vector.empty()) {
+            // Unmerged consensus sequences
             // First, create the path handles
-            std::cerr << "[smoothxg::smooth_and_lace] embedding merged consensus: creating path handles" << std::endl;
-            std::vector<path_handle_t> merged_consensus_paths;
-
-            for (auto &block_id_ranges : block_id_ranges_vector) {
-                merged_consensus_paths.push_back(
-                        smoothed->create_path_handle(consensus_base_name + block_id_ranges)
-                );
+            std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: creating path handles" << std::endl;
+            for (auto &pos_range : consensus_mapping) {
+                if (pos_range.start_pos != pos_range.end_pos) {
+                    auto& block = graphs[pos_range.block_id];
+                    consensus_paths[pos_range.block_id] = smoothed->create_path_handle(
+                        block->get_path_name(pos_range.target_path)
+                        );
+                } // else skip the embedding of the single consensus sequences
             }
 
             // Next, add the steps
-            std::cerr << "[smoothxg::smooth_and_lace] embedding merged consensus: creating step handles" << std::endl;
-            std::mutex consensus_path_is_merged_mutex;
-            ska::flat_hash_set<uint64_t> consensus_path_is_merged;
-
-#pragma omp parallel for schedule(static,1)
-            for (uint64_t i = 0; i < merged_block_id_intervals_tree_vector.size(); ++i) {
-                auto &merged_block_id_intervals_tree = merged_block_id_intervals_tree_vector[i];
-
-                bool inverted_intervals = inverted_merged_block_id_intervals_ranks.count(i) != 0;
-
-                path_handle_t consensus_path = smoothed->get_path_handle(
-                        consensus_base_name + block_id_ranges_vector[i]
-                );
-
-                std::vector<size_t> merged_block_id_intervals;
-                merged_block_id_intervals_tree.overlap(0, block_graphs.size(), merged_block_id_intervals);
-
-                uint64_t start_interval = 0;
-                uint64_t end_interval = merged_block_id_intervals.size() - 1;
-                int8_t step_interval = 1;
-                int8_t step = 1;
-                if (inverted_intervals) {
-                    start_interval = merged_block_id_intervals.size() - 1;
-                    end_interval = 0;
-                    step_interval = -1;
-                    step = -1;
+            std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: creating step handles" << std::endl;
+#pragma omp parallel for schedule(dynamic,1)
+            for(auto& pos_range : consensus_mapping){
+                if (pos_range.start_pos == pos_range.end_pos) {
+                    continue; // skip the embedding for the single consensus sequence
                 }
 
-                for (uint64_t j = start_interval; j != (end_interval + step_interval); j += step_interval) {
-                    auto &merged_block_id_interval_idx = merged_block_id_intervals[j];
+                auto& block = graphs[pos_range.block_id];
+                path_handle_t smoothed_path = consensus_paths[pos_range.block_id];
 
-                    uint64_t start = merged_block_id_intervals_tree.start(merged_block_id_interval_idx);
-                    uint64_t end = merged_block_id_intervals_tree.end(merged_block_id_interval_idx) - 1;
-                    if (inverted_intervals){
-                        uint64_t tmp = start;
-                        start = end;
-                        end = tmp;
-
-                        /*{
-                            std::lock_guard<std::mutex> guard(consensus_path_is_merged_mutex);
-
-                            std::cerr << i << ": start-end " << start << "-" << end <<std::endl;
-                        }*/
-                    }
-
-                    for (uint64_t block_id = start; block_id != (end + step); block_id += step) {
-                        {
-                            std::lock_guard<std::mutex> guard(consensus_path_is_merged_mutex);
-
-                            consensus_path_is_merged.insert(as_integer(consensus_paths[block_id]));
-                        }
-
-                        auto block = get_block_graph(block_id);
-                        auto &id_trans = id_mapping[block_id];
-                        block->for_each_step_in_path(consensus_mapping[block_id].target_path, [&](const step_handle_t &step) {
-                            handle_t h = block->get_handle_of_step(step);
-                            handle_t t = smoothed->get_handle(block->get_id(h) + id_trans, block->get_is_reverse(h));
-                            smoothed->append_step(consensus_path, t);
-                        });
-                    }
-                }
-
-                clear_string(block_id_ranges_vector[i]);
+                auto &id_trans = id_mapping[pos_range.block_id];
+                block->for_each_step_in_path(
+                    pos_range.target_path, [&](const step_handle_t &step) {
+                                               handle_t h = block->get_handle_of_step(step);
+                                               handle_t t = smoothed->get_handle(block->get_id(h) + id_trans,
+                                                                                 block->get_is_reverse(h));
+                                               smoothed->append_step(smoothed_path, t);
+                                               // nb: by definition of our construction of smoothed
+                                               // the consensus paths should have all their edges embedded
+                                           });
             }
 
-            // now for each consensus path that's not been merged, and for each merged consensus path...
-            // record our path handles for later use in consensus graph generation
+            // Merged consensus sequences
+            if (!merged_block_id_intervals_tree_vector.empty()) {
+                // First, create the path handles
+                std::cerr << "[smoothxg::smooth_and_lace] embedding merged consensus: creating path handles" << std::endl;
+                std::vector<path_handle_t> merged_consensus_paths;
 
-            consensus_paths.erase(
+                for (auto &block_id_ranges : block_id_ranges_vector) {
+                    merged_consensus_paths.push_back(
+                        smoothed->create_path_handle(consensus_base_name + block_id_ranges)
+                        );
+                }
+
+                // Next, add the steps
+                std::cerr << "[smoothxg::smooth_and_lace] embedding merged consensus: creating step handles" << std::endl;
+                std::mutex consensus_path_is_merged_mutex;
+                ska::flat_hash_set<uint64_t> consensus_path_is_merged;
+
+#pragma omp parallel for schedule(dynamic,1)
+                for (uint64_t i = 0; i < merged_block_id_intervals_tree_vector.size(); ++i) {
+                    auto &merged_block_id_intervals_tree = merged_block_id_intervals_tree_vector[i];
+
+                    bool inverted_intervals = inverted_merged_block_id_intervals_ranks.count(i) != 0;
+
+                    path_handle_t consensus_path = smoothed->get_path_handle(
+                        consensus_base_name + block_id_ranges_vector[i]
+                        );
+
+                    std::vector<size_t> merged_block_id_intervals;
+                    merged_block_id_intervals_tree.overlap(0, block_count, merged_block_id_intervals);
+
+                    uint64_t start_interval = 0;
+                    uint64_t end_interval = merged_block_id_intervals.size() - 1;
+                    int8_t step_interval = 1;
+                    int8_t step = 1;
+                    if (inverted_intervals) {
+                        start_interval = merged_block_id_intervals.size() - 1;
+                        end_interval = 0;
+                        step_interval = -1;
+                        step = -1;
+                    }
+
+                    for (uint64_t j = start_interval; j != (end_interval + step_interval); j += step_interval) {
+                        auto &merged_block_id_interval_idx = merged_block_id_intervals[j];
+
+                        uint64_t start = merged_block_id_intervals_tree.start(merged_block_id_interval_idx);
+                        uint64_t end = merged_block_id_intervals_tree.end(merged_block_id_interval_idx) - 1;
+                        if (inverted_intervals){
+                            uint64_t tmp = start;
+                            start = end;
+                            end = tmp;
+
+                            /*{
+                              std::lock_guard<std::mutex> guard(consensus_path_is_merged_mutex);
+
+                              std::cerr << i << ": start-end " << start << "-" << end <<std::endl;
+                              }*/
+                        }
+
+                        for (uint64_t block_id = start; block_id != (end + step); block_id += step) {
+                            {
+                                std::lock_guard<std::mutex> guard(consensus_path_is_merged_mutex);
+
+                                consensus_path_is_merged.insert(as_integer(consensus_paths[block_id]));
+                            }
+
+                            auto& block = graphs[block_id];
+                            auto& id_trans = id_mapping[block_id];
+                            block->for_each_step_in_path(consensus_mapping[block_id].target_path, [&](const step_handle_t &step) {
+                                                                                                      handle_t h = block->get_handle_of_step(step);
+                                                                                                      handle_t t = smoothed->get_handle(block->get_id(h) + id_trans, block->get_is_reverse(h));
+                                                                                                      smoothed->append_step(consensus_path, t);
+                                                                                                  });
+                        }
+                    }
+
+                    clear_string(block_id_ranges_vector[i]);
+                }
+
+                // now for each consensus path that's not been merged, and for each merged consensus path...
+                // record our path handles for later use in consensus graph generation
+
+                consensus_paths.erase(
                     std::remove_if(
-                            consensus_paths.begin(), consensus_paths.end(),
-                            [&consensus_path_is_merged](const path_handle_t& path) {
-                                return consensus_path_is_merged.count(as_integer(path)) > 0;
-                            }),
+                        consensus_paths.begin(), consensus_paths.end(),
+                        [&consensus_path_is_merged](const path_handle_t& path) {
+                            return consensus_path_is_merged.count(as_integer(path)) > 0;
+                        }),
                     consensus_paths.end());
 
-            consensus_paths.reserve(
+                consensus_paths.reserve(
                     consensus_paths.size()
                     + std::distance(merged_consensus_paths.begin(),
                                     merged_consensus_paths.end()));
-            consensus_paths.insert(
+                consensus_paths.insert(
                     consensus_paths.end(),
                     merged_consensus_paths.begin(),
                     merged_consensus_paths.end());
 
+            }
+
+            // todo: validate the consensus paths as well
+
+            consensus_path_names.reserve(consensus_paths.size());
+            for (auto &path : consensus_paths) {
+                consensus_path_names.push_back(smoothed->get_path_name(path));
+            }
         }
-
-        // todo: validate the consensus paths as well
-
-        consensus_path_names.reserve(consensus_paths.size());
-        for (auto &path : consensus_paths) {
-            consensus_path_names.push_back(smoothed->get_path_name(path));
-        }
-    }
-
-    // cleanup our block graphs
-#pragma omp parallel for schedule(static,1)
-    for (auto block : block_graphs) {
-        delete block;
     }
 
     {
@@ -1960,21 +1964,21 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                      << paths.size() << " paths:";
         progress_meter::ProgressMeter embed_progress(paths.size(), embed_banner.str());
         // embed all paths in the graph
-        smoothed->for_each_path_handle(
-                [&](const path_handle_t& path) {
-                    handle_t last;
-                    step_handle_t begin_step = smoothed->path_begin(path);
-                    smoothed->for_each_step_in_path(
-                            path,
-                            [&](const step_handle_t &step) {
-                                handle_t h = smoothed->get_handle_of_step(step);
-                                if (step != begin_step) {
-                                    smoothed->create_edge(last, h);
-                                }
-                                last = h;
-                            });
-                    embed_progress.increment(1);
+#pragma omp parallel for schedule(dynamic,1)
+        for (auto& path : paths) {
+            handle_t last;
+            step_handle_t begin_step = smoothed->path_begin(path);
+            smoothed->for_each_step_in_path(
+                path,
+                [&](const step_handle_t &step) {
+                    handle_t h = smoothed->get_handle_of_step(step);
+                    if (step != begin_step) {
+                        smoothed->create_edge(last, h);
+                    }
+                    last = h;
                 });
+            embed_progress.increment(1);
+        }
         embed_progress.finish();
     }
 
