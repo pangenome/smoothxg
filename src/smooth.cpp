@@ -789,10 +789,19 @@ void _write_merged_maf_blocks(
         if (i != 0) { joined_block_ids << ","; }
         joined_block_ids << merged_maf_blocks.block_ids[i];
     }*/
+    // get the min/max
+    uint64_t min_block_id = std::numeric_limits<uint64_t>::max();
+    uint64_t max_block_id = std::numeric_limits<uint64_t>::min();
+    for (auto& id : merged_maf_blocks.block_ids) {
+        min_block_id = std::min(min_block_id, id);
+        max_block_id = std::max(max_block_id, id);
+    }
 
-    std::string block_id_ranges = std::to_string(merged_maf_blocks.block_ids.front());
+    std::string block_id_ranges = std::to_string(min_block_id);
+    std::string full_block_id_ranges = std::to_string(merged_maf_blocks.block_ids.front());
     if (merged_maf_blocks_size > 1) {
-        block_id_ranges = "";
+        full_block_id_ranges = "";
+        block_id_ranges += "-" + std::to_string(max_block_id);
 
         bool inverted_merged_block_ids = merged_maf_blocks.block_ids.front() > merged_maf_blocks.block_ids.back();
 
@@ -828,11 +837,11 @@ void _write_merged_maf_blocks(
                     );
                 }
 
-                block_id_ranges += std::to_string(merged_maf_blocks.block_ids[begin_pos]);
+                full_block_id_ranges += std::to_string(merged_maf_blocks.block_ids[begin_pos]);
                 if ((i - 1) - begin_pos > 0) {
-                    block_id_ranges += "-" + std::to_string(merged_maf_blocks.block_ids[i - 1]);
+                    full_block_id_ranges += "-" + std::to_string(merged_maf_blocks.block_ids[i - 1]);
                 }
-                block_id_ranges += "_";
+                full_block_id_ranges += "_";
 
                 begin_pos = i;
             }
@@ -855,9 +864,9 @@ void _write_merged_maf_blocks(
                     0
             );
         }
-        block_id_ranges += std::to_string(merged_maf_blocks.block_ids[begin_pos]);
+        full_block_id_ranges += std::to_string(merged_maf_blocks.block_ids[begin_pos]);
         if ((merged_maf_blocks_size - 1) - begin_pos > 0) {
-            block_id_ranges += "-" + std::to_string(merged_maf_blocks.block_ids[merged_maf_blocks_size - 1]);
+            full_block_id_ranges += "-" + std::to_string(merged_maf_blocks.block_ids[merged_maf_blocks_size - 1]);
         }
 
         block_id_ranges_vector.push_back(block_id_ranges);
@@ -959,7 +968,7 @@ void _write_merged_maf_blocks(
             clear_string(merged_consensus_aligned_seq);
         }
 
-        out_maf << "a blocks=" << block_id_ranges << " loops="
+        out_maf << "a blocks=" << full_block_id_ranges << " loops="
                 << (contains_loops ? "true" : "false");
         if (merged_maf_blocks_size > 1) {
             out_maf << " merged=true";
