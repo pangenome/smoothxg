@@ -1,9 +1,4 @@
-#include <deps/odgi/src/odgi.hpp>
 #include "breaks.hpp"
-#include "progress.hpp"
-#include "atomic_bitvector.hpp"
-#include "smooth.hpp"
-#include "rkmh.hpp"
 
 namespace smoothxg {
 

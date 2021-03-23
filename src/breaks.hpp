@@ -14,6 +14,11 @@
 #include "sautocorr.hpp"
 #include "xg.hpp"
 #include "odgi/dna.hpp"
+#include <deps/odgi/src/odgi.hpp>
+#include "progress.hpp"
+#include "atomic_bitvector.hpp"
+#include "smooth.hpp"
+#include "rkmh.hpp"
 
 namespace smoothxg {
 

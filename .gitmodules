@@ -9,7 +9,7 @@
 	url = https://github.com/vgteam/libhandlegraph.git
 [submodule "deps/ips4o"]
 	path = deps/ips4o
-	url = https://github.com/SaschaWitt/ips4o.git
+    url = https://github.com/ips4o/ips4o.git
 [submodule "deps/args"]
 	path = deps/args
 	url = https://github.com/Taywee/args.git

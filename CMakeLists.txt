@@ -112,13 +112,7 @@ ExternalProject_Get_property(mmmulti SOURCE_DIR)
 set(mmmulti_INCLUDE "${SOURCE_DIR}/src")
 
 # In-place Parallel Super Scalar Samplesort (IPS⁴o), header only
-ExternalProject_Add(ips4o
-  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/ips4o"
-  INSTALL_COMMAND ""
-  BUILD_COMMAND ""
-  CONFIGURE_COMMAND "")
-ExternalProject_Get_property(ips4o SOURCE_DIR)
-set(ips4o_INCLUDE "${SOURCE_DIR}")
+add_subdirectory(${CMAKE_SOURCE_DIR}/deps/ips4o)
 
 # atomic queue library
 ExternalProject_Add(atomicqueue
@@ -256,6 +250,7 @@ add_library(smoothxg_objs OBJECT
   ${mkmh_INCLUDE}/murmur3/murmur3.cpp
   src/breaks.cpp
   src/smooth.cpp
+  src/path_mapping.cpp
   src/utils.cpp
   src/zstdutil.cpp
   ${sautocorr_INCLUDE}/sautocorr.cpp
@@ -270,7 +265,6 @@ add_dependencies(smoothxg_objs atomicqueue)
 add_dependencies(smoothxg_objs atomicbitvector)
 add_dependencies(smoothxg_objs tayweeargs)
 add_dependencies(smoothxg_objs gfakluge)
-add_dependencies(smoothxg_objs ips4o)
 add_dependencies(smoothxg_objs cgranges)
 add_dependencies(smoothxg_objs libbf)
 add_dependencies(smoothxg_objs dirtyzipf)
@@ -309,7 +303,6 @@ set(smoothxg_INCLUDES
   "${sdsl-lite_INCLUDE}"
   "${sdsl-lite-divsufsort_INCLUDE}"
   "${tayweeargs_INCLUDE}"
-  "${ips4o_INCLUDE}"
   "${mio_INCLUDE}"
   "${mmmulti_INCLUDE}"
   "${atomicqueue_INCLUDE}"
@@ -331,6 +324,7 @@ set(smoothxg_INCLUDES
   "${abPOA_src_INCLUDE}"
   "${bbhash_INCLUDE}"
   "${mkmh_INCLUDE}"
+  "deps/ips4o/include"
   "deps/edlib/edlib/include"
   "deps/patchmap")
 

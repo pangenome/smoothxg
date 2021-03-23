@@ -3,7 +3,11 @@
 #include "blocks.hpp"
 #include "deps/abPOA/include/abpoa.h"
 #include "deps/abPOA/src/kdq.h"
+#include "deps/abPOA/src/abpoa_graph.h"
 #include "deps/abPOA/src/utils.h"
+#include "deps/abPOA/src/seq.h"
+#include "deps/cgranges/cpp/IITree.h"
+#include "atomic_bitvector.hpp"
 #include "ips4o.hpp"
 #include "odgi/dna.hpp"
 #include "odgi/odgi.hpp"
@@ -13,6 +17,7 @@
 #include "xg.hpp"
 #include "utils.hpp"
 #include "zstdutil.hpp"
+#include "tempfile.hpp"
 //#include "patchmap.hpp"
 #include "flat_hash_map.hpp"
 #include <algorithm>
@@ -22,18 +27,12 @@
 #include <mutex>
 #include <sstream>
 #include <vector>
+#include <cstring>
+#include "maf.hpp"
+#include "progress.hpp"
+#include "path_mapping.hpp"
 
 namespace smoothxg {
-
-struct path_position_range_t {
-    path_handle_t base_path = as_path_handle(0);   // base path in input graph
-    uint64_t start_pos = 0;        // start position of the range
-    uint64_t end_pos = 0;          // end position of the range
-    step_handle_t start_step = { 0, 0 };  // start step in the base graph
-    step_handle_t end_step = { 0, 0 };    // end step in the base graph
-    path_handle_t target_path = as_path_handle(0); // target path in smoothed block graph
-    uint64_t block_id = 0;  // the block graph id
-};
 
 void write_fasta_for_block(const xg::XG &graph,
                          const block_t &block,
