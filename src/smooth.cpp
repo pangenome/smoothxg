@@ -1,18 +1,5 @@
 #include "smooth.hpp"
-#include <cstring>
-#include <deps/odgi/src/odgi.hpp>
-
 #include "deps/abPOA/src/seq.h"
-#include "deps/abPOA/src/abpoa_graph.h"
-
-#include "maf.hpp"
-#include "deps/cgranges/cpp/IITree.h"
-#include "atomic_bitvector.hpp"
-
-#include "deps/odgi/src/dna.hpp"
-
-#include "progress.hpp"
-
 
 namespace smoothxg {
 
@@ -1055,7 +1042,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             zstdutil::CompressString(ss.str(), *s);
         };
 
-    std::vector<path_position_range_t> path_mapping;
+    auto _path_mapping_tmp = temp_file::create();
+    auto path_mapping_ptr = std::make_unique<mmmulti::set<path_position_range_t>>(_path_mapping_tmp);
+    auto& path_mapping = *path_mapping_ptr;
+    path_mapping.open_writer();
     std::vector<path_position_range_t> consensus_mapping;
 
     std::vector<IITree<uint64_t, uint64_t>> merged_block_id_intervals_tree_vector;
@@ -1070,7 +1060,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     {
         bool produce_maf = !path_output_maf.empty();
 
-        std::mutex path_mapping_mutex, consensus_mapping_mutex, logging_mutex;
+        std::mutex consensus_mapping_mutex, logging_mutex;
 
         // If merged consensus sequences have to be embedded, this structures are needed to keep the blocks' coordinates,
         // but the sequences will be considered (and kept in memory) only if a MAF has to be produced
@@ -1461,19 +1451,15 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     auto path_handle =
                         graph.get_path_handle_of_step(path_range.begin);
                     auto last_step = graph.get_previous_step(path_range.end);
-                    {
-                        std::lock_guard<std::mutex> guard(path_mapping_mutex);
-                        path_mapping.push_back(
-                            {path_handle, // target path
-                             graph.get_position_of_step(
-                                 path_range.begin), // start position
-                             (graph.get_position_of_step(
-                                 last_step) // end position
-                              + graph.get_length(
-                                  graph.get_handle_of_step(last_step))),
-                             path_range.begin, path_range.end,
-                             as_path_handle(++path_id), block_id});
-                    }
+                    path_mapping.append(
+                        {path_handle, // target path
+                         graph.get_position_of_step(
+                             path_range.begin), // start position
+                         (graph.get_position_of_step(
+                             last_step) // end position
+                          + graph.get_length(
+                              graph.get_handle_of_step(last_step))),
+                         as_path_handle(++path_id), block_id});
                 }
                 // make the graph
 
@@ -1496,7 +1482,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                 as_path_handle(0),  // consensus = 0 path handle
                                 0,                        // start position
                                 path_end,                          // end position
-                                empty_step, empty_step, consensus_handle,
+                                consensus_handle,
                                 block_id
                             }
                         );
@@ -1605,14 +1591,16 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     std::cerr << "[smoothxg::smooth_and_lace] sorting path_mappings" << std::endl;
     // sort the path range mappings by path handle id, then start position
     // this will allow us to walk through them in order
+    /*
     ips4o::parallel::sort(
         path_mapping.begin(), path_mapping.end(),
         [](const path_position_range_t &a, const path_position_range_t &b) {
-            auto &a_id = as_integer(a.base_path);
-            auto &b_id = as_integer(b.base_path);
-            return (a_id < b_id || a_id == b_id && a.start_pos < b.start_pos);
+            auto &a_id = as_integer(get_base_path(a));
+            auto &b_id = as_integer(get_base_path(b));
+            return (a_id < b_id || a_id == b_id && get_start_pos(a) < get_start_pos(b));
         });
-
+    */
+    path_mapping.index(n_threads);
 
     // build the sequence and edges into the output graph
     auto* smoothed = new odgi::graph_t();
@@ -1671,80 +1659,70 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
         // then for each path, ensure that it's embedded in the graph by walking through
         // its block segments in order and linking them up in the output graph
+        // then for each path, ensure that it's embedded in the graph by walking through
+        // its block segments in order and linking them up in the output graph
         std::stringstream lace_banner;
         lace_banner << "[smoothxg::smooth_and_lace] embedding " << path_mapping.size() << " path fragments:";
         progress_meter::ProgressMeter lace_progress(path_mapping.size(), lace_banner.str());
-        std::vector<std::tuple<path_handle_t, uint64_t, uint64_t>> path_range_in_mappings;
         for (uint64_t i = 0; i < path_mapping.size(); ++i) {
-            uint64_t begin = i;
-            path_position_range_t *pos_range = &path_mapping[i];
+            path_position_range_t pos_range = path_mapping.read_value(i);
             step_handle_t last_step = {0, 0};
             uint64_t last_end_pos = 0;
             // add the path to the graph
 
             path_handle_t smoothed_path = smoothed->create_path_handle(
-                    graph.get_path_name(pos_range->base_path));
+                graph.get_path_name(get_base_path(pos_range)));
             // walk the path from start to end
             while (true) {
-                if (pos_range->start_pos - last_end_pos > 0) {
-                    assert(false); // assert that we've included all sequence in blocks
-                }
-                last_end_pos = pos_range->end_pos;
-                if (i + 1 == path_mapping.size() ||
-                    path_mapping.at(i + 1).base_path != pos_range->base_path) {
-                    break;
-                } else {
-                    ++i;
-                    pos_range = &path_mapping[i];
-                }
-            }
-            if (graph.get_path_length(pos_range->base_path) > last_end_pos) {
-                assert(false); // assert that we've included all sequence in the blocks
-            }
-            // store the path range in path_mapping
-            path_range_in_mappings.push_back({smoothed_path, begin, i});
-        }
-
-#pragma omp parallel for schedule(dynamic,1)
-        for (auto& path_mapping_range : path_range_in_mappings) {
-            auto& smoothed_path = std::get<0>(path_mapping_range);
-            uint64_t range_begin = std::get<1>(path_mapping_range);
-            uint64_t range_end = std::get<2>(path_mapping_range);
-            step_handle_t last_step = {0, 0};
-            uint64_t last_end_pos = 0;
-            for (uint64_t i = range_begin; i <= range_end; ++i) {
-                path_position_range_t *pos_range = &path_mapping[i];
-                if (pos_range->start_pos - last_end_pos > 0) {
+                // if we find a segment that's not included in any block, we'll add
+                // it to the final graph and link it in to do so, we detect a gap in
+                // length, collect the sequence in the gap and add it to the graph
+                // as a node then add it as a traversal to the path
+                if (get_start_pos(pos_range) - last_end_pos > 0) {
                     assert(false); // assert that we've included all sequence in blocks
                 }
                 // write the path steps into the graph using the id translation
-                auto& block = graphs[pos_range->block_id];
-                auto id_trans = id_mapping.at(pos_range->block_id);
+                auto block_id = get_block_id(pos_range);
+                auto& block = graphs[block_id];
+                auto id_trans = id_mapping.at(block_id);
                 bool first = true;
                 block->for_each_step_in_path(
-                        pos_range->target_path, [&](const step_handle_t &step) {
-                            handle_t h = block->get_handle_of_step(step);
-                            handle_t t = smoothed->get_handle(block->get_id(h) + id_trans,
-                                                              block->get_is_reverse(h));
-                            smoothed->append_step(smoothed_path, t);
-                            if (first) {
-                                first = false;
-                                // create edge between last and curr
-                                if (as_integers(last_step)[0] != 0) {
-                                    smoothed->create_edge(
-                                            smoothed->get_handle_of_step(last_step), t);
-                                }
+                    get_target_path(pos_range), [&](const step_handle_t &step) {
+                        handle_t h = block->get_handle_of_step(step);
+                        handle_t t = smoothed->get_handle(block->get_id(h) + id_trans,
+                                                          block->get_is_reverse(h));
+                        smoothed->append_step(smoothed_path, t);
+                        if (first) {
+                            first = false;
+                            // create edge between last and curr
+                            if (as_integers(last_step)[0] != 0) {
+                                smoothed->create_edge(
+                                    smoothed->get_handle_of_step(last_step), t);
                             }
-                        });
+                        }
+                    });
                 last_step = smoothed->path_back(smoothed_path);
-                last_end_pos = pos_range->end_pos;
+                last_end_pos = get_end_pos(pos_range);
+                if (i + 1 == path_mapping.size() ||
+                    get_base_path(path_mapping.read_value(i + 1)) != get_base_path(pos_range)) {
+                    break;
+                } else {
+                    ++i;
+                    pos_range = path_mapping.read_value(i);
+                }
                 lace_progress.increment(1);
             }
-            if (graph.get_path_length(path_mapping[range_begin].base_path) > last_end_pos) {
+            // now add in any final sequence in the path
+            // and add it to the path, add the edge
+            if (graph.get_path_length(get_base_path(pos_range)) > last_end_pos) {
                 assert(false); // assert that we've included all sequence in the blocks
             }
         }
         lace_progress.finish();
+
+        path_mapping.close_reader();
+        std::remove(_path_mapping_tmp.c_str());
+        path_mapping_ptr.reset(nullptr);
 
         // now verify that smoothed has paths that are equal to the base graph
         // and that all the paths are fully embedded in the graph
@@ -1796,7 +1774,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             // there are the block_id_intervals expressed as first_block_id and last_block_id
             ips4o::parallel::sort(consensus_mapping.begin(), consensus_mapping.end(),
                                   [](const path_position_range_t &a, const path_position_range_t &b) {
-                                      return (a.block_id < b.block_id);
+                                      return (get_block_id(a) < get_block_id(b));
                                   });
 
             // by definition, the consensus paths are embedded in our blocks, which simplifies
@@ -1814,9 +1792,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
 #pragma omp parallel for schedule(dynamic,1)
                     for (auto &pos_range : consensus_mapping) {
-                        if (is_block_in_a_merged_group[pos_range.block_id]) {
+                        if (is_block_in_a_merged_group[get_block_id(pos_range)]) {
                             // Invalidate the position range (it will not be used anymore)
-                            pos_range.end_pos = pos_range.start_pos;
+                            //get_end_pos(pos_range) = get_start_pos(pos_range);
+                            std::get<2>(pos_range) = std::get<1>(pos_range);
                         }
                     }
                 }
@@ -1829,10 +1808,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             // First, create the path handles
             std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: creating path handles" << std::endl;
             for (auto &pos_range : consensus_mapping) {
-                if (pos_range.start_pos != pos_range.end_pos) {
-                    auto& block = graphs[pos_range.block_id];
-                    consensus_paths[pos_range.block_id] = smoothed->create_path_handle(
-                        block->get_path_name(pos_range.target_path)
+                if (get_start_pos(pos_range) != get_end_pos(pos_range)) {
+                    auto& block = graphs[get_block_id(pos_range)];
+                    consensus_paths[get_block_id(pos_range)] = smoothed->create_path_handle(
+                        block->get_path_name(get_target_path(pos_range))
                         );
                 } // else skip the embedding of the single consensus sequences
             }
@@ -1841,23 +1820,24 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             std::cerr << "[smoothxg::smooth_and_lace] embedding consensus: creating step handles" << std::endl;
 #pragma omp parallel for schedule(dynamic,1)
             for(auto& pos_range : consensus_mapping){
-                if (pos_range.start_pos == pos_range.end_pos) {
+                if (get_start_pos(pos_range) == get_end_pos(pos_range)) {
                     continue; // skip the embedding for the single consensus sequence
                 }
 
-                auto& block = graphs[pos_range.block_id];
-                path_handle_t smoothed_path = consensus_paths[pos_range.block_id];
+                auto& block = graphs[get_block_id(pos_range)];
+                path_handle_t smoothed_path = consensus_paths[get_block_id(pos_range)];
 
-                auto &id_trans = id_mapping[pos_range.block_id];
+                auto &id_trans = id_mapping[get_block_id(pos_range)];
                 block->for_each_step_in_path(
-                    pos_range.target_path, [&](const step_handle_t &step) {
-                                               handle_t h = block->get_handle_of_step(step);
-                                               handle_t t = smoothed->get_handle(block->get_id(h) + id_trans,
-                                                                                 block->get_is_reverse(h));
-                                               smoothed->append_step(smoothed_path, t);
-                                               // nb: by definition of our construction of smoothed
-                                               // the consensus paths should have all their edges embedded
-                                           });
+                    get_target_path(pos_range),
+                    [&](const step_handle_t &step) {
+                        handle_t h = block->get_handle_of_step(step);
+                        handle_t t = smoothed->get_handle(block->get_id(h) + id_trans,
+                                                          block->get_is_reverse(h));
+                        smoothed->append_step(smoothed_path, t);
+                        // nb: by definition of our construction of smoothed
+                        // the consensus paths should have all their edges embedded
+                    });
             }
 
             // Merged consensus sequences
@@ -1927,11 +1907,13 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                             auto& block = graphs[block_id];
                             auto& id_trans = id_mapping[block_id];
-                            block->for_each_step_in_path(consensus_mapping[block_id].target_path, [&](const step_handle_t &step) {
-                                                                                                      handle_t h = block->get_handle_of_step(step);
-                                                                                                      handle_t t = smoothed->get_handle(block->get_id(h) + id_trans, block->get_is_reverse(h));
-                                                                                                      smoothed->append_step(consensus_path, t);
-                                                                                                  });
+                            block->for_each_step_in_path(
+                                get_target_path(consensus_mapping[block_id]),
+                                [&](const step_handle_t &step) {
+                                    handle_t h = block->get_handle_of_step(step);
+                                    handle_t t = smoothed->get_handle(block->get_id(h) + id_trans, block->get_is_reverse(h));
+                                    smoothed->append_step(consensus_path, t);
+                                });
                         }
                     }
 
