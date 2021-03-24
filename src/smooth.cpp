@@ -1624,7 +1624,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         std::stringstream add_edges_banner;
         add_edges_banner << "[smoothxg::smooth_and_lace] adding edges from " << block_count << " graphs:";
         progress_meter::ProgressMeter add_edges_progress(block_count, add_edges_banner.str());
-#pragma omp parallel for schedule(dynamic,1)
         for (uint64_t idx = 0; idx < block_count; ++idx) {
             auto& id_trans = id_mapping[idx];
             auto& block = graphs[idx];
@@ -1926,7 +1925,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                      << paths.size() << " paths:";
         progress_meter::ProgressMeter embed_progress(paths.size(), embed_banner.str());
         // embed all paths in the graph
-#pragma omp parallel for schedule(dynamic,1)
         for (auto& path : paths) {
             handle_t last;
             step_handle_t begin_step = smoothed->path_begin(path);
