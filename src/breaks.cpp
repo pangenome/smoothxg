@@ -424,7 +424,7 @@ double gap_compressed_identity(
                                             curr.c_str(), curr_len, other.c_str(), other_len,
                                             edlibNewAlignConfig(
                                                     -1,
-                                                    EDLIB_MODE_NW,
+                                                    EDLIB_MODE_HW,
                                                     EDLIB_TASK_PATH, NULL, 0
                                                     )
                                     );

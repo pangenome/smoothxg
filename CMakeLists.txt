@@ -10,8 +10,8 @@ set(CMAKE_CXX_STANDARD 17)
 # Use all standard-compliant optimizations
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -mcx16 -g")
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mcx16 -g")
-#set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O -mcx16 -g -fsanitize=address")
-#set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O -mcx16 -g -fsanitize=address")
+#set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O -g -fsanitize=address")
+#set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O -g -fsanitize=address")
 
 #set(THREADS_PREFER_PTHREAD_FLAG ON)
 #find_package(Threads REQUIRED)
@@ -331,14 +331,15 @@ set(smoothxg_INCLUDES
   "${abPOA_src_INCLUDE}"
   "${bbhash_INCLUDE}"
   "${mkmh_INCLUDE}"
-  "deps/edlib/edlib/include")
+  "deps/edlib/edlib/include"
+  "deps/patchmap")
 
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
-  "${handlegraph_LIB}/libhandlegraph.a"
   "${odgi_LIB}/libodgi.a"
+  "${handlegraph_LIB}/libhandlegraph.a"
   "${abPOA_LIB}/libabpoa.a"
   "-latomic"
   )
