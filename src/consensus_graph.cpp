@@ -231,6 +231,39 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     auto link_path_ms = std::make_unique<mmmulti::set<link_path_t>>(base_mmset);
     link_path_ms->open_writer();
 
+    auto consensus_distance =
+        [&](const path_handle_t& consensus,
+            const handle_t& last,
+            const handle_t& curr) {
+            // get position at end of
+            int64_t start_pos = -1;
+            int64_t end_pos = -1;
+            smoothed.for_each_step_on_handle(
+                last, [&](const step_handle_t& step) {
+                          if (smoothed.get_path_handle_of_step(step) == consensus) {
+                              start_pos = smoothed.get_position_of_step(step);
+                              // TODO account for offsets
+                              if (last == smoothed.get_handle_of_step(step)) {
+                                  start_pos += smoothed.get_length(last);
+                              }
+                          }
+                      });
+            smoothed.for_each_step_on_handle(
+                curr, [&](const step_handle_t& step) {
+                          if (smoothed.get_path_handle_of_step(step) == consensus) {
+                              end_pos = smoothed.get_position_of_step(step);
+                              if (curr == smoothed.flip(smoothed.get_handle_of_step(step))) {
+                                  end_pos += smoothed.get_length(last);
+                              }
+                          }
+                      });
+            if (start_pos >= 0 && end_pos >= 0) {
+                return std::abs(end_pos - start_pos);
+            } else {
+                return (int64_t)-1;
+            }
+        };
+
     // TODO: parallelize over path ranges that tend to have around the same max length
     // determine the ranges based on a map of the consensus path set
     std::atomic<bool> is_there_something(false);
@@ -296,10 +329,20 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     auto last_end_fwd = end_in_vector(last_handle);
                     auto curr_start_rev = start_in_vector(smoothed.flip(curr_handle));
                     auto last_end_rev = end_in_vector(smoothed.flip(last_handle));
-                    uint64_t jump_length = std::min(std::min(std::abs(curr_start_fwd - last_end_fwd),
+                    /*
+#pragma omp critical (cerr)
+                    std::cerr << "consensus_dist " << std::abs(curr_start_fwd - last_end_fwd)
+                              << " " << consensus_distance(curr_consensus, last_handle, curr_handle)
+                              << std::endl;
+                    */
+                    uint64_t jump_length = (link.from_cons_path == curr_consensus ?
+                                            std::abs(curr_start_fwd - last_end_fwd)
+                                            // distance between last and current on the given path
+                                            //consensus_distance(curr_consensus, last_handle, curr_handle) // not working
+                                            : std::min(std::min(std::abs(curr_start_fwd - last_end_fwd),
                                                              std::abs(curr_start_rev - last_end_rev)),
                                                     std::min(std::abs(curr_start_fwd - last_end_rev),
-                                                             std::abs(curr_start_rev - last_end_fwd)));
+                                                             std::abs(curr_start_rev - last_end_fwd))));
                     // TODO: don't just look at min_allele_length, but also consider allele frequency
                     if (link.from_cons_path == curr_consensus && jump_length < min_allele_length) {
                         link.begin = step;
@@ -562,7 +605,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         { //if (most_frequent_link.from_cons_path != most_frequent_link.to_cons_path) {
                             most_frequent_link.rank = link_rank++;
                             save_links.push_back(most_frequent_link);
-                            mark_seen_node_range(most_frequent_link.begin, most_frequent_link.end, seen_nodes, smoothed);
+                            mark_seen_nodes(most_frequent_link.begin, most_frequent_link.end, seen_nodes, smoothed);
                         }
                         // this part collects sequences that diverge from a consensus for the
                         // min_allele_length which is the "variant scale factor" of the algorithm
@@ -571,22 +614,25 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         for (auto link : unique_links) {
                             uint64_t largest_novel_gap_bp = largest_novel_gap(link.begin, link.end, seen_nodes, smoothed);
                             uint64_t novel_bp = novel_sequence_length(link.begin, link.end, seen_nodes, smoothed);
-                            uint64_t step_count = get_step_count(link.begin, link.end, smoothed);
+                            //uint64_t step_count = get_step_count(link.begin, link.end, smoothed);
                             // this complex filter attempts to keep representative link paths for indels above our min_allele_length
                             // we either need the jump length (measured in terms of delta in our graph vector) to be over our jump max
                             // *and* the link path should be empty or mostly novel
                             // *or* we're adding in the specified amount of novel_bp of sequence
-                            if (((link.jump_length >= min_allele_length
-                                  && link.jump_length < max_allele_length
-                                  && link.length == 0)
-                                 //|| (double)largest_novel_gap_bp / (double)step_count > 1))
-                                 || (largest_novel_gap_bp >= min_allele_length
-                                     && novel_bp >= min_allele_length
-                                     && largest_novel_gap_bp < max_allele_length))) {
-                                     //&& (double)novel_bp / (double)step_count > (novel_bp / 10)))) {
+                            if (link.length == novel_bp
+                                && ((most_frequent_link.from_cons_path == most_frequent_link.to_cons_path
+                                     && link.jump_length >= min_allele_length
+                                     && link.jump_length < max_allele_length
+                                     && (link.length == 0
+                                         || largest_novel_gap_bp * 1.61803 > novel_bp))
+                                    ||
+                                    (novel_bp >= min_allele_length
+                                     && novel_bp < max_allele_length))) {
+//#pragma omp critical (stderr)
+                                //std::cerr << "Got link " << link.length << " " << link.jump_length << " " << largest_novel_gap_bp << " " << novel_bp << std::endl;
                                 link.rank = link_rank++;
                                 save_links.push_back(link);
-                                mark_seen_node_range(link.begin, link.end, seen_nodes, smoothed);
+                                mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);
                             }
                         }
                     }
