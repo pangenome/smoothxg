@@ -407,95 +407,89 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     if (is_there_something.load()) {
         link_path_ms->index(thread_count);
 
-        // collect sets of link paths that refer to the same consensus path pairs
-        // and pick which one to keep in the consensus graph
-
         auto novel_sequence_length =
-                [&](const step_handle_t begin,
-                    const step_handle_t end,
-                    ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
-                    const xg::XG &graph) {
-                    uint64_t novel_bp = 0;
-                    for (auto s = begin;
-                         s != end; s = graph.get_next_step(s)) {
-                        handle_t h = graph.get_handle_of_step(s);
-                        uint64_t i = graph.get_id(h);
-                        if (!seen_nodes.count(i)) {
-                            novel_bp += graph.get_length(h);
-                            //seen_nodes.insert(i);
-                        }
-                    }
-                    return novel_bp;
-                };
+            [&](const step_handle_t begin,
+                const step_handle_t end,
+                ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
+                const xg::XG &graph) {
+                uint64_t novel_bp = 0;
+                for (auto s = begin;
+                     s != end; s = graph.get_next_step(s)) {
+                    handle_t h = graph.get_handle_of_step(s);
+                    uint64_t i = graph.get_id(h);
+                    novel_bp += !seen_nodes.count(i) ? graph.get_length(h) : 0;
+                }
+                return novel_bp;
+            };
 
         auto largest_novel_gap =
-                [&](const step_handle_t begin,
-                    const step_handle_t end,
-                    ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
-                    const xg::XG &graph) {
-                    uint64_t novel_bp = 0;
-                    uint64_t largest_gap = 0;
-                    for (auto s = begin;
-                         s != end; s = graph.get_next_step(s)) {
-                        handle_t h = graph.get_handle_of_step(s);
-                        uint64_t i = graph.get_id(h);
-                        if (!seen_nodes.count(i)) {
-                            novel_bp += graph.get_length(h);
-                            //seen_nodes.insert(i);
-                        } else {
-                            largest_gap = std::max(novel_bp, largest_gap);
-                            novel_bp = 0;
-                        }
+            [&](const step_handle_t begin,
+                const step_handle_t end,
+                ska::flat_hash_set<uint64_t>& seen_nodes, // by ref
+                const xg::XG &graph) {
+                uint64_t novel_bp = 0;
+                uint64_t largest_gap = 0;
+                for (auto s = begin;
+                     s != end; s = graph.get_next_step(s)) {
+                    handle_t h = graph.get_handle_of_step(s);
+                    uint64_t i = graph.get_id(h);
+                    if (!seen_nodes.count(i)) {
+                        novel_bp += graph.get_length(h);
+                        //seen_nodes.insert(i);
+                    } else {
+                        largest_gap = std::max(novel_bp, largest_gap);
+                        novel_bp = 0;
                     }
-                    return largest_gap;
-                };
+                }
+                return largest_gap;
+            };
 
         auto get_step_count =
-                [&](const step_handle_t begin,
-                    const step_handle_t end,
-                    const xg::XG &graph) {
-                    uint64_t count = 0;
-                    for (auto s = begin;
-                         s != end; s = graph.get_next_step(s)) {
-                        ++count;
-                    }
-                    return count;
-                };
+            [&](const step_handle_t begin,
+                const step_handle_t end,
+                const xg::XG &graph) {
+                uint64_t count = 0;
+                for (auto s = begin;
+                     s != end; s = graph.get_next_step(s)) {
+                    ++count;
+                }
+                return count;
+            };
 
 
         auto mark_seen_nodes =
-                [&](const step_handle_t begin,
-                    const step_handle_t end,
-                    ska::flat_hash_set<uint64_t> &seen_nodes, // by ref
-                    const xg::XG &graph) {
-                    for (auto s = begin;
-                         s != end; s = graph.get_next_step(s)) {
-                        handle_t h = graph.get_handle_of_step(s);
-                        uint64_t i = graph.get_id(h);
-                        if (!seen_nodes.count(i)) {
-                            seen_nodes.insert(i);
-                        }
-                    }
-                };
+            [&](const step_handle_t begin,
+                const step_handle_t end,
+                ska::flat_hash_set<uint64_t> &seen_nodes, // by ref
+                const xg::XG &graph) {
+                for (auto s = begin;
+                     s != end; s = graph.get_next_step(s)) {
+                    handle_t h = graph.get_handle_of_step(s);
+                    uint64_t i = graph.get_id(h);
+                    seen_nodes.insert(i);
+                }
+            };
 
         auto mark_seen_node_range =
-                [&](const step_handle_t begin,
-                    const step_handle_t end,
-                    ska::flat_hash_set<uint64_t> &seen_nodes, // by ref
-                    const xg::XG &graph) {
-                    uint64_t min_id = std::numeric_limits<uint64_t>::max();
-                    uint64_t max_id = std::numeric_limits<uint64_t>::min();
-                    for (auto s = begin;
-                         s != end; s = graph.get_next_step(s)) {
-                        handle_t h = graph.get_handle_of_step(s);
-                        uint64_t i = graph.get_id(h);
-                        min_id = std::min(i, min_id);
-                        max_id = std::max(i, max_id);
-                    }
-                    for (uint64_t i = min_id; i <= max_id; ++i) {
-                        seen_nodes.insert(i);
-                    }
-                };
+            [&](const step_handle_t begin,
+                const step_handle_t end,
+                ska::flat_hash_set<uint64_t> &seen_nodes, // by ref
+                const xg::XG &graph) {
+                uint64_t min_id = std::numeric_limits<uint64_t>::max();
+                uint64_t max_id = std::numeric_limits<uint64_t>::min();
+                for (auto s = begin;
+                     s != end; s = graph.get_next_step(s)) {
+                    handle_t h = graph.get_handle_of_step(s);
+                    uint64_t i = graph.get_id(h);
+                    min_id = std::min(i, min_id);
+                    max_id = std::max(i, max_id);
+                }
+                for (uint64_t i = min_id; i <= max_id; ++i) {
+                    seen_nodes.insert(i);
+                }
+            };
+        // collect sets of link paths that refer to the same consensus path pairs
+        // and pick which one to keep in the consensus graph
 
         std::vector<std::vector<link_path_t>> thread_consensus_links(thread_count);
         std::vector<std::vector<std::pair<handle_t, handle_t>>> thread_perfect_edges(thread_count);
@@ -681,84 +675,123 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     auto* consensus = new odgi::graph_t();
     consensus->set_number_of_threads(thread_count);
 
+    std::vector<link_path_t> keep_consensus_links;
+    std::vector<std::string> link_path_names;
+
     // add the consensus paths first
     // FIXME could this be run in parallel? --> create the path in an extra for
-    std::cerr << "[smoothxg::create_consensus_graph] adding consensus paths" << std::endl;
-    for (auto& path : consensus_paths) {
-        // create the path
-        path_handle_t path_cons_graph = consensus->create_path_handle(smoothed.get_path_name(path));
-        handle_t cur_handle_in_cons_graph;
-        // add the current node first, then add the step
-        smoothed.for_each_step_in_path(path,
-                                       [&consensus, &smoothed, &cur_handle_in_cons_graph, &path_cons_graph]
-                                       (const step_handle_t& step) {
-            handle_t h = smoothed.get_handle_of_step(step);
-            bool rev = smoothed.get_is_reverse(h);
-            nid_t node_id = smoothed.get_id(h);
-            // we make a new node with the same sequence and relative orientation
-            if (!consensus->has_node(node_id)) {
-                if (!rev) {
-                    cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(h), node_id);
-                } else {
-                    cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(smoothed.flip(h)), node_id);
-                }
-            } else {
-                cur_handle_in_cons_graph = consensus->get_handle(node_id);
-            }
-            // our cur_handle_in_cons_graph is in forward orientation, so we have to match
-            if (rev) {
-                consensus->append_step(path_cons_graph, consensus->flip(cur_handle_in_cons_graph));
-            } else {
-                consensus->append_step(path_cons_graph, cur_handle_in_cons_graph);
-            };
-        });
-    }
+    {
+        std::vector<bool> link_seen_nodes(smoothed.get_node_count()+1, false);
 
-    std::cerr << "[smoothxg::create_consensus_graph] adding link paths: adding paths and nodes" << std::endl;
-
-    /// FIXME could THIS run in parallel
-    // add link paths and edges not in the consensus paths
-    std::vector<std::string> link_path_names;
-    for (auto& link : consensus_links) {
-        //std::cerr << "making " << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank << std::endl;
-        // create link paths and paths
-        if (link.length > 0) {
-            auto& novel_link = link;
-
-            // make the path name
-            stringstream s;
-            s << "Link_" << *novel_link.from_cons_name << "_" << *novel_link.to_cons_name << "_" << novel_link.rank;
-            assert(!consensus->has_path(s.str()));
-            path_handle_t path_cons_graph = consensus->create_path_handle(s.str());
-            //link_paths.push_back(path_cons_graph);
-
-            // add the current node first, then add the step
+        std::cerr << "[smoothxg::create_consensus_graph] adding consensus paths" << std::endl;
+        for (auto& path : consensus_paths) {
+            // create the path
+            path_handle_t path_cons_graph = consensus->create_path_handle(smoothed.get_path_name(path));
             handle_t cur_handle_in_cons_graph;
-            uint64_t step_count = 0;
-            for (step_handle_t step = (smoothed.has_next_step(novel_link.begin)
-                                       ? smoothed.get_next_step(novel_link.begin)
-                                       : novel_link.begin);
-                 step != novel_link.end;
-                 step = smoothed.get_next_step(step)) {
-                handle_t h = smoothed.get_handle_of_step(step);
-                nid_t node_id = smoothed.get_id(h);
-                if (!consensus->has_node(node_id)) {
-                    //assert(false);
-                    // this must be kept
-                    cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(smoothed.get_handle(node_id)), node_id);
-                } else {
-                    cur_handle_in_cons_graph = consensus->get_handle(node_id);
-                }
+            // add the current node first, then add the step
+            smoothed.for_each_step_in_path(path,
+                                           [&consensus, &smoothed, &cur_handle_in_cons_graph, &path_cons_graph, &link_seen_nodes]
+                                           (const step_handle_t& step) {
+                                               handle_t h = smoothed.get_handle_of_step(step);
+                                               bool rev = smoothed.get_is_reverse(h);
+                                               nid_t node_id = smoothed.get_id(h);
+                                               link_seen_nodes[node_id] = true;
+                                               // we make a new node with the same sequence and relative orientation
+                                               if (!consensus->has_node(node_id)) {
+                                                   if (!rev) {
+                                                       cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(h), node_id);
+                                                   } else {
+                                                       cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(smoothed.flip(h)), node_id);
+                                                   }
+                                               } else {
+                                                   cur_handle_in_cons_graph = consensus->get_handle(node_id);
+                                               }
+                                               // our cur_handle_in_cons_graph is in forward orientation, so we have to match
+                                               if (rev) {
+                                                   consensus->append_step(path_cons_graph, consensus->flip(cur_handle_in_cons_graph));
+                                               } else {
+                                                   consensus->append_step(path_cons_graph, cur_handle_in_cons_graph);
+                                               };
+                                           });
+        }
 
-                if (smoothed.get_is_reverse(h)) {
-                    consensus->append_step(path_cons_graph, consensus->flip(cur_handle_in_cons_graph));
-                } else {
-                    consensus->append_step(path_cons_graph, cur_handle_in_cons_graph);
+        auto mark_seen_nodes =
+            [&](const step_handle_t begin,
+                const step_handle_t end,
+                std::vector<bool> &seen_nodes, // by ref
+                const xg::XG &graph) {
+                for (auto s = begin;
+                     s != end; s = graph.get_next_step(s)) {
+                    handle_t h = graph.get_handle_of_step(s);
+                    uint64_t i = graph.get_id(h);
+                    seen_nodes[i] = true;
                 }
-                ++step_count;
-            }
-            if (step_count) {
-                link_path_names.push_back(s.str());
+            };
+
+        auto novel_sequence_length =
+            [&](const step_handle_t begin,
+                const step_handle_t end,
+                std::vector<bool> &seen_nodes, // by ref
+                const xg::XG &graph) {
+                uint64_t novel_bp = 0;
+                for (auto s = begin;
+                     s != end; s = graph.get_next_step(s)) {
+                    handle_t h = graph.get_handle_of_step(s);
+                    uint64_t i = graph.get_id(h);
+                    novel_bp += !seen_nodes[i] ? graph.get_length(h) : 0;
+                }
+                return novel_bp;
+            };
+
+        std::cerr << "[smoothxg::create_consensus_graph] adding link paths: adding paths and nodes" << std::endl;
+
+        // add link paths and edges not in the consensus paths
+        for (auto& link : consensus_links) {
+            //std::cerr << "making " << "Link_" << smoothed.get_path_name(link.from_cons) << "_" << smoothed.get_path_name(link.to_cons) << "_" << link.rank << std::endl;
+            // create link paths and paths
+            if (link.length > 0) {
+                auto& novel_link = link;
+                // check if this link path is completely novel, to avoid adding "accordions" and SNP arrays to the consensus
+                uint64_t novel_bp = novel_sequence_length(link.begin, link.end, link_seen_nodes, smoothed);
+                if (link.length > novel_bp) {
+                    continue;
+                }
+                mark_seen_nodes(link.begin, link.end, link_seen_nodes, smoothed);
+                // make the path name
+                stringstream s;
+                s << "Link_" << *novel_link.from_cons_name << "_" << *novel_link.to_cons_name << "_" << novel_link.rank;
+                assert(!consensus->has_path(s.str()));
+                path_handle_t path_cons_graph = consensus->create_path_handle(s.str());
+                //link_paths.push_back(path_cons_graph);
+
+                // add the current node first, then add the step
+                handle_t cur_handle_in_cons_graph;
+                uint64_t step_count = 0;
+                for (step_handle_t step = (smoothed.has_next_step(novel_link.begin)
+                                           ? smoothed.get_next_step(novel_link.begin)
+                                           : novel_link.begin);
+                     step != novel_link.end;
+                     step = smoothed.get_next_step(step)) {
+                    handle_t h = smoothed.get_handle_of_step(step);
+                    nid_t node_id = smoothed.get_id(h);
+                    if (!consensus->has_node(node_id)) {
+                        //assert(false);
+                        // this must be kept
+                        cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(smoothed.get_handle(node_id)), node_id);
+                    } else {
+                        cur_handle_in_cons_graph = consensus->get_handle(node_id);
+                    }
+
+                    if (smoothed.get_is_reverse(h)) {
+                        consensus->append_step(path_cons_graph, consensus->flip(cur_handle_in_cons_graph));
+                    } else {
+                        consensus->append_step(path_cons_graph, cur_handle_in_cons_graph);
+                    }
+                    ++step_count;
+                }
+                if (step_count) {
+                    link_path_names.push_back(s.str());
+                }
             }
         }
     }
