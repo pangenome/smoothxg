@@ -753,7 +753,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                 auto& novel_link = link;
                 // check if this link path is completely novel, to avoid adding "accordions" and SNP arrays to the consensus
                 uint64_t novel_bp = novel_sequence_length(link.begin, link.end, link_seen_nodes, smoothed);
-                if (link.length > novel_bp) {
+                if (link.length > novel_bp * 2) {
                     continue;
                 }
                 mark_seen_nodes(link.begin, link.end, link_seen_nodes, smoothed);
