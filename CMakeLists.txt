@@ -242,6 +242,7 @@ ExternalProject_Get_property(mkmh SOURCE_DIR)
 set(mkmh_INCLUDE "${SOURCE_DIR}")
 
 add_subdirectory(deps/edlib EXCLUDE_FROM_ALL)
+add_subdirectory(deps/WFA EXCLUDE_FROM_ALL)
 
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
@@ -332,6 +333,7 @@ set(smoothxg_INCLUDES
   "${bbhash_INCLUDE}"
   "${mkmh_INCLUDE}"
   "deps/edlib/edlib/include"
+  "deps/WFA"
   "deps/patchmap")
 
 set(smoothxg_LIBS
@@ -342,6 +344,7 @@ set(smoothxg_LIBS
   "${handlegraph_LIB}/libhandlegraph.a"
   "${abPOA_LIB}/libabpoa.a"
   "-latomic"
+  wfa
   )
 
 

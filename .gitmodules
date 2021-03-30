@@ -52,3 +52,6 @@
 [submodule "deps/patchmap"]
 	path = deps/patchmap
 	url = https://github.com/1ykos/patchmap.git
+[submodule "deps/WFA"]
+	path = deps/WFA
+	url = https://github.com/ekg/WFA.git

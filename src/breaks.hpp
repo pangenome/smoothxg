@@ -9,7 +9,9 @@
 #include <vector>
 #include <numeric>
 #include <cmath>
-#include "edlib.h"
+#include "WFA/edit/edit_cigar.hpp"
+#include "WFA/gap_affine/affine_wavefront_align.hpp"
+#include "WFA/utils/commons.hpp"
 #include "blocks.hpp"
 #include "sautocorr.hpp"
 #include "xg.hpp"

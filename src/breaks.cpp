@@ -34,7 +34,8 @@ namespace smoothxg {
         write_fasta_for_block(graph, block, block_id, seqs, names, prefix, suffix);
     }
 
-double gap_compressed_identity(
+
+double edlib_gap_compressed_identity(
     const unsigned char* const alignment,
     const int alignment_length) {
     char move_c[] = {'=', 'I', 'D', 'X'};
@@ -46,6 +47,38 @@ double gap_compressed_identity(
     while (idx < alignment_length) {
         switch (move_c[alignment[idx++]]) {
         case '=':
+            last_is_gap = false;
+            ++matches;
+            break;
+        case 'X':
+            last_is_gap = false;
+            ++mismatches;
+            break;
+        case 'I':
+        case 'D':
+            if (!last_is_gap) {
+                ++indels;
+                last_is_gap = true;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    return (double)(matches) / (double)(matches + mismatches + indels);
+}
+
+double wfa_gap_compressed_identity(
+    const wfa::edit_cigar_t* const edit_cigar) {
+    int start_idx = edit_cigar->begin_offset;
+    int end_idx = edit_cigar->end_offset;
+    int matches = 0;
+    int mismatches = 0;
+    int indels = 0;
+    bool last_is_gap = false;
+    for (int i = start_idx; i <= end_idx; i++) {
+        switch (edit_cigar->operations[i]) {
+        case 'M':
             last_is_gap = false;
             ++matches;
             break;
@@ -144,10 +177,24 @@ double gap_compressed_identity(
         };
         std::thread write_ready_blocks_thread(write_ready_blocks_lambda);
 
+        // todo allocate one per thread rather than one per block
+        std::vector<wfa::mm_allocator_t*> wfa_mm_allocators(thread_count);
+        // const wfa_mm_allocator = wfa::mm_allocator_new(BUFFER_SIZE_8M);
+        for (uint64_t i = 0; i < thread_count; ++i) {
+            wfa_mm_allocators[i] = wfa::mm_allocator_new(BUFFER_SIZE_8M);
+        }
+        wfa::affine_penalties_t wfa_affine_penalties = {
+            .match = 0,
+            .mismatch = 7,
+            .gap_opening = 11,
+            .gap_extension = 1,
+        };
+
 #pragma omp parallel for schedule(dynamic, 1) num_threads(thread_count)
         for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id) {
             auto block = blockset->get_block(block_id);
-
+            uint64_t tid = omp_get_thread_num();
+            wfa::mm_allocator_t* const wfa_mm_allocator = wfa_mm_allocators[tid];
             // Cutting
             // check if we have sequences that are too long
             bool to_break = false;
@@ -420,20 +467,26 @@ double gap_compressed_identity(
                                     }
 
                                     double id = -1;
-                                    EdlibAlignResult result = edlibAlign(
-                                            curr.c_str(), curr_len, other.c_str(), other_len,
-                                            edlibNewAlignConfig(
-                                                    -1,
-                                                    EDLIB_MODE_HW,
-                                                    EDLIB_TASK_PATH, NULL, 0
-                                                    )
-                                    );
-                                    if (result.status == EDLIB_STATUS_OK && result.editDistance >= 0) {
-                                        //curr.size() >= other.size() by design
-
-                                        id = gap_compressed_identity(result.alignment, result.alignmentLength);
+                                    // nb. curr.size() >= other.size() by design
+                                    // use reduced WFA to get a gap-compressed identity metric
+                                    int max_distance_threshold = curr_len * (1.0-block_group_identity) * 2;
+                                    int min_wavefront_length = 16;
+                                    wfa::affine_wavefronts_t* affine_wavefronts
+                                                        = affine_wavefronts = affine_wavefronts_new_reduced(
+                                                            curr_len, other_len, &wfa_affine_penalties,
+                                                            min_wavefront_length, max_distance_threshold,
+                                                            NULL, wfa_mm_allocator);
+                                    int max_score = curr_len; //std::round(other_len*(1.0-block_group_identity));; // soft bound
+                                    int score = wfa::affine_wavefronts_align_bounded(affine_wavefronts,
+                                                                                     curr.c_str(),
+                                                                                     curr_len,
+                                                                                     other.c_str(),
+                                                                                     other_len,
+                                                                                     max_score);
+                                    if (score < max_score) {
+                                        id = wfa_gap_compressed_identity(&affine_wavefronts->edit_cigar);
                                     }
-                                    edlibFreeAlignResult(result);
+                                    wfa::affine_wavefronts_delete(affine_wavefronts);
 
                                     if (id >= block_group_identity) {
                                         best_group = j;
@@ -528,6 +581,11 @@ double gap_compressed_identity(
         ready_blocks.clear();
         ready_blocks.shrink_to_fit();
         std::vector<std::vector<block_t>>().swap(ready_blocks);
+
+        //std::vector<wfa::mm_allocator_t*> wfa_mm_allocators(thread_count);
+        for (auto& mm_alloc : wfa_mm_allocators) {
+            wfa::mm_allocator_delete(mm_alloc);
+        }
 
         delete blockset;
         blockset = broken_blockset;
