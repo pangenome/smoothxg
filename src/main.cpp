@@ -428,6 +428,9 @@ int main(int argc, char **argv) {
                                                       args::get(write_block_fastas),
                                                       max_merged_groups_in_memory);
 
+            std::cerr << "[smoothxg::main] unchopping smoothed graph" << std::endl;
+            odgi::algorithms::unchop(*smoothed, n_threads, true);
+
             uint64_t smoothed_nodes = 0;
             uint64_t smoothed_length = 0;
             smoothed->for_each_handle(

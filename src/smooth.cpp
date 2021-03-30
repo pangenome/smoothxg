@@ -1942,9 +1942,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         embed_progress.finish();
     }
 
-    std::cerr << "[smoothxg::smooth_and_lace] unchopping" << std::endl;
-    odgi::algorithms::unchop(*smoothed, n_threads, true);
-
     return smoothed;
 }
 
