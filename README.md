@@ -25,6 +25,7 @@ git clone --recursive https://github.com/pangenome/smoothxg.git
 cd smoothxg
 cmake -H. -Bbuild && cmake --build build -- -j 4
 ```
+`libzstd-dev` must be of version 1.4 or higher.
 
 A `Bioconda` package of `smoothxg` can't be build, because `conda` comes with its own GCC V7.5. Altering that would 
 result in unexpected behaviour for the whole environment. See https://github.com/bioconda/bioconda-recipes/pull/26189#issuecomment-767123749.
