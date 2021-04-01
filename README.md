@@ -36,3 +36,5 @@ git clone --recursive https://github.com/pangenome/smoothxg.git
 cd smoothxg
 cmake -H. -Bbuild && cmake --build build -- -j 4
 ```
+
+`libzstd-dev` must be of version 1.4 or higher.
