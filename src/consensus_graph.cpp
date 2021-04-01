@@ -257,6 +257,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                               }
                           }
                       });
+//#pragma omp critical (cerr)
+            //std::cerr << "got consensus distance " << std::abs(end_pos - start_pos) << std::endl;
             if (start_pos >= 0 && end_pos >= 0) {
                 return std::abs(end_pos - start_pos);
             } else {
@@ -336,9 +338,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                               << std::endl;
                     */
                     uint64_t jump_length = (link.from_cons_path == curr_consensus ?
-                                            std::abs(curr_start_fwd - last_end_fwd)
+                                            //std::abs(curr_start_fwd - last_end_fwd)
                                             // distance between last and current on the given path
-                                            //consensus_distance(curr_consensus, last_handle, curr_handle) // not working
+                                            consensus_distance(curr_consensus, last_handle, curr_handle) // not working
                                             : std::min(std::min(std::abs(curr_start_fwd - last_end_fwd),
                                                              std::abs(curr_start_rev - last_end_rev)),
                                                     std::min(std::abs(curr_start_fwd - last_end_rev),
@@ -622,8 +624,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                     ||
                                     (novel_bp >= min_allele_length
                                      && novel_bp < max_allele_length))) {
-//#pragma omp critical (stderr)
-                                //std::cerr << "Got link " << link.length << " " << link.jump_length << " " << largest_novel_gap_bp << " " << novel_bp << std::endl;
                                 link.rank = link_rank++;
                                 save_links.push_back(link);
                                 mark_seen_nodes(link.begin, link.end, seen_nodes, smoothed);

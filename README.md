@@ -11,8 +11,19 @@ Then, to yield a "smoothed" graph, it walks the original paths to lace these sub
 The resulting graph only contains cyclic or inverting structures larger than the chosen block size, and is otherwise manifold linear.
 In addition to providing a linear structure to the graph, `smoothxg` can be used to extract the consensus pangenome graph by applying the _heaviest bundle_ algorithm to each chain.
 
+# algorithm sketch
+
 To find blocks, `smoothxg` applies a greedy algorithm that assumes that the graph nodes are sorted according to their occurence in the graph's embedded paths.
 The path-guided stochastic gradient descent based 1D sort implemented in `odgi sort -Y` is designed to provide this kind of sort.
+This sort is similar to a 1-dimensional graph layout.
+After finding blocks
+
+## input
+
+Smoothxg can operate an any input variation graph in GFA format.
+The graph must have sequences represented as paths in P records, while the topology of the graph is in S and L records.
+Path names should be unique.
+`seqwish` is a standard way to make such a graph.
 
 ## building
 
@@ -25,6 +36,3 @@ git clone --recursive https://github.com/pangenome/smoothxg.git
 cd smoothxg
 cmake -H. -Bbuild && cmake --build build -- -j 4
 ```
-
-A `Bioconda` package of `smoothxg` can't be build, because `conda` comes with its own GCC V7.5. Altering that would 
-result in unexpected behaviour for the whole environment. See https://github.com/bioconda/bioconda-recipes/pull/26189#issuecomment-767123749.
