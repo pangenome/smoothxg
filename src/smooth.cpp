@@ -1710,7 +1710,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
         {
             std::stringstream validate_banner;
-            validate_banner << "[smoothxg::smooth_and_lace] validating " << paths.size() << " path sequences and graph topology:";
+            validate_banner << "[smoothxg::smooth_and_lace] validating " << paths.size() << " path sequences:";
             progress_meter::ProgressMeter validate_progress(paths.size(), validate_banner.str());
 
 #pragma omp parallel for schedule(dynamic,1)
@@ -1726,24 +1726,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 smoothed->for_each_step_in_path(
                     path,
                     [&](const step_handle_t &step) {
-                        if (smoothed->has_next_step(step)) {
-                            handle_t h = smoothed->get_handle_of_step(step);
-
-                            step_handle_t next_step = smoothed->get_next_step(step);
-                            handle_t next_h = smoothed->get_handle_of_step(next_step);
-
-                            if (!smoothed->has_edge(h, next_h)) {
-#pragma omp critical (cout)
-                                std::cerr << "[smoothxg::smooth_and_lace] error: the path " << smoothed->get_path_name(path) << " does not "
-                                          << "respect the graph topology: the link "
-                                          << smoothed->get_id(h) << (smoothed->get_is_reverse(h) ? "-" : "+")
-                                          << ","
-                                          << smoothed->get_id(next_h) << (smoothed->get_is_reverse(next_h) ? "-" : "+")
-                                          << " is missing." << std::endl;
-                                exit(1);
-                            }
-                        }
-
                         smoothed_seq.append(smoothed->get_sequence(smoothed->get_handle_of_step(step)));
                     });
                 if (orig_seq != smoothed_seq) {
@@ -1754,7 +1736,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                               << "smoothed\t" << smoothed_seq << std::endl;
                     exit(1);
                 }
-                assert(orig_seq == smoothed_seq);
+
                 validate_progress.increment(1);
             }
             validate_progress.finish();
