@@ -1638,14 +1638,13 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
         // then for each path, ensure that it's embedded in the graph by walking through
         // its block segments in order and linking them up in the output graph
-        // then for each path, ensure that it's embedded in the graph by walking through
-        // its block segments in order and linking them up in the output graph
         std::stringstream lace_banner;
         lace_banner << "[smoothxg::smooth_and_lace] embedding " << path_mapping.size() << " path fragments:";
         progress_meter::ProgressMeter lace_progress(path_mapping.size(), lace_banner.str());
         for (uint64_t i = 0; i < path_mapping.size(); ++i) {
             path_position_range_t pos_range = path_mapping.read_value(i);
             step_handle_t last_step = {0, 0};
+            bool first = true;
             uint64_t last_end_pos = 0;
             // add the path to the graph
 
@@ -1664,7 +1663,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 auto block_id = get_block_id(pos_range);
                 auto& block = graphs[block_id];
                 auto id_trans = id_mapping.at(block_id);
-                bool first = true;
                 block->for_each_step_in_path(
                     get_target_path(pos_range), [&](const step_handle_t &step) {
                         handle_t h = block->get_handle_of_step(step);
