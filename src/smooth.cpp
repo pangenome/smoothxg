@@ -1922,21 +1922,22 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         embed_banner << "[smoothxg::smooth_and_lace] walking edges in "
                      << paths.size() << " paths:";
         progress_meter::ProgressMeter embed_progress(paths.size(), embed_banner.str());
-        // embed all paths in the graph
-        for (auto& path : paths) {
-            handle_t last;
-            step_handle_t begin_step = smoothed->path_begin(path);
-            smoothed->for_each_step_in_path(
-                path,
-                [&](const step_handle_t &step) {
-                    handle_t h = smoothed->get_handle_of_step(step);
-                    if (step != begin_step) {
-                        smoothed->create_edge(last, h);
-                    }
-                    last = h;
-                });
-            embed_progress.increment(1);
-        }
+        // embed all paths in the graph to ensure validity
+        smoothed->for_each_path_handle(
+            [&](const path_handle_t& path) {
+                handle_t last;
+                step_handle_t begin_step = smoothed->path_begin(path);
+                smoothed->for_each_step_in_path(
+                    path,
+                    [&](const step_handle_t &step) {
+                        handle_t h = smoothed->get_handle_of_step(step);
+                        if (step != begin_step) {
+                            smoothed->create_edge(last, h);
+                        }
+                        last = h;
+                    });
+                embed_progress.increment(1);
+            });
         embed_progress.finish();
     }
 
