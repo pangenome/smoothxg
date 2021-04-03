@@ -1710,13 +1710,13 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
         {
             std::stringstream validate_banner;
-            validate_banner << "[smoothxg::smooth_and_lace] validating " << paths.size() << " path sequences:";
+            validate_banner << "[smoothxg::smooth_and_lace] validating " << paths.size() << " path sequences and graph topology:";
             progress_meter::ProgressMeter validate_progress(paths.size(), validate_banner.str());
 
 #pragma omp parallel for schedule(dynamic,1)
             for (uint64_t i = 0; i < paths.size(); ++i) {
-                uint64_t path_id = i;
-                auto path = paths[path_id];
+                auto path = paths[i];
+
                 std::string orig_seq, smoothed_seq;
                 graph.for_each_step_in_path(
                     graph.get_path_handle(smoothed->get_path_name(path)),
@@ -1726,6 +1726,24 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 smoothed->for_each_step_in_path(
                     path,
                     [&](const step_handle_t &step) {
+                        if (smoothed->has_next_step(step)) {
+                            handle_t h = smoothed->get_handle_of_step(step);
+
+                            step_handle_t next_step = smoothed->get_next_step(step);
+                            handle_t next_h = smoothed->get_handle_of_step(next_step);
+
+                            if (!smoothed->has_edge(h, next_h)) {
+#pragma omp critical (cout)
+                                std::cerr << "[smoothxg::smooth_and_lace] error: the path " << smoothed->get_path_name(path) << " does not "
+                                          << "respect the graph topology: the link "
+                                          << smoothed->get_id(h) << (smoothed->get_is_reverse(h) ? "-" : "+")
+                                          << ","
+                                          << smoothed->get_id(next_h) << (smoothed->get_is_reverse(next_h) ? "-" : "+")
+                                          << " is missing." << std::endl;
+                                exit(1);
+                            }
+                        }
+
                         smoothed_seq.append(smoothed->get_sequence(smoothed->get_handle_of_step(step)));
                     });
                 if (orig_seq != smoothed_seq) {
