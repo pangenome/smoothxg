@@ -586,7 +586,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         {
                             uint64_t links_to_add =
                                 (most_frequent_link.from_cons_path == most_frequent_link.to_cons_path)
-                                ? std::min((uint64_t)2, (uint64_t)unique_links.size()) : 1;
+                                ? 0 : std::min((uint64_t)std::max((int64_t)0, (int64_t)2-(int64_t)perfect_edge_count),
+                                               (uint64_t)unique_links.size());
                             for (uint64_t i = 0; i < links_to_add; ++i) {
                                 auto& link = unique_links[i];
                                 link.rank = link_rank++;
