@@ -612,7 +612,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                      && link.jump_length >= min_allele_length
                                      && link.jump_length < max_allele_length
                                      && (link.length == 0
-                                         || largest_novel_gap_bp * 1.61803 > novel_bp))
+                                         || (novel_bp >= min_allele_length
+                                             && largest_novel_gap_bp * 1.61803 > novel_bp))
                                     || (novel_bp >= min_allele_length
                                         && novel_bp < max_allele_length))) {
                                 link.rank = link_rank++;
