@@ -127,7 +127,7 @@ double wfa_gap_compressed_identity(
                 << max_poa_length << ")" << std::endl;
         std::cerr << std::fixed << std::setprecision(3) << "[smoothxg::break_and_split_blocks] splitting "
                   << blockset->size() << " blocks " <<
-                  "at identity " << block_group_identity << " (edlib-based clustering) and " <<
+                  "at identity " << block_group_identity << " (WFA-based clustering) and " <<
                   "at estimated-identity " << block_group_est_identity << " (mash-based clustering)" << std::endl;
 
         std::stringstream breaks_and_splits_banner;

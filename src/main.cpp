@@ -325,6 +325,7 @@ int main(int argc, char **argv) {
         smoothxg::smoothable_blocks(*graph,
                                     *blockset,
                                     max_block_weight,
+                                    max_poa_length,
                                     max_block_jump,
                                     max_edge_jump,
                                     order_paths_from_longest,

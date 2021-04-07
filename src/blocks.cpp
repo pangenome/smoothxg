@@ -8,6 +8,7 @@ void smoothable_blocks(
     const xg::XG& graph,
     blockset_t& blockset,
     const uint64_t& max_block_weight,
+    const uint64_t& max_block_path_length,
     const uint64_t& max_path_jump,
     const uint64_t& max_edge_jump,
     const bool& order_paths_from_longest,
@@ -186,6 +187,7 @@ void smoothable_blocks(
     progress_meter::ProgressMeter blocks_progress(graph.get_node_count(), blocks_banner.str());
 
     uint64_t total_path_length = 0;
+    ska::flat_hash_map<path_handle_t, std::pair<uint64_t, uint64_t>> path_coverage;
 
     graph.for_each_handle(
         [&](const handle_t& handle) {
@@ -199,6 +201,15 @@ void smoothable_blocks(
                         sequence_to_add += handle_length;
                     }
                 });
+            // nb. this doesn't count duplicate traversals, but doing so would require running a full block traversal at every handle
+            uint64_t max_path_length = 0;
+            for (auto& p : path_coverage) {
+                uint64_t path_len_est = std::round((double)p.second.first
+                                                   / (p.second.second < block_handles.size()
+                                                      ? 1.0
+                                                      : (double) p.second.second / (double) block_handles.size()));
+                max_path_length = std::max(path_len_est + handle_length, max_path_length);
+            }
             // for each edge, find the jump length
             int64_t longest_edge_jump = 0;
             int64_t handle_vec_offset = vec_graph.node_vector_offset(graph.get_id(handle));
@@ -225,7 +236,10 @@ void smoothable_blocks(
                     !block_handles.empty() &&
 
                     // if we add to the current block, do we go over our total path length?
-                    ((total_path_length + sequence_to_add > max_block_weight) || (max_edge_jump && longest_edge_jump > max_edge_jump))
+                    // do we have a path that seems to exceed our length limit?
+                    ((total_path_length + sequence_to_add > max_block_weight)
+                     || (max_edge_jump && longest_edge_jump > max_edge_jump)
+                     || max_path_length > max_block_path_length)
             ) {
                 /*
                 std::cerr << "block over weight "
@@ -236,11 +250,22 @@ void smoothable_blocks(
                 finalize_block(block, block_handles);
 
                 total_path_length = sequence_to_add;
+                path_coverage.clear();
+
             } else {
                 // if not, add and update
 
                 total_path_length += sequence_to_add;
             }
+
+            graph.for_each_step_on_handle(
+                handle,
+                [&](const step_handle_t& step) {
+                    if (!seen_step(step)) {
+                        path_coverage[graph.get_path_handle_of_step(step)].first += handle_length;
+                        path_coverage[graph.get_path_handle_of_step(step)].second++;
+                    }
+                });
 
             block_handles.push_back(handle);
 
