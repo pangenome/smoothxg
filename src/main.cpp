@@ -79,11 +79,11 @@ int main(int argc, char **argv) {
     args::Flag no_prep(parser, "bool",
                        "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)",
                        {'n', "no-prep"});
-    args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000]",
+    args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000000]",
                                                 {'w', "block-weight-max"});
-    args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 5000]",
+    args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 100]",
                                               {'j', "path-jump-max"});
-    args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 5000]",
+    args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 0 / off]",
                                              {'e', "edge-jump-max"});
 
     args::ValueFlag<uint64_t> _max_merged_groups_in_memory(parser, "N",
@@ -115,8 +115,10 @@ int main(int argc, char **argv) {
     args::ValueFlag<uint64_t> _max_copy_length(parser, "N",
                                                "maximum repeat length to attempt to detect [default: 20000]",
                                                {'W', "copy-length-max"});
-    args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into poa [default: 10000]",
-                                              {'l', "poa-length-max"});
+    args::ValueFlag<uint64_t> _target_poa_length(parser, "N", "target length to put into POA, blocks are split when paths go over this length [default: 5000]",
+                                              {'l', "poa-length-target"});
+    args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into POA, cut sequences over this length [default: 2*poa-length-target = 10000]",
+                                              {'q', "poa-length-max"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)",
                                             "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 1,4,6,2,26,1]",
@@ -207,12 +209,13 @@ int main(int argc, char **argv) {
 
         double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 
-        uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000;
-        uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 5000;
-        uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 5000;
+        uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000000;
+        uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 100;
+        uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 0;
         uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
         uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
-        uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 10000;
+        uint64_t target_poa_length = _target_poa_length ? args::get(_target_poa_length) : 5000;
+        uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 2 * target_poa_length;
 
         uint64_t max_merged_groups_in_memory = _max_merged_groups_in_memory ? args::get(_max_merged_groups_in_memory)
                                                                             : 50;
@@ -325,7 +328,7 @@ int main(int argc, char **argv) {
         smoothxg::smoothable_blocks(*graph,
                                     *blockset,
                                     max_block_weight,
-                                    max_poa_length,
+                                    target_poa_length,
                                     max_block_jump,
                                     max_edge_jump,
                                     order_paths_from_longest,
