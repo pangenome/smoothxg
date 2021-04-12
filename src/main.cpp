@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N",
                                                       "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]",
                                                       {'U', "path-sgd-term-updates"});
-    args::Flag use_spoa(parser, "use-spoa",
+    args::Flag use_abpoa(parser, "use-abpoa",
                         "run abPOA (in global alignment mode) instead of spoa (in local alignment mode) for smoothing",
                         {'S', "use-abpoa"});
     args::Flag change_alignment_mode(parser, "change-alignment-mode",
@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
         uint64_t min_dedup_depth_for_mash_clustering = _min_dedup_depth_for_mash_clustering ? args::get(
                 _min_dedup_depth_for_mash_clustering) : 12000;
 
-        if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
+        if (args::get(use_abpoa) && args::get(change_alignment_mode)) {
             std::cerr
                     << "[smoothxg::main] error: Currently, the local alignment mode of abpoa is not supported. As default "
                     << "abpoa is ran in global mode. You can select spoa in local alignment mode via -S, --spoa. To run spoa in "
@@ -276,7 +276,7 @@ int main(int argc, char **argv) {
                 poa_n = params[1];
                 poa_g = params[2];
                 poa_e = params[3];
-                if (args::get(use_spoa)) {
+                if (!args::get(use_abpoa)) {
                     poa_q = poa_g;
                     poa_c = poa_e;
                 } else {
@@ -292,7 +292,7 @@ int main(int argc, char **argv) {
 
         }
 
-        bool order_paths_from_longest = args::get(use_spoa);
+        bool order_paths_from_longest = !args::get(use_abpoa);
         float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
         float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 10);
 
@@ -358,7 +358,7 @@ int main(int argc, char **argv) {
         // we collect path_step_rank_ranges and the identifier of an interval is the index of a block in the blocks vector
         //ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> happy_tree_friends = smoothxg::generate_path_nuc_range_block_index(blocks, graph);
 
-        bool local_alignment = args::get(use_spoa) ^args::get(change_alignment_mode);
+        bool local_alignment = !args::get(use_abpoa) ^args::get(change_alignment_mode);
 
         std::string maf_header;
         if (write_msa_in_maf_format) {
@@ -382,7 +382,7 @@ int main(int argc, char **argv) {
 
             // POA
             maf_header += "# POA=";
-            maf_header += (args::get(use_spoa) ? "SPOA" : "abPOA");
+            maf_header += (!args::get(use_abpoa) ? "SPOA" : "abPOA");
             maf_header += " alignment_mode=";
             maf_header += (local_alignment ? "local" : "global");
             maf_header += " order_paths=from_";
@@ -424,7 +424,7 @@ int main(int argc, char **argv) {
                                                       args::get(write_msa_in_maf_format), maf_header,
                                                       args::get(merge_blocks), args::get(_preserve_unmerged_consensus),
                                                       contiguous_path_jaccard,
-                                                      !args::get(use_spoa),
+                                                      args::get(use_abpoa),
                                                       add_consensus ? consensus_path_prefix : "",
                                                       consensus_path_names,
                                                       args::get(write_block_fastas),
