@@ -16,6 +16,7 @@
 #include "odgi/xp.hpp"
 #include "odgi/path_sgd.hpp"
 #include "odgi/groom.hpp"
+#include "odgi/normalize.hpp"
 
 namespace smoothxg {
 

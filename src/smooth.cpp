@@ -528,7 +528,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
     odgi::graph_t block_graph;
     build_odgi_SPOA(poa_graph, &block_graph, names, aln_is_reverse, consensus_name, !consensus_name.empty());
 
-        // normalize the representation, allowing for nodes > 1bp
+    // normalize the representation, allowing for nodes > 1bp
     //auto graph_copy = output_graph;
     if (!odgi::algorithms::unchop(block_graph)) {
         std::cerr << "[smoothxg::smooth_abpoa] error: unchop failure, saving before/after graph to disk" << std::endl;

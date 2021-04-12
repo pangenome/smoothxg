@@ -19,6 +19,9 @@ void prep(
     odgi::gfa_to_handle(gfa_in, &graph, num_threads, true);
     graph.set_number_of_threads(num_threads);
 
+    // normalize the graph
+    odgi::algorithms::normalize(graph, 10, true);
+
     // sort it using a short sorting pipeline equivalent to `odgi sort -p Ygs`
 
     // first path-guided SGD

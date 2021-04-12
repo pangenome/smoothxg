@@ -9,6 +9,7 @@
 #include <iostream>
 #include <fstream>
 #include <deps/odgi/src/odgi.hpp>
+#include "odgi/normalize.hpp"
 #include "args.hxx"
 #include "sdsl/bit_vectors.hpp"
 #include "chain.hpp"
@@ -121,14 +122,14 @@ int main(int argc, char **argv) {
     args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)",
                                             "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 1,4,6,2,26,1]",
                                             {'p', "poa-params"});
-    args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]",
+    args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 10]",
                                          {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N",
                                                       "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]",
                                                       {'U', "path-sgd-term-updates"});
     args::Flag use_spoa(parser, "use-spoa",
-                        "run spoa (in local alignment mode) instead of abPOA (in global alignment mode) for smoothing",
-                        {'S', "spoa"});
+                        "run abPOA (in global alignment mode) instead of spoa (in local alignment mode) for smoothing",
+                        {'S', "use-abpoa"});
     args::Flag change_alignment_mode(parser, "change-alignment-mode",
                                      "change the alignment mode of spoa to global, the local alignment mode of abpoa is currently not supported",
                                      {'Z', "change-alignment-mode"});
@@ -293,7 +294,7 @@ int main(int argc, char **argv) {
 
         bool order_paths_from_longest = args::get(use_spoa);
         float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
-        float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
+        float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 10);
 
         std::cerr << "[smoothxg::main] loading graph" << std::endl;
         auto graph = std::make_unique<XG>();
@@ -429,8 +430,16 @@ int main(int argc, char **argv) {
                                                       args::get(write_block_fastas),
                                                       max_merged_groups_in_memory);
 
-            std::cerr << "[smoothxg::main] unchopping smoothed graph" << std::endl;
-            odgi::algorithms::unchop(*smoothed, n_threads, true);
+            std::cerr << "[smoothxg::main] normalizing smoothed graph" << std::endl;
+            odgi::algorithms::normalize(*smoothed, 10, true);
+            smoothed->apply_ordering(odgi::algorithms::topological_order(
+                                         smoothed, true, true, true),
+                                     true);
+            smoothed->apply_ordering(odgi::algorithms::groom(*smoothed, true));
+            // final toposort
+            smoothed->apply_ordering(odgi::algorithms::topological_order(
+                                         smoothed, true, true, true),
+                                     true);
 
             uint64_t smoothed_nodes = 0;
             uint64_t smoothed_length = 0;

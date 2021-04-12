@@ -623,8 +623,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                         smoothed.get_handle_of_step(link.begin),
                                         smoothed.get_handle_of_step(link.end)));
                                 ++zero_links;
-                            } else if (link.length == novel_bp
-                                && ((most_frequent_link.from_cons_path == most_frequent_link.to_cons_path
+                            } else if (//link.length == novel_bp
+                                ((most_frequent_link.from_cons_path == most_frequent_link.to_cons_path
                                      && link.jump_length >= min_allele_length
                                      && link.jump_length < max_allele_length
                                      && (link.length == 0
@@ -689,6 +689,21 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 
     std::vector<link_path_t> keep_consensus_links;
     std::vector<std::string> link_path_names;
+
+    auto link_steps =
+        [&](const step_handle_t& a, const step_handle_t& b) {
+            handle_t from = smoothed.get_handle_of_step(a);
+            handle_t to = smoothed.get_handle_of_step(b);
+            nid_t from_id = smoothed.get_id(from);
+            nid_t to_id = smoothed.get_id(to);
+            if (consensus->has_node(from_id)
+                && consensus->has_node(to_id)) {
+                consensus->create_edge(consensus->get_handle(smoothed.get_id(from),
+                                                             smoothed.get_is_reverse(from)),
+                                       consensus->get_handle(smoothed.get_id(to),
+                                                             smoothed.get_is_reverse(to)));
+            }
+        };
 
     // add the consensus paths first
     // FIXME could this be run in parallel? --> create the path in an extra for
@@ -809,79 +824,47 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 
         // add link paths and edges not in the consensus paths
         for (auto& link : consensus_links) {
-            //std::cerr << "making " << "Link_" << smoothed.get_path_name(link.from_cons_path) << "_" << smoothed.get_path_name(link.to_cons_path) << "_" << link.rank << std::endl;
-            // create link paths and paths
+            //mark_seen_nodes(link.begin, link.end, link_seen_nodes, smoothed);
+            // make the path name
             if (link.length > 0) {
-                auto& novel_link = link;
-                // check if this link path is completely novel, to avoid adding "accordions" and SNP arrays to the consensus
-                uint64_t novel_bp = novel_sequence_length(link.begin, link.end, link_seen_nodes, smoothed);
-                //std::cerr << "link length vs novel bp " << link.length << " " << novel_bp << std::endl;
-                std::vector<link_path_t> links;
-                if (link.length > novel_bp) {
-                    uint64_t largest_novel_gap_bp = largest_novel_gap(link.begin, link.end, link_seen_nodes, smoothed);
-                    // attemp to add the link if it's very novel, but only after we trim it into pieces
-                    if (largest_novel_gap_bp > 0.95 * link.length) {
-                        // here we need to convert the link path into two paths that continue until they're not novel anymore
-                        //std::cerr << "not novel enough" << std::endl;
-                        auto start_novel = novel_start(link.begin, link.end, link_seen_nodes, smoothed);
-                        auto end_novel = novel_end(link.begin, link.end, link_seen_nodes, smoothed);
-                        if (start_novel.first != start_novel.second) {
-                            auto link_start = link;
-                            link_start.begin = start_novel.first;
-                            link_start.end = start_novel.second;
-                            links.push_back(link_start);
-                            //std::cerr << "adding start link" << std::endl;
-                        }
-                        if (end_novel.first != end_novel.second) {
-                            auto link_end = link;
-                            link_end.begin = end_novel.first;
-                            link_end.end = end_novel.second;
-                            links.push_back(link_end);
-                            //std::cerr << "adding end link" << std::endl;
-                        }
+                stringstream s;
+                s << "Link_" << *link.from_cons_name << "_" << *link.to_cons_name << "_" << link.rank;
+                //std::cerr << "adding link " << s.str() << std::endl;
+                assert(!consensus->has_path(s.str()));
+                path_handle_t path_cons_graph = consensus->create_path_handle(s.str());
+                //link_paths.push_back(path_cons_graph);
+
+                // add the current node first, then add the step
+                handle_t cur_handle_in_cons_graph;
+                uint64_t step_count = 0;
+                for (step_handle_t step = (smoothed.has_next_step(link.begin)
+                                           ? smoothed.get_next_step(link.begin)
+                                           : link.begin);
+                     step != link.end;
+                     step = smoothed.get_next_step(step)) {
+                    handle_t h = smoothed.get_handle_of_step(step);
+                    nid_t node_id = smoothed.get_id(h);
+                    if (!consensus->has_node(node_id)) {
+                        //assert(false);
+                        // this must be kept
+                        cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(smoothed.get_handle(node_id)), node_id);
+                    } else {
+                        cur_handle_in_cons_graph = consensus->get_handle(node_id);
                     }
-                } else {
-                    links.push_back(link);
+
+                    if (smoothed.get_is_reverse(h)) {
+                        consensus->append_step(path_cons_graph, consensus->flip(cur_handle_in_cons_graph));
+                    } else {
+                        consensus->append_step(path_cons_graph, cur_handle_in_cons_graph);
+                    }
+                    ++step_count;
                 }
-                uint64_t i = 0;
-                for (auto& link : links) {
-                    mark_seen_nodes(link.begin, link.end, link_seen_nodes, smoothed);
-                    // make the path name
-                    stringstream s;
-                    s << "Link_" << *novel_link.from_cons_name << "_" << *novel_link.to_cons_name << "_" << novel_link.rank << "_" << i++;
-                    //std::cerr << "adding link " << s.str() << std::endl;
-                    assert(!consensus->has_path(s.str()));
-                    path_handle_t path_cons_graph = consensus->create_path_handle(s.str());
-                    //link_paths.push_back(path_cons_graph);
-
-                    // add the current node first, then add the step
-                    handle_t cur_handle_in_cons_graph;
-                    uint64_t step_count = 0;
-                    for (step_handle_t step = (smoothed.has_next_step(novel_link.begin)
-                                               ? smoothed.get_next_step(novel_link.begin)
-                                               : novel_link.begin);
-                         step != novel_link.end;
-                         step = smoothed.get_next_step(step)) {
-                        handle_t h = smoothed.get_handle_of_step(step);
-                        nid_t node_id = smoothed.get_id(h);
-                        if (!consensus->has_node(node_id)) {
-                            //assert(false);
-                            // this must be kept
-                            cur_handle_in_cons_graph = consensus->create_handle(smoothed.get_sequence(smoothed.get_handle(node_id)), node_id);
-                        } else {
-                            cur_handle_in_cons_graph = consensus->get_handle(node_id);
-                        }
-
-                        if (smoothed.get_is_reverse(h)) {
-                            consensus->append_step(path_cons_graph, consensus->flip(cur_handle_in_cons_graph));
-                        } else {
-                            consensus->append_step(path_cons_graph, cur_handle_in_cons_graph);
-                        }
-                        ++step_count;
-                    }
-                    if (step_count) {
-                        link_path_names.push_back(s.str());
-                    }
+                if (step_count) {
+                    link_path_names.push_back(s.str());
+                }
+            } else {
+                if (link.begin != link.end) {
+                    link_steps(link.begin, link.end);
                 }
             }
         }
@@ -914,22 +897,6 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         consensus->create_edge(h, j);
     }
 
-    auto link_steps =
-        [&](const step_handle_t& a, const step_handle_t& b) {
-            handle_t from = smoothed.get_handle_of_step(a);
-            handle_t to = smoothed.get_handle_of_step(b);
-            nid_t from_id = smoothed.get_id(from);
-            nid_t to_id = smoothed.get_id(to);
-            if (consensus->has_node(from_id)
-                && consensus->has_node(to_id)) {
-                consensus->create_edge(consensus->get_handle(smoothed.get_id(from),
-                                                           smoothed.get_is_reverse(from)),
-                                      consensus->get_handle(smoothed.get_id(to),
-                                                           smoothed.get_is_reverse(to)));
-            }
-        };
-
-
     std::cerr << "[smoothxg::create_consensus_graph] adding link paths: walking the paths" << std::endl;
     // preserve topology of links by walking the path they derive from
     // forward and backward and ensuring this is in the consensus graph
@@ -955,6 +922,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     consensus = copy;
 
     // remove 0-depth nodes and edges
+    /*
     std::vector<handle_t> handles_to_drop = odgi::algorithms::find_handles_exceeding_coverage_limits(*consensus, 1, 0);
     if (!handles_to_drop.empty()) {
         for (auto& handle : handles_to_drop) {
@@ -963,6 +931,10 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
 
         odgi::algorithms::unchop(*consensus, thread_count, true);
     }
+    */
+    //odgi::algorithms::normalize(*smoothed, 10, true);
+    consensus->apply_ordering(odgi::algorithms::groom(*consensus, true));
+    odgi::algorithms::unchop(*consensus, thread_count, true);
 
     uint64_t consensus_nodes = 0;
     uint64_t consensus_length = 0;
