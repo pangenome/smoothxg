@@ -97,6 +97,9 @@ int main(int argc, char **argv) {
     args::ValueFlag<double> _block_length_ratio_min(parser, "N",
                                                     "minimum small / large length ratio to cluster in a block [default: 0.05]",
                                                     {'R', "block-ratio-min"});
+    args::ValueFlag<uint64_t> _min_dedup_depth_for_block_splitting(parser, "N",
+                                                                   "minimum (deduplicated) block depth for applying the block split [default: 2000, 0 to disable it]",
+                                                                   {'d', "min-block-depth-split"});
     args::ValueFlag<uint64_t> _min_dedup_depth_for_mash_clustering(parser, "N",
                                                                    "minimum (deduplicated) block depth for applying the mash-based clustering [default: 12000, 0 to disable it]",
                                                                    {'D', "min-block-depth-mash"});
@@ -138,7 +141,6 @@ int main(int argc, char **argv) {
                            {'T', "prep-no-toposort"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
-    //args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
 
     try {
         parser.ParseCLI(argc, argv);
@@ -206,25 +208,24 @@ int main(int argc, char **argv) {
         }
 
 
+        const double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 
-        double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
+        const uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000000;
+        const uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 100;
+        const uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 0;
+        const uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
+        const uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
+        const uint64_t target_poa_length = _target_poa_length ? args::get(_target_poa_length) : 5000;
+        const uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 2 * target_poa_length;
 
-        uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000000;
-        uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 100;
-        uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 0;
-        uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
-        uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
-        uint64_t target_poa_length = _target_poa_length ? args::get(_target_poa_length) : 5000;
-        uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 2 * target_poa_length;
-
-        uint64_t max_merged_groups_in_memory = _max_merged_groups_in_memory ? args::get(_max_merged_groups_in_memory)
+        const uint64_t max_merged_groups_in_memory = _max_merged_groups_in_memory ? args::get(_max_merged_groups_in_memory)
                                                                             : 50;
 
         // Block split
-        double block_length_ratio_min = _block_length_ratio_min ? args::get(_block_length_ratio_min) : 0.05;
-        uint64_t min_length_mash_based_clustering = _min_length_mash_based_clustering ? args::get(
+        const double block_length_ratio_min = _block_length_ratio_min ? args::get(_block_length_ratio_min) : 0.05;
+        const uint64_t min_length_mash_based_clustering = _min_length_mash_based_clustering ? args::get(
                 _min_length_mash_based_clustering) : 200;
-        uint64_t kmer_size = _kmer_size ? args::get(_kmer_size) : 17;
+        const uint64_t kmer_size = _kmer_size ? args::get(_kmer_size) : 17;
         if (min_length_mash_based_clustering != 0 && min_length_mash_based_clustering < kmer_size) {
             std::cerr
                     << "[smoothxg::main] error: the minimum sequences length to cluster sequences using mash-distance "
@@ -233,10 +234,13 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        double block_group_identity = _block_group_identity ? args::get(_block_group_identity) : 0.5;
-        double block_group_est_identity = _block_group_est_identity ? args::get(_block_group_est_identity)
+        const uint64_t min_dedup_depth_for_block_splitting = _min_dedup_depth_for_block_splitting ? args::get(
+                _min_dedup_depth_for_block_splitting) : 0;
+
+        const double block_group_identity = _block_group_identity ? args::get(_block_group_identity) : 0.5;
+        const double block_group_est_identity = _block_group_est_identity ? args::get(_block_group_est_identity)
                                                                     : block_group_identity;
-        uint64_t min_dedup_depth_for_mash_clustering = _min_dedup_depth_for_mash_clustering ? args::get(
+        const uint64_t min_dedup_depth_for_mash_clustering = _min_dedup_depth_for_mash_clustering ? args::get(
                 _min_dedup_depth_for_mash_clustering) : 12000;
 
         if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
@@ -294,9 +298,9 @@ int main(int argc, char **argv) {
 
         }
 
-        bool order_paths_from_longest = args::get(use_spoa);
-        float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
-        float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
+        const bool order_paths_from_longest = args::get(use_spoa);
+        const float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
+        const float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
         std::cerr << "[smoothxg::main] loading graph" << std::endl;
         auto graph = std::make_unique<XG>();
@@ -334,8 +338,8 @@ int main(int argc, char **argv) {
                                     order_paths_from_longest,
                                     num_threads);
 
-        uint64_t min_autocorr_z = 5;
-        uint64_t autocorr_stride = 50;
+        const uint64_t min_autocorr_z = 5;
+        const uint64_t autocorr_stride = 50;
 
         smoothxg::break_blocks(*graph,
                                blockset,
@@ -344,6 +348,7 @@ int main(int argc, char **argv) {
                                block_group_identity,
                                block_group_est_identity,
                                kmer_size,
+                               min_dedup_depth_for_block_splitting,
                                min_dedup_depth_for_mash_clustering,
                                max_poa_length,
                                min_copy_length,
@@ -360,7 +365,7 @@ int main(int argc, char **argv) {
         // we collect path_step_rank_ranges and the identifier of an interval is the index of a block in the blocks vector
         //ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> happy_tree_friends = smoothxg::generate_path_nuc_range_block_index(blocks, graph);
 
-        bool local_alignment = args::get(use_spoa) ^args::get(change_alignment_mode);
+        const bool local_alignment = args::get(use_spoa) ^args::get(change_alignment_mode);
 
         std::string maf_header;
         if (write_msa_in_maf_format) {
