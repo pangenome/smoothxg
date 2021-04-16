@@ -97,6 +97,9 @@ int main(int argc, char **argv) {
     args::ValueFlag<double> _block_length_ratio_min(parser, "N",
                                                     "minimum small / large length ratio to cluster in a block [default: 0.05]",
                                                     {'R', "block-ratio-min"});
+    args::ValueFlag<uint64_t> _min_dedup_depth_for_block_splitting(parser, "N",
+                                                                   "minimum (deduplicated) block depth for applying the block split [default: 2000, 0 to disable it]",
+                                                                   {'d', "min-block-depth-split"});
     args::ValueFlag<uint64_t> _min_dedup_depth_for_mash_clustering(parser, "N",
                                                                    "minimum (deduplicated) block depth for applying the mash-based clustering [default: 12000, 0 to disable it]",
                                                                    {'D', "min-block-depth-mash"});
@@ -138,7 +141,6 @@ int main(int argc, char **argv) {
                            {'T', "prep-no-toposort"});
     args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
-    //args::Flag debug(parser, "debug", "enable debugging", {'d', "debug"});
 
     try {
         parser.ParseCLI(argc, argv);
@@ -232,6 +234,9 @@ int main(int argc, char **argv) {
                     << std::endl;
             return 1;
         }
+
+        uint64_t min_dedup_depth_for_block_splitting = _min_dedup_depth_for_block_splitting ? args::get(
+                _min_dedup_depth_for_block_splitting) : 2000;
 
         double block_group_identity = _block_group_identity ? args::get(_block_group_identity) : 0.5;
         double block_group_est_identity = _block_group_est_identity ? args::get(_block_group_est_identity)
@@ -344,6 +349,7 @@ int main(int argc, char **argv) {
                                block_group_identity,
                                block_group_est_identity,
                                kmer_size,
+                               min_dedup_depth_for_block_splitting,
                                min_dedup_depth_for_mash_clustering,
                                max_poa_length,
                                min_copy_length,
