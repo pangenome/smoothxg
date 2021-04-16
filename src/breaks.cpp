@@ -360,7 +360,7 @@ double wfa_gap_compressed_identity(
                     std::string().swap(seq_rev);
                 }
 
-                if (rank_and_seqs_dedup.size() >= min_dedup_depth_for_block_splitting) {
+                if (min_dedup_depth_for_block_splitting != 0 && rank_and_seqs_dedup.size() >= min_dedup_depth_for_block_splitting) {
                     // Sort by length and lexicographically, to have similar sequences close to each other in the order
                     std::sort(
                             rank_and_seqs_dedup.begin(), rank_and_seqs_dedup.end(),
