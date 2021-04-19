@@ -40,6 +40,71 @@ void smoothable_blocks(
         [&](const step_handle_t& step) {
             seen_steps[path_rank(step)-1][step_rank(step)] = 1;
         };
+    auto toposplit_block =
+        [&](const block_t& block) {
+            ska::flat_hash_map<uint64_t, uint64_t> id_to_entry;
+            std::vector<uint64_t> nodes;
+            // collect handles
+            uint64_t node_count = 0;
+            for (auto& path_range : block.path_ranges) {
+                for (step_handle_t step = path_range.begin;
+                     step != path_range.end;
+                     step = graph.get_next_step(step)) {
+                    auto h = graph.get_handle_of_step(step);
+                    auto id = graph.get_id(h);
+                    auto f = id_to_entry.find(id);
+                    if (f == id_to_entry.end()) {
+                        id_to_entry[id] = node_count++;
+                        nodes.push_back(id);
+                    }
+                }
+            }
+            std::vector<odgi::DisjointSets::Aint> data(nodes.size()+1); // maps into this set of disjoint sets
+            auto dset = odgi::DisjointSets(data.data(), data.size());
+#pragma omp parallel for num_threads(num_threads)
+            for (auto& path_range : block.path_ranges) {
+                step_handle_t step = path_range.begin;
+                while (true) {
+                    auto next = graph.get_next_step(step);
+                    if (next == path_range.end) break;
+                    dset.unite(id_to_entry[graph.get_id(graph.get_handle_of_step(step))],
+                               id_to_entry[graph.get_id(graph.get_handle_of_step(next))]);
+                    step = next;
+                }
+            }
+            // compute the block count and node to block mapping
+            uint64_t n_dsets = 0;
+            ska::flat_hash_map<uint64_t, uint64_t> dset_ids;
+            ska::flat_hash_map<uint64_t, uint64_t> node_to_dset;
+            for (auto& path_range : block.path_ranges) {
+                for (step_handle_t step = path_range.begin;
+                     step != path_range.end;
+                     step = graph.get_next_step(step)) {
+                    auto id_node = graph.get_id(graph.get_handle_of_step(step));
+                    auto entry = id_to_entry[id_node];
+                    auto id_dset = dset.find(entry);
+                    auto f = dset_ids.find(id_dset);
+                    if (f == dset_ids.end()) {
+                        dset_ids[id_dset] = n_dsets++;
+                    }
+                    node_to_dset[id_node] = dset_ids[id_dset];
+                }
+            }
+            std::vector<block_t> blocks(n_dsets);
+            // break the block apart
+            for (auto& path_range : block.path_ranges) {
+                step_handle_t step = path_range.begin;
+                uint64_t dset_id = node_to_dset[graph.get_id(graph.get_handle_of_step(step))];
+                for ( ;
+                     step != path_range.end;
+                     step = graph.get_next_step(step)) {
+                    uint64_t next_dset_id = node_to_dset[graph.get_id(graph.get_handle_of_step(step))];
+                    assert(dset_id == next_dset_id);
+                }
+                blocks[dset_id].path_ranges.push_back(path_range);
+            }
+            return blocks;
+        };
     auto finalize_block =
         [&](block_t& block, std::vector<handle_t>& block_handles) {
             // collect the steps on all handles
@@ -128,24 +193,15 @@ void smoothable_blocks(
             for (auto& path_range : block.path_ranges) {
                 auto& included_path_length = path_range.length;
                 included_path_length = 0;
-                /*
-                std::cerr << "on path range for " << graph.get_path_name(graph.get_path_handle_of_step(path_range.begin))
-                          << " " << graph.get_id(graph.get_handle_of_step(path_range.begin))
-                          << "-"
-                          << graph.get_id(graph.get_handle_of_step(graph.get_previous_step(path_range.end))) << std::endl;
-                */
                 // here we need to break when we see significant nonlinearities
                 for (step_handle_t curr_step = path_range.begin;
                      curr_step != path_range.end;
                      curr_step = graph.get_next_step(curr_step)) {
-                    //std::cerr << "on step " << graph.get_id(graph.get_handle_of_step(curr_step)) << std::endl;
                     mark_step(curr_step);
                     included_path_length += graph.get_length(graph.get_handle_of_step(curr_step));
                 }
                 _total_path_length += included_path_length;
-                //block.max_path_length = std::max(included_path_length, block.max_path_length);
             }
-            //std::cerr << "max_path_length " << block.max_path_length << std::endl;
 
             if (_total_path_length > 0) {
                 // order the path ranges from longest/shortest to shortest/longest
@@ -164,18 +220,12 @@ void smoothable_blocks(
                             return a.length < b.length;
                         }
                 );
-                /*
-                std::cerr << "block----" << std::endl;
-                for (auto& path_range : block.path_ranges) {
-                    std::cerr << "path_range " << path_range.length << " "
-                              << graph.get_path_name(graph.get_path_handle_of_step(path_range.begin))
-                              << " " << graph.get_id(graph.get_handle_of_step(path_range.begin))
-                              << "-"
-                              << graph.get_id(graph.get_handle_of_step(graph.get_previous_step(path_range.end))) << std::endl;
+                // split blocks by graph topology
+                // here weakly connected components of the graph are split apart
+                // so that we do not compress disparate parts of the graph in one POA block
+                for (auto& split : toposplit_block(block)) {
+                    blockset.add_block(rank++, split);
                 }
-                */
-
-                blockset.add_block(rank++, block);
             };
 
             std::vector<path_range_t>().swap(block.path_ranges);
