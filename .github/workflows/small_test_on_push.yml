@@ -20,6 +20,7 @@ jobs:
           libgsl-dev
           zlib1g-dev
           libzstd-dev
+          libjemalloc-dev
       - name: Init and update submodules
         run: git submodule update --init --recursive
       - name: Build smoothxg
