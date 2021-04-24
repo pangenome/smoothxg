@@ -62,6 +62,9 @@ int main(int argc, char **argv) {
     args::Flag merge_blocks(parser, "bool",
                             "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",
                             {'M', "merge-blocks"});
+    args::Flag vanish_consensus(parser, "bool",
+                                "remove the consensus paths from the emitted graph",
+                                {'V', "vanish-consensus"});
     args::Flag _preserve_unmerged_consensus(parser, "bool",
                                             "do not delete original consensus sequences in the merged MAF blocks and in the smoothed graph",
                                             {'N', "preserve-unmerged-consensus"});
@@ -139,7 +142,6 @@ int main(int argc, char **argv) {
                                      {'Z', "change-alignment-mode"});
     args::Flag no_toposort(parser, "prep-no-toposort", "do not apply topological sorting in the prep sort pipeline",
                            {'T', "prep-no-toposort"});
-    args::Flag validate(parser, "validate", "validate construction", {'V', "validate"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
 
     try {
@@ -163,7 +165,7 @@ int main(int argc, char **argv) {
     std::string smoothed_out_gfa = args::get(smoothed_out);
     std::vector<std::string> consensus_path_names;
     std::vector<smoothxg::consensus_spec_t> consensus_specs;
-    bool requires_consensus = false;
+    bool requires_consensus = !args::get(vanish_consensus);
     bool write_consensus_graph = false;
     std::string consensus_path_prefix = _consensus_path_prefix ? args::get(_consensus_path_prefix) : "Consensus_";
 
@@ -322,7 +324,7 @@ int main(int argc, char **argv) {
                 gfa_in_name = args::get(gfa_in);
             }
             std::cerr << "[smoothxg::main] building xg index" << std::endl;
-            graph->from_gfa(gfa_in_name, args::get(validate), args::get(base));
+            graph->from_gfa(gfa_in_name, false, args::get(base));
             if (!args::get(keep_temp) && !args::get(no_prep)) {
                 std::remove(gfa_in_name.c_str());
             }
@@ -503,7 +505,7 @@ int main(int argc, char **argv) {
         XG smoothed_xg;
         if (_read_consensus_path_names) {
             std::string smoothed_in_gfa = args::get(_smoothed_in_gfa);
-            smoothed_xg.from_gfa(smoothed_in_gfa, args::get(validate),
+            smoothed_xg.from_gfa(smoothed_in_gfa, false,
                                  args::get(base).empty() ? smoothed_in_gfa : args::get(base));
             std::ifstream file(args::get(_read_consensus_path_names));
             std::string path_name;
@@ -511,7 +513,7 @@ int main(int argc, char **argv) {
                 consensus_path_names.push_back(path_name);
             }
         } else {
-            smoothed_xg.from_gfa(smoothed_out_gfa, args::get(validate),
+            smoothed_xg.from_gfa(smoothed_out_gfa, false,
                                  args::get(base).empty() ? smoothed_out_gfa : args::get(base));
         }
         for (auto &spec : consensus_specs) {
