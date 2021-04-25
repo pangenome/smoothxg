@@ -125,7 +125,7 @@ double wfa_gap_compressed_identity(
 
         std::cerr
                 << "[smoothxg::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length ("
-                << max_poa_length << ")" << std::endl;
+                << max_poa_length << ") and depth >= " << min_dedup_depth_for_block_splitting << std::endl;
         std::cerr << std::fixed << std::setprecision(3) << "[smoothxg::break_and_split_blocks] splitting "
                   << blockset->size() << " blocks " <<
                   "at identity " << block_group_identity << " (WFA-based clustering) and " <<
@@ -360,7 +360,7 @@ double wfa_gap_compressed_identity(
                     std::string().swap(seq_rev);
                 }
 
-                if (min_dedup_depth_for_block_splitting != 0 && rank_and_seqs_dedup.size() >= min_dedup_depth_for_block_splitting) {
+                if (min_dedup_depth_for_block_splitting != 0 && rank_and_seqs_dedup.size() >= block.path_ranges.size()) {
                     // Sort by length and lexicographically, to have similar sequences close to each other in the order
                     std::sort(
                             rank_and_seqs_dedup.begin(), rank_and_seqs_dedup.end(),
