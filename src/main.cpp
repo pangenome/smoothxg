@@ -95,10 +95,10 @@ int main(int argc, char **argv) {
 
     // Block split
     args::ValueFlag<double> _block_group_identity(parser, "N",
-                                                  "minimum edit-based identity to cluster sequences [default: 0.5]",
+                                                  "minimum edit-based identity to cluster sequences [default: 0.0]",
                                                   {'I', "block-id-min"});
     args::ValueFlag<double> _block_length_ratio_min(parser, "N",
-                                                    "minimum small / large length ratio to cluster in a block [default: 0.05]",
+                                                    "minimum small / large length ratio to cluster in a block [default: 0.0]",
                                                     {'R', "block-ratio-min"});
     args::ValueFlag<uint64_t> _min_dedup_depth_for_block_splitting(parser, "N",
                                                                    "minimum (deduplicated) block depth for applying the block split [default: 2000, 0 to disable it]",
@@ -224,7 +224,7 @@ int main(int argc, char **argv) {
                                                                             : 50;
 
         // Block split
-        const double block_length_ratio_min = _block_length_ratio_min ? args::get(_block_length_ratio_min) : 0.05;
+        const double block_length_ratio_min = _block_length_ratio_min ? args::get(_block_length_ratio_min) : 0.0;
         const uint64_t min_length_mash_based_clustering = _min_length_mash_based_clustering ? args::get(
                 _min_length_mash_based_clustering) : 200;
         const uint64_t kmer_size = _kmer_size ? args::get(_kmer_size) : 17;
@@ -239,7 +239,7 @@ int main(int argc, char **argv) {
         const uint64_t min_dedup_depth_for_block_splitting = _min_dedup_depth_for_block_splitting ? args::get(
                 _min_dedup_depth_for_block_splitting) : 0;
 
-        const double block_group_identity = _block_group_identity ? args::get(_block_group_identity) : 0.5;
+        const double block_group_identity = _block_group_identity ? args::get(_block_group_identity) : 0.0;
         const double block_group_est_identity = _block_group_est_identity ? args::get(_block_group_est_identity)
                                                                     : block_group_identity;
         const uint64_t min_dedup_depth_for_mash_clustering = _min_dedup_depth_for_mash_clustering ? args::get(
