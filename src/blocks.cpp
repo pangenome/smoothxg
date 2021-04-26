@@ -61,7 +61,6 @@ void smoothable_blocks(
             }
             std::vector<odgi::DisjointSets::Aint> data(nodes.size()+1); // maps into this set of disjoint sets
             auto dset = odgi::DisjointSets(data.data(), data.size());
-#pragma omp parallel for num_threads(num_threads)
             for (auto& path_range : block.path_ranges) {
                 step_handle_t step = path_range.begin;
                 while (true) {
