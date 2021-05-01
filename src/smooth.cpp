@@ -89,13 +89,27 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
+    std::vector<bool> is_rev;
     std::size_t max_sequence_size = 0;
     for (auto &path_range : block.path_ranges) {
         seqs.emplace_back();
         auto &seq = seqs.back();
+        uint64_t fwd_bp = 0;
+        uint64_t rev_bp = 0;
         for (step_handle_t step = path_range.begin; step != path_range.end;
              step = graph.get_next_step(step)) {
-            seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+            auto h = graph.get_handle_of_step(step);
+            auto l = graph.get_length(h);
+            seq.append(graph.get_sequence(h));
+            if (graph.get_is_reverse(h)) {
+                rev_bp += l;
+            } else {
+                fwd_bp += l;
+            }
+        }
+        is_rev.push_back(rev_bp > fwd_bp);
+        if (is_rev.back()) {
+            odgi::reverse_complement_in_place(seqs.back());
         }
         std::stringstream namess;
         namess << graph.get_path_name(
@@ -132,7 +146,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpt->out_gfa = 1; // must be set to get the graph
     abpt->out_msa = maf != nullptr ? 1 : 0; // must be set when we extract the MSA
     abpt->out_cons = add_consensus;
-    abpt->amb_strand = 1; // we'll align both ways and check which is better
+    abpt->amb_strand = 0; //we align based on orientation relative to the graph
     abpt->match = poa_m;
     abpt->mismatch = poa_n;
     abpt->gap_open1 = poa_g;
@@ -172,7 +186,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         bool aligned = -1 != abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
         // nb: we should check if we should do anything special when !res->traceback_ok
         abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], res, i, n_seqs);
-        is_rc[i] = res.is_rc;
+        // todo: remove this copy
+        is_rc[i] = is_rev[i];
         if (res.n_cigar) {
             free(res.graph_cigar);
         }
