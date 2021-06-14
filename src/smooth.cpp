@@ -181,40 +181,47 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         }
     }
 
+    // force assignment of these abpoa context object parameters
+    ab->abs->n_seq = 0;
+    ab->abs->m_seq = 0;
+
     // variables to store result
     uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n = 0;
     uint8_t **msa_seq; int msa_l = 0;
 
-    int i, tot_n = n_seq;
-    auto *is_rc = (uint8_t *)_err_malloc((n_seq + (add_consensus ? 1 : 0)) * sizeof(uint8_t));
-
     abpoa_reset_graph(ab, abpt, seq_lens[0]);
+    //abpoa_reset_graph(ab, abpt, 1024);
+    //if (abpt->incr_fn) abpoa_restore_graph(ab, abpt); // restore existing graph
+    abpoa_seq_t *abs = ab->abs; int i, exist_n_seq = ab->abs->n_seq;
 
-    /*
-    for (i = 0; i < n_seqs; ++i) {
-        abpoa_res_t res;
-        res.graph_cigar = nullptr, res.n_cigar = 0;
-        abpt->rev_cigar = 0;
-        bool aligned = -1 != abpoa_align_sequence_to_graph(ab, abpt, bseqs[i], seq_lens[i], &res);
-        // nb: we should check if we should do anything special when !res->traceback_ok
-        abpoa_add_graph_alignment(ab, abpt, bseqs[i], seq_lens[i], NULL, res, i, n_seqs, 1);
-        // todo: remove this copy
-        is_rc[i] = is_rev[i];
-        if (res.n_cigar) {
-            free(res.graph_cigar);
-        }
+    // set ab->abs, name
+    abs->n_seq += n_seq;
+    if (abs->n_seq > abs->m_seq) {
+        abs->m_seq = abs->n_seq;
+        abs->name = (abpoa_str_t*)_err_realloc(abs->name, abs->m_seq * sizeof(abpoa_str_t));
+        abs->is_rc = (uint8_t*)_err_realloc(abs->is_rc, abs->m_seq * sizeof(uint8_t));
     }
+    /*
+    if (seq_names) {
+        for (i = 0; i < n_seq; ++i) {
+            abpoa_cpy_str(abs->name+i, seq_names[i], strlen(seq_names[i]));
+        }
+    } else {
     */
+    // force null names, we'll sort things out later by ordering
+    for (i = 0; i < n_seq; ++i) {
+        abs->name[i].l = 0; abs->name[i].m = 0;
+    }
 
-    // always reset graph before perform POA
+    // always reset graph before performing POA
     int max_len = 0;
     for (i = 0; i < n_seq; ++i) {
         if (seq_lens[i] > max_len) max_len = seq_lens[i];
-        is_rc[i] = is_rev[i]; // superfluous copy
+        abs->is_rc[i] = is_rev[i]; // superfluous copy
     }
 
     if (abpt->disable_seeding || abpt->align_mode != ABPOA_GLOBAL_MODE) {
-        abpoa_poa(ab, abpt, bseqs, seq_lens, n_seq, n_seq);
+        abpoa_poa(ab, abpt, bseqs, seq_lens, exist_n_seq, n_seq);
     } else {
         // sequence pos to node id
         int *tpos_to_node_id = (int*)_err_calloc(max_len, sizeof(int)), *qpos_to_node_id = (int*)_err_calloc(max_len, sizeof(int));
@@ -233,7 +240,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         }
 
         // perform partial order alignment
-        abpoa_anchor_poa(ab, abpt, bseqs, seq_lens, par_anchors, par_c, tpos_to_node_id, qpos_to_node_id, read_id_map, n_seq, n_seq);
+        abpoa_anchor_poa(ab, abpt, bseqs, seq_lens, par_anchors, par_c, tpos_to_node_id, qpos_to_node_id, read_id_map, exist_n_seq, n_seq);
         free(read_id_map); free(tpos_to_node_id); free(qpos_to_node_id); free(par_c);
         if (par_anchors.m > 0) free(par_anchors.a);
     }
@@ -259,7 +266,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             err_printf("ERROR: no consensus sequence generated.\n");
             exit(1);
         }
-        is_rc[n_seq] = 0;
+        abs->is_rc[n_seq] = 0;
 
         /*fprintf(stdout, "=== output to variables ===\n");
         for (int i = 0; i < cons_n; ++i) {
@@ -294,7 +301,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                 // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
                 uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
                 auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
-                record_start = is_rc[seq_rank] ?
+                record_start = abs->is_rc[seq_rank] ?
                                (path_length - graph.get_position_of_step(last_step) -
                                 graph.get_length(graph.get_handle_of_step(last_step))) :
                                path_range_begin;
@@ -340,7 +347,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             (*maf)[path_name].push_back({
                 record_start,
                 seq_size,
-                is_rc[seq_rank] == 1,
+                abs->is_rc[seq_rank] == 1,
                 path_length,
                 aligned_seq
             });
@@ -373,9 +380,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(seq_lens);
 
     odgi::graph_t block_graph;
-    build_odgi_abPOA(ab, abpt, &block_graph, names, is_rc, consensus_name, add_consensus);
+    build_odgi_abPOA(ab, abpt, &block_graph, names, abs->is_rc, consensus_name, add_consensus);
 
-    free(is_rc);
     abpoa_free(ab);
     abpoa_free_para(abpt);
 
