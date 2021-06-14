@@ -149,8 +149,9 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     if (!banded_alignment) {
         abpt->wb = -1;
     } else {
-        abpt->wb = 32;
+        abpt->wb = 512;
     }
+    abpt->wf = 0.025; // hmm
     //abpt->zdrop = 100; // could be useful in local mode
     //abpt->end_bonus = 100; // also useful in local mode
     abpt->rev_cigar = 0;
@@ -164,7 +165,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpt->gap_open2 = poa_q;
     abpt->gap_ext1 = poa_e;
     abpt->gap_ext2 = poa_c;
-    abpt->disable_seeding = 1;
+    abpt->disable_seeding = 1; // setting to 0 is great for performance but unstable
 
     // finalize parameters
     abpoa_post_set_para(abpt);
