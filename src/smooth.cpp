@@ -149,9 +149,9 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     if (!banded_alignment) {
         abpt->wb = -1;
     } else {
-        abpt->wb = 512;
+        abpt->wb = 256;
     }
-    abpt->wf = 0.025; // hmm
+    abpt->wf = 0.05; // hmm
     //abpt->zdrop = 100; // could be useful in local mode
     //abpt->end_bonus = 100; // also useful in local mode
     abpt->rev_cigar = 0;
