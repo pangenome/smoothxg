@@ -42,7 +42,7 @@
 	url = https://github.com/ekg/sautocorr.git
 [submodule "deps/abPOA"]
 	path = deps/abPOA
-	url = https://github.com/ekg/abPOA
+	url = https://github.com/pangenome/abPOA
 [submodule "deps/edlib"]
 	path = deps/edlib
 	url = https://github.com/Martinsos/edlib.git
