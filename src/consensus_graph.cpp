@@ -9,8 +9,12 @@ bool operator<(const link_path_t& a,
     auto& a_1 = as_integer(a.to_cons_path);
     auto& b_0 = as_integer(b.from_cons_path);
     auto& b_1 = as_integer(b.to_cons_path);
-    return std::tie(a_0, a_1, a.length, a.jump_length, a.begin, a.end, as_integer(a.path))
-        < std::tie(b_0, b_1, b.length, b.jump_length, b.begin, b.end, as_integer(b.path));
+    auto a_0_p = a.from_cons_part;
+    auto a_1_p = a.to_cons_part;
+    auto b_0_p = b.from_cons_part;
+    auto b_1_p = b.to_cons_part;
+    return std::tie(a_0, a_0_p, a_1, a_1_p, a.length, a.jump_length, a.begin, a.end, as_integer(a.path))
+        < std::tie(b_0, b_0_p, b_1, b_1_p, b.length, b.jump_length, b.begin, b.end, as_integer(b.path));
 }
 
 ostream& operator<<(ostream& o, const link_path_t& a) {
@@ -18,7 +22,9 @@ ostream& operator<<(ostream& o, const link_path_t& a) {
       << a.from_cons_name << " "
       << a.to_cons_name << " "
       << as_integer(a.from_cons_path) << " "
+      << (int)a.from_cons_part << " "
       << as_integer(a.to_cons_path) << " "
+      << (int)a.to_cons_part << " "
       << a.length << " "
       << a.hash << " "
       << as_integer(a.path) << " "
@@ -200,8 +206,10 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         [&](const link_path_t& a, const std::string& seq) {
             stringstream h;
             h << as_integer(a.from_cons_path) << "_"
+              << a.from_cons_part << "_"
               << smoothed.get_id(smoothed.get_handle_of_step(a.begin)) << "_"
               << as_integer(a.to_cons_path) << "_"
+              << a.to_cons_part << "_"
               << smoothed.get_id(smoothed.get_handle_of_step(a.end)) << "_"
               << a.length << "_"
               << a.jump_length << "_"
@@ -308,7 +316,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     link.from_cons_name = cons_path_ptr[as_integer(curr_consensus)];
                     link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
                     link.from_cons_path = curr_consensus;
+                    link.from_cons_part = path_part_t::middle; // WHERE WE ARE IN THE PATH
                     link.to_cons_path = curr_consensus;
+                    link.to_cons_part = path_part_t::middle; //XXXXX TODO TODO
                     link.begin = step;
                     link.end = step;
                     link.hash = 0;
@@ -380,9 +390,12 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         bool rev_e = smoothed.get_is_reverse(h_e);
                         nid_t id_b = smoothed.get_id(h_b);
                         nid_t id_e = smoothed.get_id(h_e);
+                        auto part_b = path_part_t::middle; // TODO FIXME
+                        auto part_e = path_part_t::middle; // part of the consensus path, beginning, middle, end
                         if (rev_b && rev_e
-                            || ((rev_b || rev_e) && id_b > id_e)) {
+                            || ((rev_b || rev_e) && std::tie(id_b,part_b) > std::tie(id_e,part_e))) {
                             std::swap(link.from_cons_path, link.to_cons_path);
+                            std::swap(link.from_cons_part, link.to_cons_part);
                             std::swap(link.from_cons_name, link.to_cons_name);
                         }
                         link_path_ms->append(link);
@@ -394,6 +407,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
                         link.from_cons_path = curr_consensus;
                         link.to_cons_path = curr_consensus;
+                        link.from_cons_part = path_part_t::middle;
+                        link.to_cons_part = path_part_t::middle;
                         link.begin = step;
                         link.end = step;
                         link.hash = 0;
@@ -517,9 +532,12 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                   auto& a_1 = as_integer(a.to_cons_path);
                                   auto& b_0 = as_integer(b.from_cons_path);
                                   auto& b_1 = as_integer(b.to_cons_path);
-                                  return std::tie(hash_counts[a.hash], a_0, a_1, a.begin, a.end, a.length, a.jump_length, as_integer(a.path))
-                                      > std::tie(hash_counts[b.hash], b_0, b_1, b.begin, b.end, b.length, b.jump_length, as_integer(b.path));
-
+                                  auto a_0_p = a.from_cons_part;
+                                  auto a_1_p = a.to_cons_part;
+                                  auto b_0_p = b.from_cons_part;
+                                  auto b_1_p = b.to_cons_part;
+                                  return std::tie(hash_counts[a.hash], a_0, a_0_p, a_1, a_1_p, a.begin, a.end, a.length, a.jump_length, as_integer(a.path))
+                                      > std::tie(hash_counts[b.hash], b_0, b_0_p, b_1, b_1_p, b.begin, b.end, b.length, b.jump_length, as_integer(b.path));
                               });
                     // save the best link path
                     link_path_t most_frequent_link = unique_links.front();
@@ -553,26 +571,26 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                                 });
                         };
 
-                    auto a = most_frequent_link.from_cons_path;
-                    auto b = most_frequent_link.to_cons_path;
+                    auto a = std::make_pair(most_frequent_link.from_cons_path, most_frequent_link.from_cons_part);
+                    auto b = std::make_pair(most_frequent_link.to_cons_path, most_frequent_link.to_cons_part);
                     bool diff_consensi = a != b;
                     //std::cerr << "getting links for " << smoothed.get_path_name(a) << " and " << smoothed.get_path_name(b) << std::endl;
 
                     if (diff_consensi) {
                         //handle_t from_end_fwd
-                        link_cons_end(smoothed.path_back(a), false, b);
-                        link_cons_end(smoothed.path_begin(a), true, b);
-                        link_cons_end(smoothed.path_back(b), false, a);
-                        link_cons_end(smoothed.path_begin(b), true, a);
+                        link_cons_end(smoothed.path_back(a.first), false, b.first);
+                        link_cons_end(smoothed.path_begin(a.first), true, b.first);
+                        link_cons_end(smoothed.path_back(b.first), false, a.first);
+                        link_cons_end(smoothed.path_begin(b.first), true, a.first);
                         
-                        link_cons_end(smoothed.path_back(a), true, b);
-                        link_cons_end(smoothed.path_begin(a), false, b);
-                        link_cons_end(smoothed.path_back(b), true, a);
-                        link_cons_end(smoothed.path_begin(b), false, a);
+                        link_cons_end(smoothed.path_back(a.first), true, b.first);
+                        link_cons_end(smoothed.path_begin(a.first), false, b.first);
+                        link_cons_end(smoothed.path_back(b.first), true, a.first);
+                        link_cons_end(smoothed.path_begin(b.first), false, a.first);
                     }
 
-                    mark_seen_nodes(smoothed.path_begin(a), smoothed.path_end(a), seen_nodes, smoothed);
-                    mark_seen_nodes(smoothed.path_begin(b), smoothed.path_end(b), seen_nodes, smoothed);
+                    mark_seen_nodes(smoothed.path_begin(a.first), smoothed.path_end(a.first), seen_nodes, smoothed);
+                    mark_seen_nodes(smoothed.path_begin(b.first), smoothed.path_end(b.first), seen_nodes, smoothed);
 
                     auto& save_links = thread_consensus_links[tid];
                     uint64_t link_rank = 0;

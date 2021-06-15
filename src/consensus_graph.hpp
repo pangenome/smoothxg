@@ -17,11 +17,19 @@
 
 namespace smoothxg {
 
+enum path_part_t : uint8_t {
+    begin = 1,
+    middle = 2,
+    end = 3
+};
+
 struct link_path_t {
     std::string* from_cons_name;
     std::string* to_cons_name;
     path_handle_t from_cons_path;
     path_handle_t to_cons_path;
+    path_part_t from_cons_part;
+    path_part_t to_cons_part;
     uint64_t length; // nucleotides
     uint64_t hash;
     step_handle_t begin; // first step off consensus path
