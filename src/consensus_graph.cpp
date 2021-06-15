@@ -244,6 +244,34 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     auto link_path_ms = std::make_unique<mmmulti::set<link_path_t>>(base_mmset);
     link_path_ms->open_writer();
 
+    auto consensus_part =
+        [&](const path_handle_t& consensus,
+            const handle_t& handle) {
+            // find the consensus step on this handle
+            int64_t curr_pos = -1;
+            smoothed.for_each_step_on_handle(
+                handle, [&](const step_handle_t& step) {
+                    if (smoothed.get_path_handle_of_step(step) == consensus) {
+                        curr_pos = smoothed.get_position_of_step(step);
+                    }
+                });
+            // determine what part of the path we're in
+            // the first and last 1/8ths are the "ends"
+            // the rest is the middle
+            if (curr_pos >= 0) {
+                auto cons_len = smoothed.get_path_length(consensus);
+                if (curr_pos < cons_len / 8) {
+                    return path_part_t::begin;
+                } else if (curr_pos < cons_len - (cons_len / 8)) {
+                    return path_part_t::middle;
+                } else {
+                    return path_part_t::end;
+                }
+            } else {
+                return path_part_t::middle;
+            }
+        };
+
     auto consensus_distance =
         [&](const path_handle_t& consensus,
             const handle_t& last,
@@ -316,9 +344,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     link.from_cons_name = cons_path_ptr[as_integer(curr_consensus)];
                     link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
                     link.from_cons_path = curr_consensus;
-                    link.from_cons_part = path_part_t::middle; // WHERE WE ARE IN THE PATH
+                    link.from_cons_part = consensus_part(curr_consensus, h);
                     link.to_cons_path = curr_consensus;
-                    link.to_cons_part = path_part_t::middle; //XXXXX TODO TODO
+                    link.to_cons_part = link.from_cons_part;
                     link.begin = step;
                     link.end = step;
                     link.hash = 0;
@@ -355,7 +383,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     uint64_t jump_length = (link.from_cons_path == curr_consensus ?
                                             std::min(std::abs(curr_start_fwd - last_end_fwd),
                                                      // distance between last and current on the given path
-                                                     consensus_distance(curr_consensus, last_handle, curr_handle)) // not working
+                                                     consensus_distance(curr_consensus, last_handle, curr_handle))
                                             : 0);
                                             /*
                                             : std::min(std::min(std::abs(curr_start_fwd - last_end_fwd),
@@ -390,8 +418,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         bool rev_e = smoothed.get_is_reverse(h_e);
                         nid_t id_b = smoothed.get_id(h_b);
                         nid_t id_e = smoothed.get_id(h_e);
-                        auto part_b = path_part_t::middle; // TODO FIXME
-                        auto part_e = path_part_t::middle; // part of the consensus path, beginning, middle, end
+                        // part of the consensus path, beginning, middle, end
+                        auto part_b = consensus_part(link.from_cons_path, h_b);
+                        auto part_e = consensus_part(link.to_cons_path, h_e);
                         if (rev_b && rev_e
                             || ((rev_b || rev_e) && std::tie(id_b,part_b) > std::tie(id_e,part_e))) {
                             std::swap(link.from_cons_path, link.to_cons_path);
@@ -407,8 +436,8 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                         link.to_cons_name = cons_path_ptr[as_integer(curr_consensus)];
                         link.from_cons_path = curr_consensus;
                         link.to_cons_path = curr_consensus;
-                        link.from_cons_part = path_part_t::middle;
-                        link.to_cons_part = path_part_t::middle;
+                        link.from_cons_part = consensus_part(curr_consensus, h);
+                        link.to_cons_part = link.from_cons_part;
                         link.begin = step;
                         link.end = step;
                         link.hash = 0;
@@ -668,7 +697,9 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
         for (size_t i = 1; i < link_path_ms->size(); ++i) {
             link_path_t curr = link_path_ms->read_value(i);
             if (last.first.from_cons_path != curr.from_cons_path
-                || last.first.to_cons_path != curr.to_cons_path) {
+                || last.first.from_cons_part != curr.from_cons_part
+                || last.first.to_cons_path != curr.to_cons_path
+                || last.first.to_cons_part != curr.to_cons_part) {
                 link_groups.push_back(std::make_pair(last.second, i));
                 last = std::make_pair(curr, i);
             }
@@ -866,7 +897,11 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     mark_seen_nodes(link.begin, link.end, link_seen_nodes, smoothed);
                     // make the path name
                     stringstream s;
-                    s << "Link_" << *novel_link.from_cons_name << "_" << *novel_link.to_cons_name << "_" << novel_link.rank << "_" << i++;
+                    s << "Link_" << *novel_link.from_cons_name << "_"
+                      << (char)novel_link.from_cons_part << "_"
+                      << *novel_link.to_cons_name << "_"
+                      << (char)novel_link.to_cons_part << "_"
+                      << novel_link.rank << "_" << i++;
                     //std::cerr << "adding link " << s.str() << std::endl;
                     assert(!consensus->has_path(s.str()));
                     path_handle_t path_cons_graph = consensus->create_path_handle(s.str());

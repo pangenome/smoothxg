@@ -17,10 +17,10 @@
 
 namespace smoothxg {
 
-enum path_part_t : uint8_t {
-    begin = 1,
-    middle = 2,
-    end = 3
+enum path_part_t : char {
+    begin = 'b',
+    middle = 'm',
+    end = 'e'
 };
 
 struct link_path_t {
