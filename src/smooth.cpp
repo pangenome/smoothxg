@@ -191,8 +191,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     uint8_t **msa_seq; int msa_l = 0;
 
     abpoa_reset_graph(ab, abpt, seq_lens[0]);
-    //abpoa_reset_graph(ab, abpt, 1024);
-    //if (abpt->incr_fn) abpoa_restore_graph(ab, abpt); // restore existing graph
     abpoa_seq_t *abs = ab->abs; int i, exist_n_seq = ab->abs->n_seq;
 
     // set ab->abs, name
@@ -249,7 +247,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpoa_topological_sort(ab->abg, abpt);
 
     if (maf != nullptr){
-        //abpoa_generate_rc_msa(ab, abpt, nullptr, is_rc, tot_n, NULL, &msa_seq, &msa_l);
         abpoa_generate_rc_msa(ab, abpt, NULL, &msa_seq, &msa_l);
 
         /*fprintf(stdout, ">Multiple_sequence_alignment\n");
@@ -267,7 +264,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             err_printf("ERROR: no consensus sequence generated.\n");
             exit(1);
         }
-        abs->is_rc[n_seq] = 0;
+        is_rev.push_back(0); // add orientation for the consensus seq
 
         /*fprintf(stdout, "=== output to variables ===\n");
         for (int i = 0; i < cons_n; ++i) {
@@ -302,7 +299,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                 // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
                 uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
                 auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
-                record_start = abs->is_rc[seq_rank] ?
+                record_start = is_rev[seq_rank] ?
                                (path_length - graph.get_position_of_step(last_step) -
                                 graph.get_length(graph.get_handle_of_step(last_step))) :
                                path_range_begin;
@@ -348,7 +345,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             (*maf)[path_name].push_back({
                 record_start,
                 seq_size,
-                abs->is_rc[seq_rank] == 1,
+                is_rev[seq_rank] == 1,
                 path_length,
                 aligned_seq
             });
@@ -381,7 +378,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(seq_lens);
 
     odgi::graph_t block_graph;
-    build_odgi_abPOA(ab, abpt, &block_graph, names, abs->is_rc, consensus_name, add_consensus);
+    build_odgi_abPOA(ab, abpt, &block_graph, names, is_rev, consensus_name, add_consensus);
 
     abpoa_free(ab);
     abpoa_free_para(abpt);
@@ -2140,7 +2137,7 @@ void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
 
 void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::vector<std::string> &sequence_names,
-                      const uint8_t* aln_is_reverse,
+                      const std::vector<bool>& aln_is_reverse,
                       const std::string &consensus_name,
                       bool include_consensus) {
     abpoa_graph_t *abg = ab->abg;
