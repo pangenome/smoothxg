@@ -111,9 +111,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             }
         }
         is_rev.push_back(rev_bp > fwd_bp);
-        if (is_rev.back()) {
-            odgi::reverse_complement_in_place(seqs.back());
-        }
         std::stringstream namess;
         namess << graph.get_path_name(
                       graph.get_path_handle_of_step(path_range.begin))
