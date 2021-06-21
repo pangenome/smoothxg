@@ -182,41 +182,21 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         }
     }
 
-    // force assignment of these abpoa context object parameters
-    ab->abs->n_seq = 0;
-    ab->abs->m_seq = 0;
-
     // variables to store result
     uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n = 0;
     uint8_t **msa_seq; int msa_l = 0;
 
-    abpoa_reset_graph(ab, abpt, seq_lens[0]);
+    //abpoa_reset_graph(ab, abpt, 1024);
     abpoa_seq_t *abs = ab->abs; int i, exist_n_seq = ab->abs->n_seq;
 
-    // set ab->abs, name
-    abs->n_seq += n_seq;
-    if (abs->n_seq > abs->m_seq) {
-        abs->m_seq = abs->n_seq;
-        abs->name = (abpoa_str_t*)_err_realloc(abs->name, abs->m_seq * sizeof(abpoa_str_t));
-        abs->is_rc = (uint8_t*)_err_realloc(abs->is_rc, abs->m_seq * sizeof(uint8_t));
-    }
-    /*
-    if (seq_names) {
-        for (i = 0; i < n_seq; ++i) {
-            abpoa_cpy_str(abs->name+i, seq_names[i], strlen(seq_names[i]));
-        }
-    } else {
-    */
-    // force null names, we'll sort things out later by ordering
-    for (i = 0; i < n_seq; ++i) {
-        abs->name[i].l = 0; abs->name[i].m = 0;
-    }
+    // set ab->abs number of seqs
+    abs->n_seq = n_seq;
+    abs->m_seq = n_seq;
 
-    // always reset graph before performing POA
+    // determine the max sequence length
     int max_len = 0;
     for (i = 0; i < n_seq; ++i) {
         if (seq_lens[i] > max_len) max_len = seq_lens[i];
-        abs->is_rc[i] = is_rev[i]; // superfluous copy
     }
 
     if (abpt->disable_seeding || abpt->align_mode != ABPOA_GLOBAL_MODE) {
