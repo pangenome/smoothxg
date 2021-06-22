@@ -122,6 +122,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
+    int n_seq = seqs.size();
 
     if (save_block_fastas) {
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
@@ -171,7 +172,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpoa_post_set_para(abpt);
 
     // collect sequence length, transform ACGT to 0123
-    int n_seq = seqs.size();
     int *seq_lens = (int *)malloc(sizeof(int) * n_seq);
     auto **bseqs = (uint8_t **)malloc(sizeof(uint8_t *) * n_seq);
     for (int i = 0; i < n_seq; ++i) {
@@ -182,41 +182,22 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         }
     }
 
-    // force assignment of these abpoa context object parameters
-    ab->abs->n_seq = 0;
-    ab->abs->m_seq = 0;
-
     // variables to store result
     uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n = 0;
     uint8_t **msa_seq; int msa_l = 0;
 
-    abpoa_reset_graph(ab, abpt, seq_lens[0]);
+    abpoa_reset_graph(ab, abpt, 1024);
     abpoa_seq_t *abs = ab->abs; int i, exist_n_seq = ab->abs->n_seq;
 
-    // set ab->abs, name
-    abs->n_seq += n_seq;
-    if (abs->n_seq > abs->m_seq) {
-        abs->m_seq = abs->n_seq;
-        abs->name = (abpoa_str_t*)_err_realloc(abs->name, abs->m_seq * sizeof(abpoa_str_t));
-        abs->is_rc = (uint8_t*)_err_realloc(abs->is_rc, abs->m_seq * sizeof(uint8_t));
-    }
-    /*
-    if (seq_names) {
-        for (i = 0; i < n_seq; ++i) {
-            abpoa_cpy_str(abs->name+i, seq_names[i], strlen(seq_names[i]));
-        }
-    } else {
-    */
-    // force null names, we'll sort things out later by ordering
-    for (i = 0; i < n_seq; ++i) {
-        abs->name[i].l = 0; abs->name[i].m = 0;
-    }
+    // alloc our seq count
+    abs->m_seq = 0;
+    abs->n_seq = n_seq;
+    abpoa_realloc_seq(abs);
 
-    // always reset graph before performing POA
+    // determine the max sequence length
     int max_len = 0;
     for (i = 0; i < n_seq; ++i) {
         if (seq_lens[i] > max_len) max_len = seq_lens[i];
-        abs->is_rc[i] = is_rev[i]; // superfluous copy
     }
 
     if (abpt->disable_seeding || abpt->align_mode != ABPOA_GLOBAL_MODE) {
