@@ -122,6 +122,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
+    int n_seq = seqs.size();
 
     if (save_block_fastas) {
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
@@ -137,7 +138,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     bool add_consensus = !consensus_name.empty();
 
     // initialize abPOA
-    abpoa_t *ab = abpoa_init();
+    abpoa_t *ab = abpoa_init(n_seq+1);
     // initialize abPOA parameters
     abpoa_para_t *abpt = abpoa_init_para();
     // if we want to do local alignments
@@ -171,7 +172,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpoa_post_set_para(abpt);
 
     // collect sequence length, transform ACGT to 0123
-    int n_seq = seqs.size();
     int *seq_lens = (int *)malloc(sizeof(int) * n_seq);
     auto **bseqs = (uint8_t **)malloc(sizeof(uint8_t *) * n_seq);
     for (int i = 0; i < n_seq; ++i) {
