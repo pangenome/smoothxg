@@ -138,7 +138,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     bool add_consensus = !consensus_name.empty();
 
     // initialize abPOA
-    abpoa_t *ab = abpoa_init(n_seq+1);
+    abpoa_t *ab = abpoa_init();
     // initialize abPOA parameters
     abpoa_para_t *abpt = abpoa_init_para();
     // if we want to do local alignments
@@ -186,12 +186,13 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n = 0;
     uint8_t **msa_seq; int msa_l = 0;
 
-    //abpoa_reset_graph(ab, abpt, 1024);
+    abpoa_reset_graph(ab, abpt, 1024);
     abpoa_seq_t *abs = ab->abs; int i, exist_n_seq = ab->abs->n_seq;
 
-    // set ab->abs number of seqs
+    // alloc our seq count
+    abs->m_seq = 0;
     abs->n_seq = n_seq;
-    abs->m_seq = n_seq;
+    abpoa_realloc_seq(abs);
 
     // determine the max sequence length
     int max_len = 0;
