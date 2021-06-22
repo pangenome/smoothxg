@@ -1008,7 +1008,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
     consensus = copy;
 
     // remove 0-depth nodes and edges
-    std::vector<handle_t> handles_to_drop = odgi::algorithms::find_handles_exceeding_coverage_limits(*consensus, 1, 0);
+    std::vector<handle_t> handles_to_drop = odgi::algorithms::find_handles_exceeding_depth_limits(*consensus, 1, 0);
     if (!handles_to_drop.empty()) {
         for (auto& handle : handles_to_drop) {
             consensus->destroy_handle(handle);
