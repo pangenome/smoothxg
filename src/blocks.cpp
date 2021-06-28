@@ -59,7 +59,7 @@ void smoothable_blocks(
                     }
                 }
             }
-            std::vector<odgi::DisjointSets::Aint> data(nodes.size()+1); // maps into this set of disjoint sets
+            std::vector<std::atomic<odgi::DisjointSets::Aint>> data(nodes.size()+1); // maps into this set of disjoint sets
             auto dset = odgi::DisjointSets(data.data(), data.size());
             for (auto& path_range : block.path_ranges) {
                 step_handle_t step = path_range.begin;
