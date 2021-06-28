@@ -9,7 +9,7 @@
 #include "mmmultimap.hpp"
 #include "xg.hpp"
 #include "flat_hash_map.hpp"
-#include "deps/odgi/src/dset64-gccAtomic.hpp"
+#include "deps/odgi/src/dset64.hpp"
 
 #include "tempfile.hpp"
 
