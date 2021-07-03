@@ -150,7 +150,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     if (!banded_alignment) {
         abpt->wb = -1;
     } else {
-        abpt->wb = 512;
+        abpt->wb = 4096;
     }
     abpt->wf = 0.05; // hmm
     //abpt->zdrop = 100; // could be useful in local mode
@@ -1518,7 +1518,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                            local_alignment,
                                            (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                            produce_maf,
-                                           true, // banded alignment
+                                           false, // non-banded alignment
                                            consensus_name,
                                            write_fasta_blocks);
             } else {
