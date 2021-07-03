@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
     args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)",
                                             "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 1,4,6,2,26,1]",
                                             {'p', "poa-params"});
-    args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]",
+    args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 10]",
                                          {'X', "chop-to"});
     args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N",
                                                       "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]",
@@ -302,7 +302,7 @@ int main(int argc, char **argv) {
 
         const bool order_paths_from_longest = args::get(use_spoa);
         const float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
-        const float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
+        const float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 10);
 
         std::cerr << "[smoothxg::main] loading graph" << std::endl;
         auto graph = std::make_unique<XG>();
