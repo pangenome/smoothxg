@@ -126,6 +126,7 @@ int main(int argc, char **argv) {
     args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into POA, cut sequences over this length [default: 2*poa-length-target = 10000]",
                                               {'q', "poa-length-max"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
+    args::ValueFlag<uint64_t> num_poa_threads(parser, "N", "use this many POA threads (can be used to reduce memory requirements with large --poa-length-target settings) [default: --threads]", {'T', "poa-threads"});
     args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)",
                                             "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 1,4,6,2,26,1]",
                                             {'p', "poa-params"});
@@ -140,8 +141,6 @@ int main(int argc, char **argv) {
     args::Flag change_alignment_mode(parser, "change-alignment-mode",
                                      "change the alignment mode of spoa to global, the local alignment mode of abpoa is currently not supported",
                                      {'Z', "change-alignment-mode"});
-    args::Flag no_toposort(parser, "prep-no-toposort", "do not apply topological sorting in the prep sort pipeline",
-                           {'T', "prep-no-toposort"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
 
     try {
@@ -161,6 +160,7 @@ int main(int argc, char **argv) {
 
     size_t n_threads = num_threads ? args::get(num_threads) : 1;
     omp_set_num_threads(n_threads);
+    size_t n_poa_threads = num_poa_threads ? args::get(num_poa_threads) : n_threads;
 
     std::string smoothed_out_gfa = args::get(smoothed_out);
     std::vector<std::string> consensus_path_names;
@@ -319,7 +319,7 @@ int main(int argc, char **argv) {
                     gfa_in_name = args::get(base) + '/' + args::get(gfa_in) + ".prep.gfa";
                 }
                 std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
-                smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, !args::get(no_toposort), args::get(base), n_threads);
+                smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true, args::get(base), n_threads);
             } else {
                 gfa_in_name = args::get(gfa_in);
             }
@@ -430,6 +430,7 @@ int main(int argc, char **argv) {
                                                       poa_c,
                                                       local_alignment,
                                                       n_threads,
+                                                      n_poa_threads,
                                                       args::get(write_msa_in_maf_format), maf_header,
                                                       args::get(merge_blocks), args::get(_preserve_unmerged_consensus),
                                                       contiguous_path_jaccard,
