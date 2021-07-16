@@ -86,19 +86,20 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block, uint64_t b
                            bool save_block_fastas = false);
 
 odgi::graph_t* smooth_and_lace(const xg::XG &graph,
-                              blockset_t*& blockset,
-                              int poa_m, int poa_n,
-                              int poa_g, int poa_e,
-                              int poa_q, int poa_c,
-                              bool local_alignment,
-                              int n_threads,
-                              std::string &path_output_maf, std::string &maf_header,
-                              bool merge_blocks, bool preserve_unmerged_consensus, double contiguous_path_jaccard,
-                              bool use_abpoa,
-                              const std::string &consensus_name,
-                              std::vector<std::string>& consensus_path_names,
-                              bool write_fasta_blocks,
-                              uint64_t max_merged_groups_in_memory);
+                               blockset_t*& blockset,
+                               int poa_m, int poa_n,
+                               int poa_g, int poa_e,
+                               int poa_q, int poa_c,
+                               bool local_alignment,
+                               int n_threads,
+                               int n_poa_threads,
+                               std::string &path_output_maf, std::string &maf_header,
+                               bool merge_blocks, bool preserve_unmerged_consensus, double contiguous_path_jaccard,
+                               bool use_abpoa,
+                               const std::string &consensus_name,
+                               std::vector<std::string>& consensus_path_names,
+                               bool write_fasta_blocks,
+                               uint64_t max_merged_groups_in_memory);
 
 void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
                const std::vector<std::string> &sequence_names,

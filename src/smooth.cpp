@@ -1093,19 +1093,20 @@ void _write_merged_maf_blocks(
 }
 
 odgi::graph_t* smooth_and_lace(const xg::XG &graph,
-                              blockset_t*& blockset,
-                              int poa_m, int poa_n,
-                              int poa_g, int poa_e,
-                              int poa_q, int poa_c,
-                              bool local_alignment,
-                              int n_threads,
-                              std::string &path_output_maf, std::string &maf_header,
-                              bool merge_blocks, bool preserve_unmerged_consensus, double contiguous_path_jaccard,
-                              bool use_abpoa,
-                              const std::string &consensus_base_name,
-                              std::vector<std::string>& consensus_path_names,
-                              bool write_fasta_blocks,
-                              uint64_t max_merged_groups_in_memory) {
+                               blockset_t*& blockset,
+                               int poa_m, int poa_n,
+                               int poa_g, int poa_e,
+                               int poa_q, int poa_c,
+                               bool local_alignment,
+                               int n_threads,
+                               int n_poa_threads,
+                               std::string &path_output_maf, std::string &maf_header,
+                               bool merge_blocks, bool preserve_unmerged_consensus, double contiguous_path_jaccard,
+                               bool use_abpoa,
+                               const std::string &consensus_base_name,
+                               std::vector<std::string>& consensus_path_names,
+                               bool write_fasta_blocks,
+                               uint64_t max_merged_groups_in_memory) {
 
     bool add_consensus = !consensus_base_name.empty();
 
@@ -1490,7 +1491,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>> empty_maf_block(nullptr);
 
         // Smooth blocks
-#pragma omp parallel for schedule(dynamic,1)
+#pragma omp parallel for schedule(dynamic,1) num_threads(n_poa_threads)
         for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id) {
             auto block = blockset->get_block(block_id);
 
