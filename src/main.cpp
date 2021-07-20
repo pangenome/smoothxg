@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
                         "run spoa (in local alignment mode) instead of abPOA (in global alignment mode) for smoothing",
                         {'S', "spoa"});
     args::Flag change_alignment_mode(parser, "change-alignment-mode",
-                                     "change the alignment mode of spoa to global, the local alignment mode of abpoa is currently not supported",
+                                     "change the alignment mode of spoa to global, and of abpoa to local",
                                      {'Z', "change-alignment-mode"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
 
@@ -244,15 +244,6 @@ int main(int argc, char **argv) {
                                                                     : block_group_identity;
         const uint64_t min_dedup_depth_for_mash_clustering = _min_dedup_depth_for_mash_clustering ? args::get(
                 _min_dedup_depth_for_mash_clustering) : 12000;
-
-        if (!args::get(use_spoa) && args::get(change_alignment_mode)) {
-            std::cerr
-                    << "[smoothxg::main] error: Currently, the local alignment mode of abpoa is not supported. As default "
-                    << "abpoa is ran in global mode. You can select spoa in local alignment mode via -S, --spoa. To run spoa in "
-                       "global mode, please additionally specify -Z, --change-alignment-mode."
-                    << std::endl;
-            return 1;
-        }
 
         int poa_m = 1;
         int poa_n = 4;
