@@ -331,7 +331,68 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     }
 
     if (maf != nullptr) {
+        for (int i = 0; i < n_seq; ++i) {
+            // Find start/end of the real sequence, without the padding seqs
+            int j = 0;
+            uint64_t characters_to_remove = PADDING_LEN;
+            while (characters_to_remove > 0) {
+                if (msa_seq[i][j] != 5){
+                    msa_seq[i][j] = 5;
+                    --characters_to_remove;
+                }
+
+                ++j;
+            }
+
+            j = msa_l;
+            characters_to_remove = PADDING_LEN;
+            while (characters_to_remove > 0) {
+                --j;
+                if (msa_seq[i][j] != 5){
+                    msa_seq[i][j] = 5;
+                    --characters_to_remove;
+                }
+            }
+        }
+
+        // Find the starting position where to trim the MSA
+        uint64_t start_pos_to_trim = 0;
+        for (; start_pos_to_trim < msa_l; ++start_pos_to_trim) {
+            int i = 0;
+            // Find a non-gap character in the current MSA-column
+            for (; i < n_seq; ++i) {
+                if (msa_seq[i][start_pos_to_trim] != 5){
+                    break;
+                }
+            }
+
+            if (i < n_seq) {
+                // A non-gap character was found
+                break;
+            }
+        }
+
+        // Find the ending position where to trim the MSA
+        int64_t end_pos_to_trim = msa_l - 1;
+        for (; end_pos_to_trim >= 0; --end_pos_to_trim) {
+            int i = 0;
+            // Find a non-gap character in the current MSA-column
+            for (; i < n_seq; ++i) {
+                if (msa_seq[i][end_pos_to_trim] != 5){
+                    break;
+                }
+            }
+
+            if (i < n_seq) {
+                // A non-gap character was found
+                break;
+            }
+        }
+        end_pos_to_trim += 1;
+
+
         uint64_t num_seqs = n_seq + (add_consensus ? 1 : 0);
+
         for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++) {
             std::basic_string<char> aligned_seq;
 
@@ -341,24 +402,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             uint64_t record_start;
             if (!add_consensus || seq_rank < num_seqs - 1) {
                 if (keep_sequence){
-                    // Find start/end of the real sequence, without the padding seqs
-                    uint64_t start = 0;
-                    uint64_t characters_to_remove = PADDING_LEN;
-                    while (characters_to_remove > 0) {
-                        if (msa_seq[seq_rank][start++] != 5){
-                            --characters_to_remove;
-                        }
-                    }
-
-                    uint64_t end = msa_l;
-                    characters_to_remove = PADDING_LEN;
-                    while (characters_to_remove > 0) {
-                        if (msa_seq[seq_rank][--end] != 5){
-                            --characters_to_remove;
-                        }
-                    }
-
-                    for (int j = 0; j < msa_l; ++j) {
+                    for (int j = start_pos_to_trim; j < end_pos_to_trim; ++j) {
                         aligned_seq += "ACGTN-"[msa_seq[seq_rank][j]];
                     }
                 }
@@ -379,7 +423,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                 seq_size = seqs[seq_rank].size() - 2 * PADDING_LEN; // <==> block.path_ranges[seq_rank].length
             } else {
                 // The last sequence is the gapped consensus
-                //TODO to remove the padding (biggest start, smallest end)
                 if (keep_sequence){
                     int j, k, aligned_id, rank;
                     i = ab->abg->node[ABPOA_SRC_NODE_ID].max_out_id;
@@ -399,6 +442,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                     }
                     // last_rank -> msa_l:-
                     for (k = last_rank; k <= msa_l; ++k) aligned_seq += '-';
+
+                    aligned_seq = aligned_seq.substr(start_pos_to_trim, end_pos_to_trim - start_pos_to_trim);
                 }
 
                 path_name = consensus_name;
@@ -450,7 +495,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(seq_lens);
 
     odgi::graph_t block_graph;
-    //TODO to remove the padding (biggest start, smallest end)
     build_odgi_abPOA(ab, abpt, &block_graph, names, is_rev, consensus_name, add_consensus);
 
     abpoa_free(ab);
@@ -972,6 +1016,7 @@ void _write_merged_maf_blocks(
     // get the min/max
     uint64_t min_block_id = merged_maf_blocks.block_ids.front();
     uint64_t max_block_id = merged_maf_blocks.block_ids.back();
+    std::cerr << "min_block_id: " << min_block_id << std::endl;
     if (min_block_id > max_block_id) {
         // It means that the blocks have been joined from the left
         min_block_id = max_block_id;
