@@ -8,6 +8,7 @@
 #include "odgi/dna.hpp"
 #include "odgi/odgi.hpp"
 #include "odgi/topological_sort.hpp"
+#include "odgi/depth.hpp"
 #include "odgi/unchop.hpp"
 #include "spoa/spoa.hpp"
 #include "xg.hpp"

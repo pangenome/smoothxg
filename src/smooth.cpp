@@ -2369,6 +2369,22 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
         free(read_paths[i]);
     free(read_paths);
     free(read_path_i);
+
+    // Remove unused edges
+    {
+        std::vector<edge_t> edges_to_drop = odgi::algorithms::find_edges_exceeding_depth_limits(*output, 1, std::numeric_limits<uint64_t>::max());
+        for (auto& edge : edges_to_drop) {
+            output->destroy_edge(edge);
+        }
+    }
+
+    // Remove unused nodes
+    {
+        std::vector<handle_t> handles_to_drop = odgi::algorithms::find_handles_exceeding_depth_limits(*output, 1, std::numeric_limits<uint64_t>::max());
+        for (auto& handle : handles_to_drop) {
+            output->destroy_handle(handle);
+        }
+    }
 }
 
 void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
