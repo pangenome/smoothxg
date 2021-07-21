@@ -88,21 +88,90 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                             bool banded_alignment,
                             const std::string &consensus_name,
                             bool save_block_fastas) {
+#define PADDING_LEN 19
 
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
     std::vector<bool> is_rev;
     std::size_t max_sequence_size = 0;
+
+    auto append_to_sequence = [](const xg::XG &graph,
+            const path_handle_t &path_handle, const step_handle_t& starting_step,
+            std::basic_string<char> &seq, uint64_t &fwd_bp, uint64_t &rev_bp,
+            bool on_the_left) {
+
+        const step_handle_t final_step = on_the_left ? graph.path_begin(path_handle) : graph.path_end(path_handle);;
+
+        step_handle_t step = starting_step;
+        uint64_t characters_to_add = PADDING_LEN;
+        std::string tmp;
+        //ToDo: check if the condition is right
+        while (step != final_step && characters_to_add > 0){
+            const auto h = graph.get_handle_of_step(step);
+            const auto l = graph.get_length(h);
+
+            uint64_t characters_added;
+            if (l <= characters_to_add) {
+                // Take the full seq
+                tmp.append(graph.get_sequence(h));
+                characters_added = l;
+            }else {
+                // Take only the characters needed
+                graph.get_sequence(h).substr(graph.get_sequence(h).size() - characters_to_add);
+                tmp.append(
+                        graph.get_sequence(h).substr(graph.get_sequence(h).size() - characters_to_add)
+                );
+                characters_added = characters_to_add;
+            }
+            if (graph.get_is_reverse(h)) {
+                rev_bp += characters_added;
+            } else {
+                fwd_bp += characters_added;
+            }
+            characters_to_add -= characters_added;
+
+            step = on_the_left ? graph.get_previous_step(step) : graph.get_next_step(step);
+        }
+
+        if (on_the_left){
+            //std::cerr << graph.get_path_name(path_handle) << " - HEAD: ";
+            while (characters_to_add > 0) {
+                seq.append("N");
+                //std::cerr << "N";
+                --characters_to_add;
+            }
+            //std::cerr << tmp << std::endl;
+            seq.append(tmp);
+        } else {
+            //std::cerr << graph.get_path_name(path_handle) << " - TAIL: " << tmp;
+            seq.append(tmp);
+
+            while (characters_to_add > 0) {
+                seq.append("N");
+                //std::cerr << "N";
+                --characters_to_add;
+            }
+            //std::cerr << "\n";
+        }
+    };
+
     for (auto &path_range : block.path_ranges) {
         seqs.emplace_back();
         auto &seq = seqs.back();
         uint64_t fwd_bp = 0;
         uint64_t rev_bp = 0;
+        const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
+
+        append_to_sequence(graph,
+                           path_handle, path_range.begin,
+                           seq, fwd_bp, rev_bp,
+                           true);
+
         for (step_handle_t step = path_range.begin; step != path_range.end;
              step = graph.get_next_step(step)) {
-            auto h = graph.get_handle_of_step(step);
-            auto l = graph.get_length(h);
+            const auto h = graph.get_handle_of_step(step);
+            const auto l = graph.get_length(h);
             seq.append(graph.get_sequence(h));
             if (graph.get_is_reverse(h)) {
                 rev_bp += l;
@@ -110,19 +179,24 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                 fwd_bp += l;
             }
         }
+
+        append_to_sequence(graph,
+                           path_handle, path_range.end,
+                           seq, fwd_bp, rev_bp,
+                           false);
+
         is_rev.push_back(rev_bp > fwd_bp);
         if (is_rev.back()) {
             odgi::reverse_complement_in_place(seqs.back());
         }
         std::stringstream namess;
-        namess << graph.get_path_name(
-                      graph.get_path_handle_of_step(path_range.begin))
+        namess << graph.get_path_name(path_handle)
                << "_" << graph.get_position_of_step(path_range.begin);
         names.push_back(namess.str());
 
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
-    int n_seq = seqs.size();
+    const int n_seq = seqs.size();
 
     if (save_block_fastas) {
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
@@ -135,7 +209,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         return output_graph;
     }
 
-    bool add_consensus = !consensus_name.empty();
+    const bool add_consensus = !consensus_name.empty();
 
     // initialize abPOA
     abpoa_t *ab = abpoa_init();
@@ -231,7 +305,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         abpoa_generate_rc_msa(ab, abpt, NULL, &msa_seq, &msa_l);
 
         /*fprintf(stdout, ">Multiple_sequence_alignment\n");
-        for (i = 0; i < n_seqs; ++i) {
+        for (i = 0; i < n_seq; ++i) {
             for (int j = 0; j < msa_l; ++j) {
                 fprintf(stdout, "%c", "ACGTN-"[msa_seq[i][j]]);
             }
@@ -267,6 +341,23 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             uint64_t record_start;
             if (!add_consensus || seq_rank < num_seqs - 1) {
                 if (keep_sequence){
+                    // Find start/end of the real sequence, without the padding seqs
+                    uint64_t start = 0;
+                    uint64_t characters_to_remove = PADDING_LEN;
+                    while (characters_to_remove > 0) {
+                        if (msa_seq[seq_rank][start++] != 5){
+                            --characters_to_remove;
+                        }
+                    }
+
+                    uint64_t end = msa_l;
+                    characters_to_remove = PADDING_LEN;
+                    while (characters_to_remove > 0) {
+                        if (msa_seq[seq_rank][--end] != 5){
+                            --characters_to_remove;
+                        }
+                    }
+
                     for (int j = 0; j < msa_l; ++j) {
                         aligned_seq += "ACGTN-"[msa_seq[seq_rank][j]];
                     }
@@ -285,10 +376,10 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                                 graph.get_length(graph.get_handle_of_step(last_step))) :
                                path_range_begin;
 
-                seq_size = seqs[seq_rank].size(); // <==> block.path_ranges[seq_rank].length
+                seq_size = seqs[seq_rank].size() - 2 * PADDING_LEN; // <==> block.path_ranges[seq_rank].length
             } else {
                 // The last sequence is the gapped consensus
-
+                //TODO to remove the padding (biggest start, smallest end)
                 if (keep_sequence){
                     int j, k, aligned_id, rank;
                     i = ab->abg->node[ABPOA_SRC_NODE_ID].max_out_id;
@@ -359,6 +450,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(seq_lens);
 
     odgi::graph_t block_graph;
+    //TODO to remove the padding (biggest start, smallest end)
     build_odgi_abPOA(ab, abpt, &block_graph, names, is_rev, consensus_name, add_consensus);
 
     abpoa_free(ab);
