@@ -495,7 +495,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(seq_lens);
 
     odgi::graph_t block_graph;
-    build_odgi_abPOA(ab, abpt, &block_graph, names, is_rev, consensus_name, add_consensus);
+    build_odgi_abPOA(ab, abpt, &block_graph, names, is_rev, consensus_name, PADDING_LEN, add_consensus);
 
     abpoa_free(ab);
     abpoa_free_para(abpt);
@@ -1016,7 +1016,6 @@ void _write_merged_maf_blocks(
     // get the min/max
     uint64_t min_block_id = merged_maf_blocks.block_ids.front();
     uint64_t max_block_id = merged_maf_blocks.block_ids.back();
-    std::cerr << "min_block_id: " << min_block_id << std::endl;
     if (min_block_id > max_block_id) {
         // It means that the blocks have been joined from the left
         min_block_id = max_block_id;
@@ -2258,6 +2257,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::vector<std::string> &sequence_names,
                       const std::vector<bool>& aln_is_reverse,
                       const std::string &consensus_name,
+                      const uint64_t &padding_len,
                       bool include_consensus) {
     abpoa_graph_t *abg = ab->abg;
     // how would this happen, and can we manage the error externally?
@@ -2337,12 +2337,12 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
         path_handle_t p = output->create_path_handle(sequence_names[i]);
 
         if (aln_is_reverse[i]) {
-            for (j = read_path_i[i] - 1; j >= 0; --j) {
+            for (j = read_path_i[i] - 1 - padding_len; j >= padding_len; --j) {
                 // fprintf(stdout, "%d-", read_paths[i][j]);
                 output->append_step(p, output->flip(output->get_handle(read_paths[i][j])));
             }
         } else {
-            for (j = 0; j < read_path_i[i]; ++j) {
+            for (j = padding_len; j < read_path_i[i] - padding_len; ++j) {
                 // fprintf(stdout, "%d+", read_paths[i][j]);
                 output->append_step(p, output->get_handle(read_paths[i][j]));
             }

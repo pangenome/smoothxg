@@ -115,5 +115,6 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::vector<std::string> &sequence_names,
                       const std::vector<bool>& aln_is_reverse,
                       const std::string &consensus_name,
+                      const uint64_t &padding_len,
                       bool include_consensus = true);
 } // namespace smoothxg
