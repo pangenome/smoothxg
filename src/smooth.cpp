@@ -446,7 +446,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                 }
 
                 path_name = consensus_name;
-                path_length = cons_l[0];
+                path_length = cons_l[0] - 2 * poa_padding;
                 record_start = 0;
                 seq_size = path_length;
             }
@@ -754,7 +754,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 // The last sequence is the gapped consensus
 
                 path_name = consensus_name;
-                path_length = consensus.size();
+                path_length = consensus.size() - 2 * poa_padding;
                 record_start = 0;
                 seq_size = path_length;
             }
