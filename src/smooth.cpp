@@ -332,7 +332,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 
     if (maf != nullptr) {
         for (int i = 0; i < n_seq; ++i) {
-            // Find start/end of the real sequence, without the padding seqs
+            // Remove padded characters
             int j = 0;
             uint64_t characters_to_remove = PADDING_LEN;
             while (characters_to_remove > 0) {
@@ -2356,7 +2356,12 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
 
         while (true) {
             // fprintf(stdout, "%d+", id-1);
-            output->append_step(p, output->get_handle(max_out_id));
+            const uint64_t step_count = output->steps_of_handle(output->get_handle(max_out_id)).size();
+            if (step_count > 0) {
+                // It is an handle supported by at least one original path too
+                output->append_step(p, output->get_handle(max_out_id));
+            }
+
             max_out_id = abg->node[max_out_id].max_out_id;
             if (max_out_id == ABPOA_SINK_NODE_ID) {
                 break;
@@ -2369,6 +2374,9 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
         free(read_paths[i]);
     free(read_paths);
     free(read_path_i);
+
+    // Remove nodes used only for consensus paths
+
 
     // Remove unused edges
     {
