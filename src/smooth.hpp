@@ -82,6 +82,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, uint64_t 
 odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block, uint64_t block_id,
                            std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                            std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
+                           int poa_padding,
                            bool local_alignment,
                            std::string *maf,
                            const std::string &consensus_name = "",
@@ -110,6 +111,7 @@ void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
 
 void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
                 const std::vector<std::string> &sequence_names,
+                const uint64_t &padding_len,
                 const std::vector<bool> &aln_is_reverse,
                 const std::string &consensus_name,
                 bool include_consensus = true);

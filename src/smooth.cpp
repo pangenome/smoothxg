@@ -564,6 +564,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            const uint64_t block_id,
                            std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                            std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
+                           int poa_padding,
                            bool local_alignment,
                            std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
                            const std::string &consensus_name,
@@ -581,10 +582,10 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         uint64_t rev_bp = 0;
         const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
 
-//        append_to_sequence(graph,
-//                           path_handle, path_range.begin,
-//                           seq, fwd_bp, rev_bp,
-//                           true);
+        append_to_sequence(graph,
+                           path_handle, path_range.begin,
+                           seq, fwd_bp, rev_bp,
+                           poa_padding, true);
 
         for (step_handle_t step = path_range.begin; step != path_range.end;
              step = graph.get_next_step(step)) {
@@ -598,10 +599,10 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
             }
         }
 
-//        append_to_sequence(graph,
-//                           path_handle, path_range.end,
-//                           seq, fwd_bp, rev_bp,
-//                           false);
+        append_to_sequence(graph,
+                           path_handle, path_range.end,
+                           seq, fwd_bp, rev_bp,
+                           poa_padding, false);
 
         is_rev.push_back(rev_bp > fwd_bp);
         if (is_rev.back()) {
@@ -666,6 +667,68 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         std::vector<std::string> msa;
         poa_graph->generate_multiple_sequence_alignment(msa, add_consensus);
 
+        const int msa_l = msa[0].size();
+
+        for (int i = 0; i < msa.size(); ++i) {
+            // Remove padded characters
+            int j = 0;
+            uint64_t characters_to_remove = poa_padding;
+            while (characters_to_remove > 0) {
+                if (msa[i][j] != 5){
+                    msa[i][j] = 5;
+                    --characters_to_remove;
+                }
+
+                ++j;
+            }
+
+            j = msa_l;
+            characters_to_remove = poa_padding;
+            while (characters_to_remove > 0) {
+                --j;
+                if (msa[i][j] != 5){
+                    msa[i][j] = 5;
+                    --characters_to_remove;
+                }
+            }
+        }
+
+        // Find the starting position where to trim the MSA
+        uint64_t start_pos_to_trim = 0;
+        for (; start_pos_to_trim < msa_l; ++start_pos_to_trim) {
+            int i = 0;
+            // Find a non-gap character in the current MSA-column
+            for (; i < msa.size(); ++i) {
+                if (msa[i][start_pos_to_trim] != 5){
+                    break;
+                }
+            }
+
+            if (i < msa.size()) {
+                // A non-gap character was found
+                break;
+            }
+        }
+
+        // Find the ending position where to trim the MSA
+        int64_t end_pos_to_trim = msa_l - 1;
+        for (; end_pos_to_trim >= 0; --end_pos_to_trim) {
+            int i = 0;
+            // Find a non-gap character in the current MSA-column
+            for (; i < msa.size(); ++i) {
+                if (msa[i][end_pos_to_trim] != 5){
+                    break;
+                }
+            }
+
+            if (i < msa.size()) {
+                // A non-gap character was found
+                break;
+            }
+        }
+        end_pos_to_trim += 1;
+
+
         uint64_t num_seqs = msa.size();
         for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++){
             std::string path_name;
@@ -686,7 +749,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                                (path_length - graph.get_position_of_step(last_step) - graph.get_length(graph.get_handle_of_step(last_step))):
                                path_range_begin;
 
-                seq_size = seqs[seq_rank].size(); // <==> block.path_ranges[seq_rank].length
+                seq_size = seqs[seq_rank].size(); - 2 * poa_padding;// <==> block.path_ranges[seq_rank].length
             }else{
                 // The last sequence is the gapped consensus
 
@@ -708,7 +771,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                     seq_size,
                     is_rev[seq_rank],
                     path_length,
-                    keep_sequence ? msa[seq_rank] : ""
+                    keep_sequence ? msa[seq_rank].substr(start_pos_to_trim, end_pos_to_trim - start_pos_to_trim) : ""
             });
 
             clear_string(path_name);
@@ -723,7 +786,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
     // convert the poa graph into our output format
     // poa_graph->print_gfa(std::cout, names, true);
     odgi::graph_t block_graph;
-    build_odgi_SPOA(poa_graph, &block_graph, names, is_rev, consensus_name, !consensus_name.empty());
+    build_odgi_SPOA(poa_graph, &block_graph, names, poa_padding, is_rev, consensus_name, !consensus_name.empty());
 
         // normalize the representation, allowing for nodes > 1bp
     //auto graph_copy = output_graph;
@@ -1684,6 +1747,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                           -poa_e,
                                           -poa_q,
                                           -poa_c,
+                                          poa_padding,
                                           local_alignment,
                                           (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                           produce_maf,
@@ -2391,9 +2455,6 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
     free(read_paths);
     free(read_path_i);
 
-    // Remove nodes used only for consensus paths
-
-
     // Remove unused edges
     {
         std::vector<edge_t> edges_to_drop = odgi::algorithms::find_edges_exceeding_depth_limits(*output, 1, std::numeric_limits<uint64_t>::max());
@@ -2413,6 +2474,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
 
 void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
                 const std::vector<std::string> &sequence_names,
+                const uint64_t &padding_len,
                 const std::vector<bool> &aln_is_reverse,
                 const std::string &consensus_name, bool include_consensus) {
 
@@ -2441,9 +2503,11 @@ void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
                 break;
             }
         }
+
+        steps = std::vector<handle_t>(steps.begin() + padding_len, steps.end() - padding_len);
+
         if (aln_is_reverse[i]) {
-            for (auto handle_itr = steps.rbegin(); handle_itr != steps.rend();
-                 ++handle_itr) {
+            for (auto handle_itr = steps.rbegin(); handle_itr != steps.rend(); ++handle_itr) {
                 output->append_step(p, output->flip(*handle_itr));
             }
         } else {
@@ -2456,7 +2520,27 @@ void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
     if (include_consensus) {
         path_handle_t p = output->create_path_handle(consensus_name);
         for (auto &id : graph->consensus()) {
-            output->append_step(p, output->get_handle(id + 1));
+            const uint64_t step_count = output->steps_of_handle(output->get_handle(id + 1)).size();
+            if (step_count > 0) {
+                // It is an handle supported by at least one original path too
+                output->append_step(p, output->get_handle(id + 1));
+            }
+        }
+    }
+
+    // Remove unused edges
+    {
+        std::vector<edge_t> edges_to_drop = odgi::algorithms::find_edges_exceeding_depth_limits(*output, 1, std::numeric_limits<uint64_t>::max());
+        for (auto& edge : edges_to_drop) {
+            output->destroy_edge(edge);
+        }
+    }
+
+    // Remove unused nodes
+    {
+        std::vector<handle_t> handles_to_drop = odgi::algorithms::find_handles_exceeding_depth_limits(*output, 1, std::numeric_limits<uint64_t>::max());
+        for (auto& handle : handles_to_drop) {
+            output->destroy_handle(handle);
         }
     }
 }
