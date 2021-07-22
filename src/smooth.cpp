@@ -80,27 +80,10 @@ void write_fasta_for_block(const xg::XG &graph,
     fasta.close();
 }
 
-odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t block_id,
-                            int poa_m, int poa_n, int poa_g,
-                            int poa_e, int poa_q, int poa_c,
-                            int poa_padding,
-                            bool local_alignment,
-                            std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
-                            bool banded_alignment,
-                            const std::string &consensus_name,
-                            bool save_block_fastas) {
-//#define PADDING_LEN 19
-
-    // collect sequences
-    std::vector<std::string> seqs;
-    std::vector<std::string> names;
-    std::vector<bool> is_rev;
-    std::size_t max_sequence_size = 0;
-
-    auto append_to_sequence = [&poa_padding](const xg::XG &graph,
-            const path_handle_t &path_handle, const step_handle_t& starting_step,
-            std::basic_string<char> &seq, uint64_t &fwd_bp, uint64_t &rev_bp,
-            bool on_the_left) {
+    void append_to_sequence(const xg::XG &graph,
+                            const path_handle_t &path_handle, const step_handle_t& starting_step,
+                            std::basic_string<char> &seq, uint64_t &fwd_bp, uint64_t &rev_bp,
+                            int poa_padding, bool on_the_left) {
 
         const step_handle_t final_step = on_the_left ? graph.path_begin(path_handle) : graph.path_end(path_handle);;
 
@@ -157,6 +140,21 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         }
     };
 
+odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t block_id,
+                            int poa_m, int poa_n, int poa_g,
+                            int poa_e, int poa_q, int poa_c,
+                            int poa_padding,
+                            bool local_alignment,
+                            std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
+                            bool banded_alignment,
+                            const std::string &consensus_name,
+                            bool save_block_fastas) {
+    // collect sequences
+    std::vector<std::string> seqs;
+    std::vector<std::string> names;
+    std::vector<bool> is_rev;
+    std::size_t max_sequence_size = 0;
+
     for (auto &path_range : block.path_ranges) {
         seqs.emplace_back();
         auto &seq = seqs.back();
@@ -167,7 +165,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         append_to_sequence(graph,
                            path_handle, path_range.begin,
                            seq, fwd_bp, rev_bp,
-                           true);
+                           poa_padding, true);
 
         for (step_handle_t step = path_range.begin; step != path_range.end;
              step = graph.get_next_step(step)) {
@@ -184,7 +182,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         append_to_sequence(graph,
                            path_handle, path_range.end,
                            seq, fwd_bp, rev_bp,
-                           false);
+                           poa_padding, false);
 
         is_rev.push_back(rev_bp > fwd_bp);
         if (is_rev.back()) {
@@ -197,7 +195,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
-    const int n_seq = seqs.size();
 
     if (save_block_fastas) {
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
@@ -247,6 +244,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpoa_post_set_para(abpt);
 
     // collect sequence length, transform ACGT to 0123
+    const int n_seq = seqs.size();
     int *seq_lens = (int *)malloc(sizeof(int) * n_seq);
     auto **bseqs = (uint8_t **)malloc(sizeof(uint8_t *) * n_seq);
     for (int i = 0; i < n_seq; ++i) {
@@ -320,7 +318,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             err_printf("ERROR: no consensus sequence generated.\n");
             exit(1);
         }
-        is_rev.push_back(0); // add orientation for the consensus seq
+        is_rev.push_back(false);  // the consensus is considered in forward
 
         /*fprintf(stdout, "=== output to variables ===\n");
         for (int i = 0; i < cons_n; ++i) {
@@ -570,21 +568,47 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
                            const std::string &consensus_name,
                            bool save_block_fastas) {
-
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
+    std::vector<bool> is_rev;
     std::size_t max_sequence_size = 0;
+
     for (auto &path_range : block.path_ranges) {
         seqs.emplace_back();
         auto &seq = seqs.back();
+        uint64_t fwd_bp = 0;
+        uint64_t rev_bp = 0;
+        const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
+
+//        append_to_sequence(graph,
+//                           path_handle, path_range.begin,
+//                           seq, fwd_bp, rev_bp,
+//                           true);
+
         for (step_handle_t step = path_range.begin; step != path_range.end;
              step = graph.get_next_step(step)) {
-            seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+            const auto h = graph.get_handle_of_step(step);
+            const auto l = graph.get_length(h);
+            seq.append(graph.get_sequence(h));
+            if (graph.get_is_reverse(h)) {
+                rev_bp += l;
+            } else {
+                fwd_bp += l;
+            }
+        }
+
+//        append_to_sequence(graph,
+//                           path_handle, path_range.end,
+//                           seq, fwd_bp, rev_bp,
+//                           false);
+
+        is_rev.push_back(rev_bp > fwd_bp);
+        if (is_rev.back()) {
+            odgi::reverse_complement_in_place(seqs.back());
         }
         std::stringstream namess;
-        namess << graph.get_path_name(
-                      graph.get_path_handle_of_step(path_range.begin))
+        namess << graph.get_path_name(path_handle)
                << "_" << graph.get_position_of_step(path_range.begin);
         names.push_back(namess.str());
 
@@ -612,7 +636,6 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
     // preallocation does not seem to help, and it consumes a lot of memory
     // relative to progressive allocation
     // alignment_engine->prealloc(max_sequence_size, 4);
-    std::vector<bool> aln_is_reverse;
     int i = 0;
     for (auto &seq : seqs) {
         // std::cerr << names[i++] << "\t" << seq << std::endl;
@@ -620,21 +643,11 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         // try both orientations here: we'll need to record the
         // orientation in the path somehow to structure the lacing
         std::int32_t score_fwd = 0;
-        auto alignment_fwd = alignment_engine->align(seq, poa_graph, &score_fwd);
-
-        auto rev_seq = odgi::reverse_complement(seq);
-        std::int32_t score_rev = 0;
-        auto alignment_rev = alignment_engine->align(rev_seq, poa_graph, &score_rev);
+        auto alignment = alignment_engine->align(seq, poa_graph, &score_fwd);
 
         try {
             // could give weight here to influence consensus
-            if (score_fwd >= score_rev) {
-                poa_graph->add_alignment(alignment_fwd, seq);
-                aln_is_reverse.push_back(false);
-            } else {
-                poa_graph->add_alignment(alignment_rev, rev_seq);
-                aln_is_reverse.push_back(true);
-            }
+            poa_graph->add_alignment(alignment, seq);
         } catch (std::invalid_argument &exception) {
             std::cerr << exception.what() << std::endl;
             assert(false);
@@ -644,7 +657,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
     std::string consensus;
     if (!consensus_name.empty()){
         consensus = poa_graph->generate_consensus();
-        aln_is_reverse.push_back(false);  // the consensus is considered in forward
+        is_rev.push_back(false);  // the consensus is considered in forward
     }
 
     if (maf != nullptr) {
@@ -669,7 +682,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
                 uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
                 auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
-                record_start = aln_is_reverse[seq_rank] ?
+                record_start = is_rev[seq_rank] ?
                                (path_length - graph.get_position_of_step(last_step) - graph.get_length(graph.get_handle_of_step(last_step))):
                                path_range_begin;
 
@@ -693,7 +706,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
             (*maf)[path_name].push_back({
                     record_start,
                     seq_size,
-                    aln_is_reverse[seq_rank],
+                    is_rev[seq_rank],
                     path_length,
                     keep_sequence ? msa[seq_rank] : ""
             });
@@ -710,7 +723,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
     // convert the poa graph into our output format
     // poa_graph->print_gfa(std::cout, names, true);
     odgi::graph_t block_graph;
-    build_odgi_SPOA(poa_graph, &block_graph, names, aln_is_reverse, consensus_name, !consensus_name.empty());
+    build_odgi_SPOA(poa_graph, &block_graph, names, is_rev, consensus_name, !consensus_name.empty());
 
         // normalize the representation, allowing for nodes > 1bp
     //auto graph_copy = output_graph;
