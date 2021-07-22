@@ -1310,7 +1310,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                int poa_m, int poa_n,
                                int poa_g, int poa_e,
                                int poa_q, int poa_c,
-                               int poa_padding,
+                               float poa_padding_ratio,
                                bool local_alignment,
                                int n_threads,
                                int n_poa_threads,
@@ -1720,6 +1720,19 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 mafs[block_id] = std::make_unique<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>();
             }
 
+            uint64_t max_seq_len = 0;
+            for (auto &path_range : block.path_ranges) {
+                uint64_t seq_length = 0;
+                for (step_handle_t step = path_range.begin; step != path_range.end;
+                     step = graph.get_next_step(step)) {
+                    const auto h = graph.get_handle_of_step(step);
+                    const auto l = graph.get_length(h);
+                    seq_length += l;
+                }
+
+                max_seq_len = std::max(max_seq_len, seq_length);
+            }
+            const int poa_padding = std::max((int)(max_seq_len / poa_padding_ratio), 47);
             if (use_abpoa) {
                 block_graph = smooth_abpoa(graph,
                                            block,
