@@ -83,12 +83,13 @@ void write_fasta_for_block(const xg::XG &graph,
 odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t block_id,
                             int poa_m, int poa_n, int poa_g,
                             int poa_e, int poa_q, int poa_c,
+                            int poa_padding,
                             bool local_alignment,
                             std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
                             bool banded_alignment,
                             const std::string &consensus_name,
                             bool save_block_fastas) {
-#define PADDING_LEN 19
+//#define PADDING_LEN 19
 
     // collect sequences
     std::vector<std::string> seqs;
@@ -96,7 +97,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     std::vector<bool> is_rev;
     std::size_t max_sequence_size = 0;
 
-    auto append_to_sequence = [](const xg::XG &graph,
+    auto append_to_sequence = [&poa_padding](const xg::XG &graph,
             const path_handle_t &path_handle, const step_handle_t& starting_step,
             std::basic_string<char> &seq, uint64_t &fwd_bp, uint64_t &rev_bp,
             bool on_the_left) {
@@ -104,7 +105,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         const step_handle_t final_step = on_the_left ? graph.path_begin(path_handle) : graph.path_end(path_handle);;
 
         step_handle_t step = starting_step;
-        uint64_t characters_to_add = PADDING_LEN;
+        uint64_t characters_to_add = poa_padding;
         std::string tmp;
         //ToDo: check if the condition is right
         while (step != final_step && characters_to_add > 0){
@@ -334,7 +335,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         for (int i = 0; i < n_seq; ++i) {
             // Remove padded characters
             int j = 0;
-            uint64_t characters_to_remove = PADDING_LEN;
+            uint64_t characters_to_remove = poa_padding;
             while (characters_to_remove > 0) {
                 if (msa_seq[i][j] != 5){
                     msa_seq[i][j] = 5;
@@ -345,7 +346,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             }
 
             j = msa_l;
-            characters_to_remove = PADDING_LEN;
+            characters_to_remove = poa_padding;
             while (characters_to_remove > 0) {
                 --j;
                 if (msa_seq[i][j] != 5){
@@ -420,7 +421,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                                 graph.get_length(graph.get_handle_of_step(last_step))) :
                                path_range_begin;
 
-                seq_size = seqs[seq_rank].size() - 2 * PADDING_LEN; // <==> block.path_ranges[seq_rank].length
+                seq_size = seqs[seq_rank].size() - 2 * poa_padding; // <==> block.path_ranges[seq_rank].length
             } else {
                 // The last sequence is the gapped consensus
                 if (keep_sequence){
@@ -495,7 +496,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(seq_lens);
 
     odgi::graph_t block_graph;
-    build_odgi_abPOA(ab, abpt, &block_graph, names, is_rev, consensus_name, PADDING_LEN, add_consensus);
+    build_odgi_abPOA(ab, abpt, &block_graph, names, is_rev, consensus_name, poa_padding, add_consensus);
 
     abpoa_free(ab);
     abpoa_free_para(abpt);
@@ -1233,6 +1234,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                int poa_m, int poa_n,
                                int poa_g, int poa_e,
                                int poa_q, int poa_c,
+                               int poa_padding,
                                bool local_alignment,
                                int n_threads,
                                int n_poa_threads,
@@ -1652,6 +1654,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                            poa_e,
                                            poa_q,
                                            poa_c,
+                                           poa_padding,
                                            local_alignment,
                                            (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                            produce_maf,
