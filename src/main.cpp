@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
         const uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
         const uint64_t target_poa_length = _target_poa_length ? args::get(_target_poa_length) : 5000;
         const uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 2 * target_poa_length;
-        const float poa_padding_fraction = _poa_padding_fraction ? args::get(_poa_padding_fraction) : 0.05;
+        const float poa_padding_fraction = _poa_padding_fraction ? args::get(_poa_padding_fraction) : 0.1;
 
         const uint64_t max_merged_groups_in_memory = _max_merged_groups_in_memory ? args::get(_max_merged_groups_in_memory)
                                                                             : 50;
