@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
                                               {'l', "poa-length-target"});
     args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into POA, cut sequences over this length [default: 2*poa-length-target = 10000]",
                                               {'q', "poa-length-max"});
-    args::ValueFlag<float> _poa_padding_fraction(parser, "N", "flanking sequence length fraction (padding = longest sequence in the block * N) to pad each end of each sequence with during POA, in effect overlapping and trimming the POA problems [default: 0.05]",
+    args::ValueFlag<float> _poa_padding_fraction(parser, "N", "flanking sequence length fraction (padding = longest sequence in the block * N) to pad each end of each sequence with during POA, in effect overlapping and trimming the POA problems [default: 0.1]",
                                            {'O', "poa-padding-ratio"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<uint64_t> num_poa_threads(parser, "N", "use this many POA threads (can be used to reduce memory requirements with large --poa-length-target settings) [default: --threads]", {'T', "poa-threads"});
