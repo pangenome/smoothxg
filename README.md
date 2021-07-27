@@ -25,9 +25,19 @@ The graph must have sequences represented as paths in P records, while the topol
 Path names should be unique.
 `seqwish` is a standard way to make such a graph.
 
-## building
+## installation
 
-`smoothxg` uses cmake to build itself and its dependencies. At least GCC V10.1 is required for compilation.
+### building from source
+
+`smoothxg` uses cmake to build itself and its dependencies. At least GCC version 9.3.0 is required for compilation. 
+You can check your version via:
+
+```
+gcc --version
+g++ --version
+```
+
+Clone the `smoothxg` git repository and build with:
 
 ```
 sudo apt-get update && sudo apt-get install -y libatomic-ops-dev libgsl-dev zlib1g-dev libzstd-dev libjemalloc-dev
