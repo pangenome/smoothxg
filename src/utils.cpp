@@ -54,7 +54,7 @@ void graph_deep_copy(odgi::graph_t* source,
 }
 
 double handy_parameter(const std::string& value, const double default_value) {
-    auto is_a_float = [](const std::string s) {
+    auto is_a_number = [](const std::string& s) {
         return !s.empty() && s.find_first_not_of("0123456789.") == std::string::npos && std::count(s.begin(), s.end(), '.') < 2;
     };
 
@@ -72,7 +72,7 @@ double handy_parameter(const std::string& value, const double default_value) {
     }
 
     const std::string tmp = value.substr(0, str_len);
-    return is_a_float(tmp) ? (stod(tmp) * pow(10, exp)) : default_value;
+    return is_a_number(tmp) ? (stod(tmp) * pow(10, exp)) : default_value;
 }
 
 }
