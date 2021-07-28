@@ -82,11 +82,11 @@ int main(int argc, char **argv) {
     args::Flag no_prep(parser, "bool",
                        "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)",
                        {'n', "no-prep"});
-    args::ValueFlag<std::string> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000000]",
+    args::ValueFlag<std::string> _max_block_weight(parser, "N", "maximum seed sequence in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 10M]",
                                                 {'w', "block-weight-max"});
-    args::ValueFlag<std::string> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 100]",
+    args::ValueFlag<std::string> _max_block_jump(parser, "N", "maximum path jump to include in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 100]",
                                               {'j', "path-jump-max"});
-    args::ValueFlag<std::string> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 0 / off]",
+    args::ValueFlag<std::string> _max_edge_jump(parser, "N", "maximum edge jump before breaking (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 0 / off]",
                                              {'e', "edge-jump-max"});
 
     args::ValueFlag<uint64_t> _max_merged_groups_in_memory(parser, "N",
@@ -101,13 +101,13 @@ int main(int argc, char **argv) {
                                                     "minimum small / large length ratio to cluster in a block [default: 0.0]",
                                                     {'R', "block-ratio-min"});
     args::ValueFlag<std::string> _min_dedup_depth_for_block_splitting(parser, "N",
-                                                                   "minimum (deduplicated) block depth for applying the block split [default: 2000, 0 to disable it]",
+                                                                   "minimum (deduplicated) block depth for applying the block split (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 2000, 0 to disable it]",
                                                                    {'d', "min-block-depth-split"});
     args::ValueFlag<std::string> _min_dedup_depth_for_mash_clustering(parser, "N",
-                                                                   "minimum (deduplicated) block depth for applying the mash-based clustering [default: 12000, 0 to disable it]",
+                                                                   "minimum (deduplicated) block depth for applying the mash-based clustering (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 12000, 0 to disable it]",
                                                                    {'D', "min-block-depth-mash"});
     args::ValueFlag<std::string> _min_length_mash_based_clustering(parser, "N",
-                                                                "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]",
+                                                                "minimum sequence length to cluster sequences using mash-distance (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 200, 0 to disable it]",
                                                                 {'L', "min-seq-len-mash"});
     args::ValueFlag<double> _block_group_est_identity(parser, "N",
                                                       "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]",
@@ -116,14 +116,14 @@ int main(int argc, char **argv) {
     args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]",
                                          {'k', "kmer-size-mash-distance"});
 
-    args::ValueFlag<std::string> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]",
+    args::ValueFlag<std::string> _min_copy_length(parser, "N", "minimum repeat length to collapse (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 1000]",
                                                {'c', "copy-length-min"});
     args::ValueFlag<std::string> _max_copy_length(parser, "N",
-                                               "maximum repeat length to attempt to detect [default: 20000]",
+                                               "maximum repeat length to attempt to detect (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 20K]",
                                                {'W', "copy-length-max"});
-    args::ValueFlag<std::string> _target_poa_length(parser, "N", "target length to put into POA, blocks are split when paths go over this length [default: 5000]",
+    args::ValueFlag<std::string> _target_poa_length(parser, "N", "target length to put into POA, blocks are split when paths go over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 5000]",
                                               {'l', "poa-length-target"});
-    args::ValueFlag<std::string> _max_poa_length(parser, "N", "maximum sequence length to put into POA, cut sequences over this length [default: 2*poa-length-target = 10000]",
+    args::ValueFlag<std::string> _max_poa_length(parser, "N", "maximum sequence length to put into POA, cut sequences over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 2*poa-length-target = 10k]",
                                               {'q', "poa-length-max"});
     args::ValueFlag<float> _poa_padding_fraction(parser, "N", "flanking sequence length fraction (padding = longest sequence in the block * N) to pad each end of each sequence with during POA, in effect overlapping and trimming the POA problems [default: 0.1]",
                                            {'O', "poa-padding-ratio"});
