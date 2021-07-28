@@ -24,4 +24,6 @@ std::vector<std::string> split(const std::string &s, char delim);
 void graph_deep_copy(odgi::graph_t* source,
                      odgi::graph_t* target);
 
+double handy_parameter(const std::string& value, const double default_value);
+
 }

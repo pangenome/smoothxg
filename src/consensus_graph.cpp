@@ -45,8 +45,8 @@ std::vector<consensus_spec_t> parse_consensus_spec(const std::string& spec_str,
         auto& spec = specs.back();
         spec.basename = basename;
         auto vals = split(fields[i], ':');
-        if (vals.size() > 0) {
-            spec.min_allele_len = std::stoi(vals[0]);
+        if (!vals.empty()) {
+            spec.min_allele_len = handy_parameter(vals[0], 0);
         }
         if (vals.size() > 1) {
             spec.ref_file = vals[1];
@@ -62,12 +62,12 @@ std::vector<consensus_spec_t> parse_consensus_spec(const std::string& spec_str,
             spec.keep_consensus_paths = true;
         }
         if (vals.size() > 3) {
-            spec.min_consensus_path_cov = std::stod(vals[3]);
+            spec.min_consensus_path_cov = handy_parameter(vals[3], 0);
         } else {
             spec.min_consensus_path_cov = 0;
         }
         if (vals.size() > 4) {
-            spec.max_allele_len = std::stoi(vals[4]);
+            spec.max_allele_len = handy_parameter(vals[4], 1e6);
         } else {
             spec.max_allele_len = 1e6;
         }
