@@ -82,11 +82,11 @@ int main(int argc, char **argv) {
     args::Flag no_prep(parser, "bool",
                        "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)",
                        {'n', "no-prep"});
-    args::ValueFlag<uint64_t> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000000]",
+    args::ValueFlag<std::string> _max_block_weight(parser, "N", "maximum seed sequence in block [default: 10000000]",
                                                 {'w', "block-weight-max"});
-    args::ValueFlag<uint64_t> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 100]",
+    args::ValueFlag<std::string> _max_block_jump(parser, "N", "maximum path jump to include in block [default: 100]",
                                               {'j', "path-jump-max"});
-    args::ValueFlag<uint64_t> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 0 / off]",
+    args::ValueFlag<std::string> _max_edge_jump(parser, "N", "maximum edge jump before breaking [default: 0 / off]",
                                              {'e', "edge-jump-max"});
 
     args::ValueFlag<uint64_t> _max_merged_groups_in_memory(parser, "N",
@@ -100,13 +100,13 @@ int main(int argc, char **argv) {
     args::ValueFlag<double> _block_length_ratio_min(parser, "N",
                                                     "minimum small / large length ratio to cluster in a block [default: 0.0]",
                                                     {'R', "block-ratio-min"});
-    args::ValueFlag<uint64_t> _min_dedup_depth_for_block_splitting(parser, "N",
+    args::ValueFlag<std::string> _min_dedup_depth_for_block_splitting(parser, "N",
                                                                    "minimum (deduplicated) block depth for applying the block split [default: 2000, 0 to disable it]",
                                                                    {'d', "min-block-depth-split"});
-    args::ValueFlag<uint64_t> _min_dedup_depth_for_mash_clustering(parser, "N",
+    args::ValueFlag<std::string> _min_dedup_depth_for_mash_clustering(parser, "N",
                                                                    "minimum (deduplicated) block depth for applying the mash-based clustering [default: 12000, 0 to disable it]",
                                                                    {'D', "min-block-depth-mash"});
-    args::ValueFlag<uint64_t> _min_length_mash_based_clustering(parser, "N",
+    args::ValueFlag<std::string> _min_length_mash_based_clustering(parser, "N",
                                                                 "minimum sequence length to cluster sequences using mash-distance [default: 200, 0 to disable it]",
                                                                 {'L', "min-seq-len-mash"});
     args::ValueFlag<double> _block_group_est_identity(parser, "N",
@@ -116,14 +116,14 @@ int main(int argc, char **argv) {
     args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]",
                                          {'k', "kmer-size-mash-distance"});
 
-    args::ValueFlag<uint64_t> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]",
+    args::ValueFlag<std::string> _min_copy_length(parser, "N", "minimum repeat length to collapse [default: 1000]",
                                                {'c', "copy-length-min"});
-    args::ValueFlag<uint64_t> _max_copy_length(parser, "N",
+    args::ValueFlag<std::string> _max_copy_length(parser, "N",
                                                "maximum repeat length to attempt to detect [default: 20000]",
                                                {'W', "copy-length-max"});
-    args::ValueFlag<uint64_t> _target_poa_length(parser, "N", "target length to put into POA, blocks are split when paths go over this length [default: 5000]",
+    args::ValueFlag<std::string> _target_poa_length(parser, "N", "target length to put into POA, blocks are split when paths go over this length [default: 5000]",
                                               {'l', "poa-length-target"});
-    args::ValueFlag<uint64_t> _max_poa_length(parser, "N", "maximum sequence length to put into POA, cut sequences over this length [default: 2*poa-length-target = 10000]",
+    args::ValueFlag<std::string> _max_poa_length(parser, "N", "maximum sequence length to put into POA, cut sequences over this length [default: 2*poa-length-target = 10000]",
                                               {'q', "poa-length-max"});
     args::ValueFlag<float> _poa_padding_fraction(parser, "N", "flanking sequence length fraction (padding = longest sequence in the block * N) to pad each end of each sequence with during POA, in effect overlapping and trimming the POA problems [default: 0.1]",
                                            {'O', "poa-padding-ratio"});
@@ -214,13 +214,13 @@ int main(int argc, char **argv) {
 
         const double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 
-        const uint64_t max_block_weight = _max_block_weight ? args::get(_max_block_weight) : 10000000;
-        const uint64_t max_block_jump = _max_block_jump ? args::get(_max_block_jump) : 100;
-        const uint64_t max_edge_jump = _max_edge_jump ? args::get(_max_edge_jump) : 0;
-        const uint64_t min_copy_length = _min_copy_length ? args::get(_min_copy_length) : 1000;
-        const uint64_t max_copy_length = _max_copy_length ? args::get(_max_copy_length) : 20000;
-        const uint64_t target_poa_length = _target_poa_length ? args::get(_target_poa_length) : 5000;
-        const uint64_t max_poa_length = _max_poa_length ? args::get(_max_poa_length) : 2 * target_poa_length;
+        const uint64_t max_block_weight = _max_block_weight ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_weight), 10000000) : 10000000;
+        const uint64_t max_block_jump = _max_block_jump ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_jump), 100) : 100;
+        const uint64_t max_edge_jump = _max_edge_jump ? (uint64_t)smoothxg::handy_parameter(args::get(_max_edge_jump), 0) : 0;
+        const uint64_t min_copy_length = _min_copy_length ? (uint64_t)smoothxg::handy_parameter(args::get(_min_copy_length), 1000) : 1000;
+        const uint64_t max_copy_length = _max_copy_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_copy_length), 20000) : 20000;
+        const uint64_t target_poa_length = _target_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_target_poa_length), 5000) : 5000;
+        const uint64_t max_poa_length = _max_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_poa_length), 2 * target_poa_length) : 2 * target_poa_length;
         const float poa_padding_fraction = _poa_padding_fraction ? args::get(_poa_padding_fraction) && args::get(_poa_padding_fraction) <= 1.0 : 0.1;
 
         const uint64_t max_merged_groups_in_memory = _max_merged_groups_in_memory ? args::get(_max_merged_groups_in_memory)
@@ -228,8 +228,8 @@ int main(int argc, char **argv) {
 
         // Block split
         const double block_length_ratio_min = _block_length_ratio_min ? args::get(_block_length_ratio_min) : 0.0;
-        const uint64_t min_length_mash_based_clustering = _min_length_mash_based_clustering ? args::get(
-                _min_length_mash_based_clustering) : 200;
+        const uint64_t min_length_mash_based_clustering = _min_length_mash_based_clustering ?
+                (uint64_t)smoothxg::handy_parameter(args::get(_min_length_mash_based_clustering), 200) : 200;
         const uint64_t kmer_size = _kmer_size ? args::get(_kmer_size) : 17;
         if (min_length_mash_based_clustering != 0 && min_length_mash_based_clustering < kmer_size) {
             std::cerr
@@ -239,14 +239,14 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        const uint64_t min_dedup_depth_for_block_splitting = _min_dedup_depth_for_block_splitting ? args::get(
-                _min_dedup_depth_for_block_splitting) : 0;
+        const uint64_t min_dedup_depth_for_block_splitting = _min_dedup_depth_for_block_splitting ?
+                (uint64_t)smoothxg::handy_parameter(args::get(_min_dedup_depth_for_block_splitting), 0) : 0;
 
         const double block_group_identity = _block_group_identity ? args::get(_block_group_identity) : 0.0;
         const double block_group_est_identity = _block_group_est_identity ? args::get(_block_group_est_identity)
                                                                     : block_group_identity;
-        const uint64_t min_dedup_depth_for_mash_clustering = _min_dedup_depth_for_mash_clustering ? args::get(
-                _min_dedup_depth_for_mash_clustering) : 12000;
+        const uint64_t min_dedup_depth_for_mash_clustering = _min_dedup_depth_for_mash_clustering ?
+                (uint64_t)smoothxg::handy_parameter(args::get(_min_dedup_depth_for_mash_clustering), 12000) : 12000;
 
         int poa_m = 1;
         int poa_n = 4;
@@ -296,7 +296,7 @@ int main(int argc, char **argv) {
 
         const bool order_paths_from_longest = true; //args::get(use_spoa);
         const float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
-        const float node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
+        const int node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
         std::cerr << "[smoothxg::main] loading graph" << std::endl;
         auto graph = std::make_unique<XG>();
