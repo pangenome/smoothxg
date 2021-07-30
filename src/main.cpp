@@ -221,7 +221,7 @@ int main(int argc, char **argv) {
         const uint64_t max_copy_length = _max_copy_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_copy_length), 20000) : 20000;
         const uint64_t target_poa_length = _target_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_target_poa_length), 5000) : 5000;
         const uint64_t max_poa_length = _max_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_poa_length), 2 * target_poa_length) : 2 * target_poa_length;
-        const float poa_padding_fraction = _poa_padding_fraction ? args::get(_poa_padding_fraction) && args::get(_poa_padding_fraction) <= 1.0 : 0.01;
+        const float poa_padding_fraction = _poa_padding_fraction ? args::get(_poa_padding_fraction) : 0.01;
 
         const uint64_t max_merged_groups_in_memory = _max_merged_groups_in_memory ? args::get(_max_merged_groups_in_memory)
                                                                             : 50;
