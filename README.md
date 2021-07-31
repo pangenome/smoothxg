@@ -53,7 +53,7 @@ cmake -H. -Bbuild && cmake --build build -- -j 4
 
 ### Bioconda
 
-`smoothxg` recipes for Bioconda are available at https://bioconda.github.io/recipes/smoothxg/README.html.
+`smoothxg` recipes for Bioconda are available at https://anaconda.org/bioconda/smoothxg.
 To install the latest version using `Conda` execute:
 
 ``` bash
