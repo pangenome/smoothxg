@@ -20,14 +20,24 @@ After finding blocks
 
 ## input
 
-Smoothxg can operate an any input variation graph in GFA format.
+`smoothxg` can operate an any input variation graph in GFA format.
 The graph must have sequences represented as paths in P records, while the topology of the graph is in S and L records.
 Path names should be unique.
 `seqwish` is a standard way to make such a graph.
 
-## building
+## installation
 
-`smoothxg` uses cmake to build itself and its dependencies. At least GCC V10.1 is required for compilation.
+### building from source
+
+`smoothxg` uses cmake to build itself and its dependencies. At least GCC version 9.3.0 is required for compilation. 
+You can check your version via:
+
+```
+gcc --version
+g++ --version
+```
+
+Clone the `smoothxg` git repository and build with:
 
 ```
 sudo apt-get update && sudo apt-get install -y libatomic-ops-dev libgsl-dev zlib1g-dev libzstd-dev libjemalloc-dev
@@ -38,3 +48,61 @@ cmake -H. -Bbuild && cmake --build build -- -j 4
 ```
 
 `libzstd-dev` must be of version 1.4 or higher.
+
+
+
+### Bioconda
+
+`smoothxg` recipes for Bioconda are available at https://anaconda.org/bioconda/smoothxg.
+To install the latest version using `Conda` execute:
+
+``` bash
+conda install -c bioconda smoothxg
+```
+
+### Guix
+
+#### installing via the guix-genomics git repository
+
+First, clone the guix-genomics repository:
+
+``` bash
+git clone https://github.com/ekg/guix-genomics
+```
+
+And install the `smoothxg` package to your default GUIX environment:
+
+``` bash
+GUIX_PACKAGE_PATH=. guix package -i smoothxg
+```
+
+Now `smoothxg` is available as a global binary installation.
+
+#### installing via the guix-genomics channel
+
+Add the following to your ~/.config/guix/channels.scm:
+
+``` scm
+  (cons*
+(channel
+  (name 'guix-genomics)
+  (url "https://github.com/ekg/guix-genomics.git")
+  (branch "master"))
+%default-channels)
+```
+
+First, pull all the packages, then install `smoothxg` to your default GUIX environment:
+
+``` bash
+guix pull
+guix package -i smoothxg
+```
+
+If you want to build an environment only consisting of the `smoothxg` binary, you can do:
+
+``` bash
+guix environment --ad-hoc smoothxg
+```
+
+For more details about how to handle Guix channels, go to https://git.genenetwork.org/guix-bioinformatics/guix-bioinformatics.git.
+
