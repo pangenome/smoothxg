@@ -238,7 +238,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpt->gap_open2 = poa_q;
     abpt->gap_ext1 = poa_e;
     abpt->gap_ext2 = poa_c;
-    abpt->disable_seeding = 1; // setting to 0 is great for performance but unstable
+    abpt->disable_seeding = 0; // allow seeding (this greatly reduces runtime and memory)
 
     // finalize parameters
     abpoa_post_set_para(abpt);
