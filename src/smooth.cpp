@@ -196,6 +196,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
 
+    auto start_time = std::chrono::steady_clock::now();
+
     if (save_block_fastas) {
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
     }
@@ -495,6 +497,12 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     }
     free(bseqs);
     free(seq_lens);
+
+    if (save_block_fastas) {
+        std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa", "_in_" +  std::to_string(elapsed_time.count()) + "s");
+    }
+
 
     odgi::graph_t block_graph;
     build_odgi_abPOA(ab, abpt, &block_graph, names, is_rev, consensus_name, poa_padding, add_consensus);
