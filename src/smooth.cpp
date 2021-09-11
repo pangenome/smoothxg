@@ -199,7 +199,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     auto start_time = std::chrono::steady_clock::now();
 
     if (save_block_fastas) {
-        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa");
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa_pad" + std::to_string(poa_padding) + "_");
     }
 
     auto* output_graph = new odgi::graph_t();
@@ -500,7 +500,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 
     if (save_block_fastas) {
         std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
-        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa", "_in_" +  std::to_string(elapsed_time.count()) + "s");
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time.count()) + "s");
     }
 
 
