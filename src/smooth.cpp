@@ -240,10 +240,24 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpt->gap_open2 = poa_q;
     abpt->gap_ext1 = poa_e;
     abpt->gap_ext2 = poa_c;
-    abpt->disable_seeding = 0; // allow seeding (this greatly reduces runtime and memory)
-    abpt->k = 19;
-    abpt->w = 10;
-    abpt->min_w = 3313;
+
+    {
+        double average_len = 0.0;
+        for (auto & seq : seqs) {
+            average_len += (double)seq.size();
+        }
+        average_len /= (double)seqs.size();
+
+        abpt->min_w = 3313;
+        if (average_len >= abpt->min_w * 2) {
+            abpt->disable_seeding = 0; // allow seeding (this greatly reduces runtime and memory)
+            abpt->k = 19;
+            abpt->w = 10;
+        } else {
+            abpt->disable_seeding = 1; // great for performance, but not with short sequences
+        }
+    }
+
 
     // finalize parameters
     abpoa_post_set_para(abpt);
