@@ -80,65 +80,65 @@ void write_fasta_for_block(const xg::XG &graph,
     fasta.close();
 }
 
-    void append_to_sequence(const xg::XG &graph,
-                            const path_handle_t &path_handle, const step_handle_t& starting_step,
-                            std::basic_string<char> &seq, uint64_t &fwd_bp, uint64_t &rev_bp,
-                            int poa_padding, bool on_the_left) {
+void append_to_sequence(const xg::XG &graph,
+                        const path_handle_t &path_handle, const step_handle_t& starting_step,
+                        std::basic_string<char> &seq, uint64_t &fwd_bp, uint64_t &rev_bp,
+                        int poa_padding, bool on_the_left) {
 
-        const step_handle_t final_step = on_the_left ? graph.path_begin(path_handle) : graph.path_end(path_handle);;
+    const step_handle_t final_step = on_the_left ? graph.path_begin(path_handle) : graph.path_end(path_handle);;
 
-        step_handle_t step = starting_step;
-        uint64_t characters_to_add = poa_padding;
-        std::string tmp;
-        //ToDo: check if the condition is right
-        while (step != final_step && characters_to_add > 0){
-            const auto h = graph.get_handle_of_step(step);
-            const auto l = graph.get_length(h);
+    step_handle_t step = starting_step;
+    uint64_t characters_to_add = poa_padding;
+    std::string tmp;
+    //ToDo: check if the condition is right
+    while (step != final_step && characters_to_add > 0){
+        const auto h = graph.get_handle_of_step(step);
+        const auto l = graph.get_length(h);
 
-            uint64_t characters_added;
-            if (l <= characters_to_add) {
-                // Take the full seq
-                tmp.append(graph.get_sequence(h));
-                characters_added = l;
-            }else {
-                // Take only the characters needed
-                graph.get_sequence(h).substr(graph.get_sequence(h).size() - characters_to_add);
-                tmp.append(
-                        graph.get_sequence(h).substr(graph.get_sequence(h).size() - characters_to_add)
-                );
-                characters_added = characters_to_add;
-            }
-            if (graph.get_is_reverse(h)) {
-                rev_bp += characters_added;
-            } else {
-                fwd_bp += characters_added;
-            }
-            characters_to_add -= characters_added;
-
-            step = on_the_left ? graph.get_previous_step(step) : graph.get_next_step(step);
+        uint64_t characters_added;
+        if (l <= characters_to_add) {
+            // Take the full seq
+            tmp.append(graph.get_sequence(h));
+            characters_added = l;
+        }else {
+            // Take only the characters needed
+            graph.get_sequence(h).substr(graph.get_sequence(h).size() - characters_to_add);
+            tmp.append(
+                    graph.get_sequence(h).substr(graph.get_sequence(h).size() - characters_to_add)
+            );
+            characters_added = characters_to_add;
         }
-
-        if (on_the_left){
-            //std::cerr << graph.get_path_name(path_handle) << " - HEAD: ";
-            while (characters_to_add > 0) {
-                seq.append("N");
-                //std::cerr << "N";
-                --characters_to_add;
-            }
-            //std::cerr << tmp << std::endl;
-            seq.append(tmp);
+        if (graph.get_is_reverse(h)) {
+            rev_bp += characters_added;
         } else {
-            //std::cerr << graph.get_path_name(path_handle) << " - TAIL: " << tmp;
-            seq.append(tmp);
-
-            while (characters_to_add > 0) {
-                seq.append("N");
-                //std::cerr << "N";
-                --characters_to_add;
-            }
-            //std::cerr << "\n";
+            fwd_bp += characters_added;
         }
-    };
+        characters_to_add -= characters_added;
+
+        step = on_the_left ? graph.get_previous_step(step) : graph.get_next_step(step);
+    }
+
+    if (on_the_left){
+        //std::cerr << graph.get_path_name(path_handle) << " - HEAD: ";
+        while (characters_to_add > 0) {
+            seq.append("N");
+            //std::cerr << "N";
+            --characters_to_add;
+        }
+        //std::cerr << tmp << std::endl;
+        seq.append(tmp);
+    } else {
+        //std::cerr << graph.get_path_name(path_handle) << " - TAIL: " << tmp;
+        seq.append(tmp);
+
+        while (characters_to_add > 0) {
+            seq.append("N");
+            //std::cerr << "N";
+            --characters_to_add;
+        }
+        //std::cerr << "\n";
+    }
+};
 
 odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t block_id,
                             int poa_m, int poa_n, int poa_g,
@@ -241,23 +241,10 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpt->gap_ext1 = poa_e;
     abpt->gap_ext2 = poa_c;
 
-    {
-        double average_len = 0.0;
-        for (auto & seq : seqs) {
-            average_len += (double)seq.size();
-        }
-        average_len /= (double)seqs.size();
-
-        abpt->min_w = 3313;
-        if (average_len >= abpt->min_w * 2) {
-            abpt->disable_seeding = 0; // allow seeding (this greatly reduces runtime and memory)
-            abpt->k = 19;
-            abpt->w = 10;
-        } else {
-            abpt->disable_seeding = 1; // great for performance, but not with short sequences
-        }
-    }
-
+    abpt->disable_seeding = 0; // allow seeding (this greatly reduces runtime and memory)
+    abpt->k = 19;
+    abpt->w = 10;
+    abpt->min_w = 3313;
 
     // finalize parameters
     abpoa_post_set_para(abpt);
@@ -1757,7 +1744,24 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                 max_seq_len = std::max(max_seq_len, seq_length);
             }
-            const int poa_padding = std::max((int)((float)max_seq_len * poa_padding_fraction), 47);
+
+            int poa_padding = 47;
+            if (block.path_ranges.size() <= 1000) {
+                // In blocks not too deep we can increase the padding size
+                float average_seq_len = 0.0;
+                for (auto &path_range : block.path_ranges) {
+                    const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
+                    for (step_handle_t step = path_range.begin; step != path_range.end;
+                    step = graph.get_next_step(step)) {
+                        const auto h = graph.get_handle_of_step(step);
+                        average_seq_len += (float)graph.get_length(h);
+                    }
+                }
+                average_seq_len /= (float)block.path_ranges.size();
+
+                poa_padding = std::max((int)(average_seq_len * poa_padding_fraction), poa_padding);
+            }
+
             if (use_abpoa) {
                 block_graph = smooth_abpoa(graph,
                                            block,
