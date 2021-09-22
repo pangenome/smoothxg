@@ -1323,6 +1323,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                int poa_g, int poa_e,
                                int poa_q, int poa_c,
                                float poa_padding_fraction,
+                               uint64_t max_block_depth_for_padding_more,
                                bool local_alignment,
                                int n_threads,
                                int n_poa_threads,
@@ -1745,8 +1746,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 max_seq_len = std::max(max_seq_len, seq_length);
             }
 
-            int poa_padding = 47;
-            if (block.path_ranges.size() <= 1000) {
+            int poa_padding = 47; // Min amount of flanking sequences to add
+            if (block.path_ranges.size() <= max_block_depth_for_padding_more) {
                 // In blocks not too deep we can increase the padding size
                 float average_seq_len = 0.0;
                 for (auto &path_range : block.path_ranges) {
