@@ -23,12 +23,19 @@
 #include "consensus_graph.hpp"
 #include "rkmh.hpp"
 #include <chrono>
+#include <jemalloc/jemalloc.h>
 
 using namespace std;
 using namespace xg;
 
 
 int main(int argc, char **argv) {
+    // set jemalloc parameters
+    {
+        size_t bool_size = sizeof(bool);
+        bool enable = false;
+        mallctl("opt.tcache", &enable, &bool_size, NULL, 0);
+    }
     args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator");
     args::HelpFlag help(parser, "help", "display this help menu", {'h', "help"});
     args::ValueFlag<std::string> gfa_in(parser, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
