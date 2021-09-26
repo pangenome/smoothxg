@@ -244,12 +244,6 @@ set(mkmh_INCLUDE "${SOURCE_DIR}")
 add_subdirectory(deps/edlib EXCLUDE_FROM_ALL)
 add_subdirectory(deps/WFA EXCLUDE_FROM_ALL)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules (JEMALLOC jemalloc)
-
-pkg_search_module(JEMALLOC REQUIRED jemalloc)
-include_directories(${JEMALLOC_INCLUDE_DIRS})
-
 set(CMAKE_BUILD_TYPE Debug)
 #set(CMAKE_BUILD_TYPE Release)
 
@@ -367,7 +361,7 @@ target_link_libraries(smoothxg edlib)
 # https://github.com/yangao07/abPOA/blob/17d7b287b905bcd0e684ca5015a78e5a73a40798/example.c#L3
 find_package(ZLIB)
 #find_package(ZSTD)
-target_link_libraries(smoothxg ZLIB::ZLIB zstd ${JEMALLOC_LIBRARIES})
+target_link_libraries(smoothxg ZLIB::ZLIB zstd jemalloc)
 
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
