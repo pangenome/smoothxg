@@ -361,7 +361,7 @@ target_link_libraries(smoothxg edlib)
 # https://github.com/yangao07/abPOA/blob/17d7b287b905bcd0e684ca5015a78e5a73a40798/example.c#L3
 find_package(ZLIB)
 #find_package(ZSTD)
-target_link_libraries(smoothxg ZLIB::ZLIB zstd jemalloc)
+target_link_libraries(smoothxg ZLIB::ZLIB zstd)
 
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
