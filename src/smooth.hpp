@@ -112,7 +112,7 @@ void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
 
 void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
                 const std::vector<std::string> &sequence_names,
-                const uint64_t &padding_len,
+                const int &padding_len,
                 const std::vector<bool> &aln_is_reverse,
                 const std::string &consensus_name,
                 bool include_consensus = true);
@@ -121,6 +121,6 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::vector<std::string> &sequence_names,
                       const std::vector<bool>& aln_is_reverse,
                       const std::string &consensus_name,
-                      const uint64_t &padding_len,
+                      const int &padding_len,
                       bool include_consensus = true);
 } // namespace smoothxg

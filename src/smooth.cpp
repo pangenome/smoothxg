@@ -85,9 +85,9 @@ void append_to_sequence(const xg::XG &graph,
                         std::basic_string<char> &seq, uint64_t &fwd_bp, uint64_t &rev_bp,
                         int poa_padding, bool on_the_left) {
 
-    const step_handle_t final_step = on_the_left ? graph.path_begin(path_handle) : graph.path_end(path_handle);;
-
     step_handle_t step = starting_step;
+    const step_handle_t final_step = on_the_left ? graph.path_begin(path_handle) : graph.path_end(path_handle);
+
     uint64_t characters_to_add = poa_padding;
     std::string tmp;
     //ToDo: check if the condition is right
@@ -303,7 +303,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         free(read_id_map); free(tpos_to_node_id); free(qpos_to_node_id); free(par_c);
         if (par_anchors.m > 0) free(par_anchors.a);
     }
-    
+
     abpoa_topological_sort(ab->abg, abpt);
 
     if (maf != nullptr){
@@ -2380,7 +2380,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::vector<std::string> &sequence_names,
                       const std::vector<bool>& aln_is_reverse,
                       const std::string &consensus_name,
-                      const uint64_t &padding_len,
+                      const int &padding_len,
                       bool include_consensus) {
     abpoa_graph_t *abg = ab->abg;
     // how would this happen, and can we manage the error externally?
@@ -2517,7 +2517,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
 
 void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
                 const std::vector<std::string> &sequence_names,
-                const uint64_t &padding_len,
+                const int &padding_len,
                 const std::vector<bool> &aln_is_reverse,
                 const std::string &consensus_name, bool include_consensus) {
 
