@@ -125,8 +125,11 @@ int main(int argc, char **argv) {
                                               {'l', "poa-length-target"});
     args::ValueFlag<std::string> _max_poa_length(parser, "N", "maximum sequence length to put into POA, cut sequences over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 2*poa-length-target = 10k]",
                                               {'q', "poa-length-max"});
-    args::ValueFlag<float> _poa_padding_fraction(parser, "N", "flanking sequence length fraction (padding = longest sequence in the block * N) to pad each end of each sequence with during POA, in effect overlapping and trimming the POA problems [default: 0.01]",
+    args::ValueFlag<float> _poa_padding_fraction(parser, "N", "flanking sequence length fraction (padding = average sequence length in the block * N) to pad each end of each sequence with during POA, in effect overlapping and trimming the POA problems [default: 0.01]",
                                            {'O', "poa-padding-ratio"});
+    args::ValueFlag<std::string> _max_block_depth_for_padding_more(parser, "N",
+                                                                   "maximum block depth beyond which a (small) fixed amount of flanking nucleotides is added, regardless of the average sequence length in the block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 1000, 0 to disable it]",
+                                                                      {'Y', "max-block-depth-adaptive-poa-padding"});
     args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<uint64_t> num_poa_threads(parser, "N", "use this many POA threads (can be used to reduce memory requirements with large --poa-length-target settings) [default: --threads]", {'T', "poa-threads"});
     args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)",
@@ -222,6 +225,8 @@ int main(int argc, char **argv) {
         const uint64_t target_poa_length = _target_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_target_poa_length), 5000) : 5000;
         const uint64_t max_poa_length = _max_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_poa_length), 2 * target_poa_length) : 2 * target_poa_length;
         const float poa_padding_fraction = _poa_padding_fraction ? args::get(_poa_padding_fraction) : 0.01;
+        const uint64_t max_block_depth_for_padding_more = _max_block_depth_for_padding_more ?
+                (uint64_t)smoothxg::handy_parameter(args::get(_max_block_depth_for_padding_more), 1000) : 1000;
 
         const uint64_t max_merged_groups_in_memory = _max_merged_groups_in_memory ? args::get(_max_merged_groups_in_memory)
                                                                             : 50;
@@ -423,6 +428,7 @@ int main(int argc, char **argv) {
                                                       poa_q,
                                                       poa_c,
                                                       poa_padding_fraction,
+                                                      max_block_depth_for_padding_more,
                                                       local_alignment,
                                                       n_threads,
                                                       n_poa_threads,

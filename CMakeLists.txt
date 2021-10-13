@@ -244,8 +244,8 @@ set(mkmh_INCLUDE "${SOURCE_DIR}")
 add_subdirectory(deps/edlib EXCLUDE_FROM_ALL)
 add_subdirectory(deps/WFA EXCLUDE_FROM_ALL)
 
-set(CMAKE_BUILD_TYPE Debug)
-#set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 add_library(smoothxg_objs OBJECT
   src/tempfile.cpp
