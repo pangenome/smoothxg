@@ -241,7 +241,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpt->gap_ext1 = poa_e;
     abpt->gap_ext2 = poa_c;
 
-    abpt->disable_seeding = 0; // allow seeding (this greatly reduces runtime and memory)
+    abpt->disable_seeding = 1; // disable seeding
+    //abpt->disable_seeding = 0; // allow seeding (this greatly reduces runtime and memory)
     abpt->k = 19;
     abpt->w = 10;
     abpt->min_w = 3313;
