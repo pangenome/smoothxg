@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
                                                     "minimum small / large length ratio to cluster in a block [default: 0.0]",
                                                     {'R', "block-ratio-min"});
     args::ValueFlag<std::string> _min_dedup_depth_for_block_splitting(parser, "N",
-                                                                   "minimum (deduplicated) block depth for applying the block split (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 2000, 0 to disable it]",
+                                                                   "minimum (deduplicated) block depth for applying the block split (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 0, disabled]",
                                                                    {'d', "min-block-depth-split"});
     args::ValueFlag<std::string> _min_dedup_depth_for_mash_clustering(parser, "N",
                                                                    "minimum (deduplicated) block depth for applying the mash-based clustering (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 12000, 0 to disable it]",
