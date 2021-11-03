@@ -241,7 +241,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpt->gap_ext1 = poa_e;
     abpt->gap_ext2 = poa_c;
 
-    abpt->disable_seeding = 0; // allow seeding (this greatly reduces runtime and memory)
+    abpt->disable_seeding = 1; // disable seeding
+    //abpt->disable_seeding = 0; // allow seeding (this greatly reduces runtime and memory)
     abpt->k = 19;
     abpt->w = 10;
     abpt->min_w = 3313;
@@ -1749,10 +1750,17 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             int poa_padding = 0;
 
             if (poa_padding_fraction > 0) {
-                poa_padding = 47; // Min amount of flanking sequences to add
                 if (block.path_ranges.size() <= max_block_depth_for_padding_more) {
-                    // In blocks not too deep we can increase the padding size
+                    // min amount of flanking sequences to add
+                    // avoids corner case of padding failure with shallow short blocks
+                    poa_padding = 47;
+                }
+                // always pad a fraction of our sequence length
+                // note that this can be very short in deep blocks that tend to have many short sequences
+                // (this is because we establish blocks with a target mass and maximum length)
+                {
                     float average_seq_len = 0.0;
+                    // In blocks not too deep we can increase the padding size
                     for (auto &path_range : block.path_ranges) {
                         const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
                         for (step_handle_t step = path_range.begin; step != path_range.end;
@@ -1762,7 +1770,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                         }
                     }
                     average_seq_len /= (float)block.path_ranges.size();
-
                     poa_padding = std::max((int)(average_seq_len * poa_padding_fraction), poa_padding);
                 }
             }
