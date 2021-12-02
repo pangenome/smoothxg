@@ -23,13 +23,15 @@
 #include "consensus_graph.hpp"
 #include "rkmh.hpp"
 #include <chrono>
+#include "version.hpp"
 
 using namespace std;
 using namespace xg;
 
 
 int main(int argc, char **argv) {
-    args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator");
+    args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator\n" + smoothxg::Version::get_version() + ": " +
+										smoothxg::Version::get_codename());
     args::HelpFlag help(parser, "help", "display this help menu", {'h', "help"});
     args::ValueFlag<std::string> gfa_in(parser, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
     args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
@@ -147,8 +149,10 @@ int main(int argc, char **argv) {
                                      "change the alignment mode of spoa to global, and of abpoa to local",
                                      {'Z', "change-alignment-mode"});
     args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
+	args::Flag version(parser, "version", "report the current smoothxg version including the github commit hash", {'v', "version"});
 
-    try {
+
+	try {
         parser.ParseCLI(argc, argv);
     } catch (args::Help) {
         std::cout << parser;
@@ -162,6 +166,11 @@ int main(int argc, char **argv) {
         std::cout << parser;
         return 1;
     }
+
+	if (version) {
+		std::cerr << smoothxg::Version::get_version() << std::endl;
+		exit(0);
+	}
 
     size_t n_threads = num_threads ? args::get(num_threads) : 1;
     omp_set_num_threads(n_threads);
