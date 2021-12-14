@@ -28,6 +28,7 @@ void prep(
     double path_sgd_zipf_theta = 0.99; // args::get(p_sgd_zipf_theta) ? args::get(p_sgd_zipf_theta) : 0.99;
     double path_sgd_eps = 0.01; // args::get(p_sgd_eps) ? args::get(p_sgd_eps) : 0.01;
     double path_sgd_delta = 0; //args::get(p_sgd_delta) ? args::get(p_sgd_delta) : 0;
+    double path_sgd_cooling = 0.5; // initiate cooling halfway through our iterations
     std::vector<handlegraph::path_handle_t> path_sgd_use_paths;
     graph.for_each_path_handle(
         [&](const handlegraph::path_handle_t &path) {
@@ -64,7 +65,7 @@ void prep(
     uint64_t path_sgd_zipf_space = max_path_step_count; //std::min((uint64_t)10000, max_path_step_count);
     double path_sgd_max_eta = max_path_step_count * max_path_step_count;
     uint64_t path_sgd_zipf_space_max = 10000;
-    uint64_t path_sgd_zipf_space_quantization_step = 10000;
+    uint64_t path_sgd_zipf_space_quantization_step = 100;
     std::string path_sgd_seed = "pangenomic!";
 
     uint64_t path_sgd_iter_max_learning_rate = 0; // don't use this max iter stuff
@@ -86,6 +87,7 @@ void prep(
             path_sgd_zipf_space,
             path_sgd_zipf_space_max,
             path_sgd_zipf_space_quantization_step,
+            path_sgd_cooling,
             num_threads,
             true,
             path_sgd_seed,
