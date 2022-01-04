@@ -8,10 +8,8 @@
 #include <unistd.h>
 #include <iostream>
 #include <fstream>
-#include <deps/odgi/src/odgi.hpp>
 #include "args.hxx"
 #include "sdsl/bit_vectors.hpp"
-#include "chain.hpp"
 #include "blocks.hpp"
 #include "smooth.hpp"
 #include "xg.hpp"
@@ -23,7 +21,9 @@
 #include "consensus_graph.hpp"
 #include "rkmh.hpp"
 #include <chrono>
+#include <deps/odgi/src/odgi.hpp>
 #include "version.hpp"
+#include "deps/odgi/src/algorithms/stepindex.hpp"
 
 using namespace std;
 using namespace xg;
@@ -313,10 +313,21 @@ int main(int argc, char **argv) {
         const int node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
         std::cerr << "[smoothxg::main] loading graph" << std::endl;
-        auto graph = std::make_unique<XG>();
-        if (!args::get(xg_in).empty()) {
-            std::ifstream in(args::get(xg_in));
-            graph->deserialize(in);
+
+		auto step_index = std::make_unique<odgi::algorithms::step_index_t>();
+		odgi::graph_t graph;
+
+		if (!args::get(xg_in).empty()) {
+			// TODO in the future we expect a graph in ODGI file as input here, then we build the step index on the fly or it is at input_graph.stpidx
+			odgi::gfa_to_handle(args::get(xg_in), &graph, false, num_threads, true);
+			std::vector<path_handle_t> paths;
+			paths.reserve(graph.get_path_count());
+			graph.for_each_path_handle([&](const path_handle_t &path) {
+				paths.push_back(path);
+			});
+			step_index = std::make_unique<odgi::algorithms::step_index_t>(graph, paths, num_threads, true, 8);
+			// TODO build ODGI graph from GFA
+			// TODO build step index from ODGI graph
         } else if (!args::get(gfa_in).empty()) {
             // prep the graph by default
             std::string gfa_in_name;
@@ -332,26 +343,34 @@ int main(int argc, char **argv) {
                 gfa_in_name = args::get(gfa_in);
             }
             std::cerr << "[smoothxg::main] building xg index" << std::endl;
-            graph->from_gfa(gfa_in_name, false, args::get(base));
+			// TODO build ODGI graph from GFA
+			odgi::gfa_to_handle(gfa_in_name, &graph, false, num_threads, true);
+			std::vector<path_handle_t> paths;
+			paths.reserve(graph.get_path_count());
+			graph.for_each_path_handle([&](const path_handle_t &path) {
+				paths.push_back(path);
+			});
+			step_index = std::make_unique<odgi::algorithms::step_index_t>(graph, paths, num_threads, true, 8);
             if (!args::get(keep_temp) && !args::get(no_prep)) {
                 std::remove(gfa_in_name.c_str());
             }
         }
 
         auto *blockset = new smoothxg::blockset_t();
-        smoothxg::smoothable_blocks(*graph,
+        smoothxg::smoothable_blocks(graph,
                                     *blockset,
                                     max_block_weight,
                                     target_poa_length,
                                     max_block_jump,
                                     max_edge_jump,
                                     order_paths_from_longest,
-                                    num_threads);
+                                    num_threads,
+									*step_index);
 
         const uint64_t min_autocorr_z = 5;
         const uint64_t autocorr_stride = 50;
 
-        smoothxg::break_blocks(*graph,
+        smoothxg::break_blocks(graph,
                                blockset,
                                block_length_ratio_min,
                                min_length_mash_based_clustering,
@@ -368,7 +387,8 @@ int main(int argc, char **argv) {
                                order_paths_from_longest,
                                true,
                                n_threads,
-                               args::get(write_block_to_split_fastas));
+                               args::get(write_block_to_split_fastas),
+							   *step_index);
 
         // build the path_step_rank_ranges -> index_in_blocks_vector
         // flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:
@@ -390,7 +410,7 @@ int main(int argc, char **argv) {
 
             maf_header += "##maf version=1\n";
             maf_header += "# smoothxg\n";
-            maf_header += "# input=" + filename + " sequences=" + std::to_string(graph->get_path_count()) + "\n";
+            maf_header += "# input=" + filename + " sequences=" + std::to_string(graph.get_path_count()) + "\n";
 
             // Merge mode
             maf_header += "# merge_blocks=";
@@ -428,7 +448,7 @@ int main(int argc, char **argv) {
         }
 
         {
-            auto smoothed = smoothxg::smooth_and_lace(*graph,
+            auto smoothed = smoothxg::smooth_and_lace(graph,
                                                       blockset,
                                                       poa_m,
                                                       poa_n,
@@ -448,7 +468,8 @@ int main(int argc, char **argv) {
                                                       add_consensus ? consensus_path_prefix : "",
                                                       consensus_path_names,
                                                       args::get(write_block_fastas),
-                                                      max_merged_groups_in_memory);
+                                                      max_merged_groups_in_memory,
+													  *step_index);
 
             std::cerr << "[smoothxg::main] unchopping smoothed graph" << std::endl;
             odgi::algorithms::unchop(*smoothed, n_threads, true);
@@ -512,6 +533,7 @@ int main(int argc, char **argv) {
         }
         */
         //uint64_t jump_limit = (_consensus_jump_limit ? args::get(_consensus_jump_limit) : 1e6);
+		// TODO build the ODGI graph from GFA, build the step index
         std::cerr << "[smoothxg::main] building xg index from smoothed graph" << std::endl;
         XG smoothed_xg;
         if (_read_consensus_path_names) {

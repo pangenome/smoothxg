@@ -5,14 +5,15 @@
 namespace smoothxg {
 
 void smoothable_blocks(
-    const xg::XG& graph,
+    const odgi::graph_t& graph,
     blockset_t& blockset,
     const uint64_t& max_block_weight,
     const uint64_t& max_block_path_length,
     const uint64_t& max_path_jump,
     const uint64_t& max_edge_jump,
     const bool& order_paths_from_longest,
-    const int num_threads
+    const int num_threads,
+	const odgi::algorithms::step_index_t &step_index
     ) {
     // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
     block_t block;
@@ -139,8 +140,8 @@ void smoothable_blocks(
                     auto& path_range = path_ranges.back();
                     auto& last = path_range.end;
                     if (path_rank(last) != path_rank(step)
-                        || (graph.get_position_of_step(step)
-                            - (graph.get_position_of_step(last) + graph.get_length(graph.get_handle_of_step(last)))
+                        || (step_index.get_position(step, graph)
+                            - (step_index.get_position(last, graph) + graph.get_length(graph.get_handle_of_step(last)))
                             > max_path_jump)) {
                         // make a new range
                         path_ranges.push_back({step, step, 0});

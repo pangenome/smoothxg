@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
+#include <deps/odgi/src/odgi.hpp>
+#include <deps/odgi/src/algorithms/stepindex.hpp>
 #include "mmmultimap.hpp"
 #include "xg.hpp"
 #include "flat_hash_map.hpp"
@@ -122,13 +124,14 @@ public:
 // find the boundaries of blocks that we can compress with spoa
 // assuming a maximum path length within each block
     void smoothable_blocks(
-    const xg::XG& graph,
+    const odgi::graph_t& graph,
     blockset_t& blockset,
     const uint64_t& max_block_weight,
     const uint64_t& max_block_path_length,
     const uint64_t& max_path_jump,
     const uint64_t& max_edge_jump,
     const bool& order_paths_from_longest,
-    int num_threads);
+    int num_threads,
+	const odgi::algorithms::step_index_t &step_index);
 
 }

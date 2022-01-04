@@ -24,6 +24,7 @@
 #include <sstream>
 #include <vector>
 #include <cstring>
+#include <deps/odgi/src/algorithms/stepindex.hpp>
 
 #include "deps/abPOA/src/abpoa_graph.h"
 
@@ -61,7 +62,7 @@ inline auto& get_block_id(const path_position_range_t& p) {
     return std::get<4>(p);
 }
 
-void write_fasta_for_block(const xg::XG &graph,
+void write_fasta_for_block(const odgi::graph_t &graph,
                          const block_t &block,
                          const uint64_t &block_id,
                          const std::vector<std::string>& seqs,
@@ -69,26 +70,28 @@ void write_fasta_for_block(const xg::XG &graph,
                          const std::string& prefix,
                          const std::string& suffix = "");
 
-odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, uint64_t block_id,
+odgi::graph_t* smooth_abpoa(const odgi::graph_t &graph, const block_t &block, uint64_t block_id,
                             int poa_m, int poa_n, int poa_g,
                             int poa_e, int poa_q, int poa_c,
                             int poa_padding,
                             bool local_alignment,
                             std::string *maf,
+							const odgi::algorithms::step_index_t &step_index,
                             bool banded_alignment,
                             const std::string &consensus_name = "",
                             bool save_block_fastas = false);
 
-odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block, uint64_t block_id,
+odgi::graph_t* smooth_spoa(const odgi::graph_t &graph, const block_t &block, uint64_t block_id,
                            std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                            std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                            int poa_padding,
                            bool local_alignment,
                            std::string *maf,
+						   const odgi::algorithms::step_index_t &step_index,
                            const std::string &consensus_name = "",
                            bool save_block_fastas = false);
 
-odgi::graph_t* smooth_and_lace(const xg::XG &graph,
+odgi::graph_t* smooth_and_lace(const odgi::graph_t &graph,
                                blockset_t*& blockset,
                                int poa_m, int poa_n,
                                int poa_g, int poa_e,
@@ -104,7 +107,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                const std::string &consensus_name,
                                std::vector<std::string>& consensus_path_names,
                                bool write_fasta_blocks,
-                               uint64_t max_merged_groups_in_memory);
+                               uint64_t max_merged_groups_in_memory,
+							   const odgi::algorithms::step_index_t &step_index);
 
 void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
                const std::vector<std::string> &sequence_names,

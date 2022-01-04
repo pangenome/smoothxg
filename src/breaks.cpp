@@ -10,10 +10,11 @@ namespace smoothxg {
     using namespace handlegraph;
 
 
-    void _prepare_and_write_fasta_for_block(const xg::XG &graph,
+    void _prepare_and_write_fasta_for_block(const odgi::graph_t &graph,
                                             const block_t &block,
                                             const uint64_t &block_id,
                                             const std::string& prefix,
+											const odgi::algorithms::step_index_t &step_index,
                                             const std::string& suffix = ""){
         std::vector<std::string> seqs;
         std::vector<std::string> names;
@@ -27,7 +28,7 @@ namespace smoothxg {
             std::stringstream namess;
             namess << graph.get_path_name(
                     graph.get_path_handle_of_step(path_range.begin))
-                   << "_" << graph.get_position_of_step(path_range.begin);
+                   << "_" << step_index.get_position(path_range.begin, graph);
             names.push_back(namess.str());
         }
 
@@ -102,7 +103,7 @@ double wfa_gap_compressed_identity(
 
 // break the path ranges at likely VNTR boundaries
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
-    void break_blocks(const xg::XG &graph,
+    void break_blocks(const odgi::graph_t &graph,
                       blockset_t *&blockset,
                       const double &length_ratio_min,
                       const uint64_t &min_length_mash_based_clustering,
@@ -119,7 +120,8 @@ double wfa_gap_compressed_identity(
                       const bool &order_paths_from_longest,
                       const bool &break_repeats,
                       const uint64_t &thread_count,
-                      const bool &write_block_to_split_fastas
+                      const bool &write_block_to_split_fastas,
+					  const odgi::algorithms::step_index_t &step_index
     ) {
         const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
 
@@ -548,7 +550,7 @@ double wfa_gap_compressed_identity(
                             ready_blocks[block_id].push_back(new_block);
 
                             if (write_block_to_split_fastas) {
-                                _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_",
+                                _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_", step_index,
                                                                    "_" + std::to_string(i++));
                             }
                         }
@@ -557,7 +559,7 @@ double wfa_gap_compressed_identity(
                             std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
 
                             // collect sequences
-                            _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_",
+                            _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_", step_index,
                                                                "_split_in_" + std::to_string(groups.size()) + "_in_" +
                                                                std::to_string(elapsed_time.count()) + "s");
                         }
