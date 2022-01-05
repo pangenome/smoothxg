@@ -13,7 +13,8 @@ void smoothable_blocks(
     const uint64_t& max_edge_jump,
     const bool& order_paths_from_longest,
     const int num_threads,
-	const odgi::algorithms::step_index_t &step_index
+	const odgi::algorithms::step_index_t &step_index,
+	const std::vector<uint64_t> &node_offsets
     ) {
     // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
     block_t block;
@@ -21,7 +22,6 @@ void smoothable_blocks(
     std::vector<sdsl::bit_vector> seen_steps(graph.get_path_count());
 
     // cast to vectorizable graph for determining the sort position of nodes
-    const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
     std::cerr << "[smoothxg::smoothable_blocks] computing blocks" << std::endl;
 
     uint64_t rank = 0;
@@ -33,13 +33,11 @@ void smoothable_blocks(
 
     auto seen_step =
         [&](const step_handle_t& step) {
-            // in xg, the first half of the step is the path handle, which is it's rank + 1
-            // and the second half of the step is the rank in the path
-            return seen_steps[path_rank(step)-1][step_rank(step)];
+            return seen_steps[as_integer(graph.get_path_handle_of_step(step)) - 1][as_integers(step)[1]];
         };
     auto mark_step =
         [&](const step_handle_t& step) {
-            seen_steps[path_rank(step)-1][step_rank(step)] = 1;
+            seen_steps[as_integer(graph.get_path_handle_of_step(step)) - 1][step_rank(step)] = 1;
         };
     auto toposplit_block =
         [&](const block_t& block) {
@@ -125,7 +123,7 @@ void smoothable_blocks(
             std::sort(
                 traversals.begin(), traversals.end(),
                 [&](const step_handle_t& a, const step_handle_t& b) {
-                    return path_rank(a) < path_rank(b) || path_rank(a) == path_rank(b) && step_rank(a) < step_rank(b);
+                    return as_integer(graph.get_path_handle_of_step(a)) < as_integer(graph.get_path_handle_of_step(b)) || as_integer(graph.get_path_handle_of_step(a)) == as_integer(graph.get_path_handle_of_step(b)) && step_rank(a) < step_rank(b);
                 });
             // determine the path ranges in the block
             // break them when we pass some threshold for how much block-external sequence to include
@@ -139,7 +137,7 @@ void smoothable_blocks(
                 } else {
                     auto& path_range = path_ranges.back();
                     auto& last = path_range.end;
-                    if (path_rank(last) != path_rank(step)
+                    if (as_integer(graph.get_path_handle_of_step(last)) != as_integer(graph.get_path_handle_of_step(step))
                         || (step_index.get_position(step, graph)
                             - (step_index.get_position(last, graph) + graph.get_length(graph.get_handle_of_step(last)))
                             > max_path_jump)) {
@@ -155,7 +153,7 @@ void smoothable_blocks(
             for (auto& path_range : path_ranges) {
                 uint64_t included_path_length = 0;
                 // update the path range end to point to the one-past element
-                path_range.end = graph.get_next_step(path_range.end);
+				path_range.end = graph.get_next_step(path_range.end);
                 path_range_t* curr_path_range = nullptr;
                 step_handle_t curr_step;
                 for (curr_step = path_range.begin;
@@ -262,12 +260,12 @@ void smoothable_blocks(
             }
             // for each edge, find the jump length
             int64_t longest_edge_jump = 0;
-            int64_t handle_vec_offset = vec_graph.node_vector_offset(graph.get_id(handle));
+            int64_t handle_vec_offset = node_offsets[graph.get_id(handle)];
             //int64_t handle_length = graph.get_length(handle);
             graph.follow_edges(
                 handle, false,
                 [&](const handle_t& o) {
-                    int64_t other_vec_offset = vec_graph.node_vector_offset(graph.get_id(o))
+                    int64_t other_vec_offset = node_offsets[graph.get_id(o)]
                         + (graph.get_is_reverse(o) ? graph.get_length(o) : 0);
                     int64_t jump = std::abs(other_vec_offset - (handle_vec_offset + handle_length));
                     longest_edge_jump = std::max(longest_edge_jump, jump);
@@ -275,7 +273,7 @@ void smoothable_blocks(
             graph.follow_edges(
                 handle, true,
                 [&](const handle_t& o) {
-                    int64_t other_vec_offset = vec_graph.node_vector_offset(graph.get_id(o))
+                    int64_t other_vec_offset = node_offsets[graph.get_id(o)]
                         + (graph.get_is_reverse(o) ? 0 : graph.get_length(o));
                     int64_t jump = std::abs(other_vec_offset - handle_vec_offset);
                     longest_edge_jump = std::max(longest_edge_jump, jump);
@@ -323,7 +321,7 @@ void smoothable_blocks(
         });
 
     blocks_progress.finish();
-    
+
     if (block.path_ranges.empty()) {
         finalize_block(block, block_handles);
     }

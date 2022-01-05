@@ -32,6 +32,9 @@ void _clear_maf_block(ska::flat_hash_map<std::string, std::vector<maf_partial_ro
 */
 
 // if we want a vectorized layout representation of the block
+/// currently not used, therefore commented out
+// if used in the future, keep in mind that you can't cast a graph_t to a vectorized graph
+/*
 void write_tsv_for_block(const odgi::graph_t &graph,
                          const block_t &block,
                          const uint64_t &block_id,
@@ -63,6 +66,7 @@ void write_tsv_for_block(const odgi::graph_t &graph,
     }
     vs.close();
 }
+ */
 
 void write_fasta_for_block(const odgi::graph_t &graph,
                            const block_t &block,
@@ -1826,7 +1830,8 @@ odgi::graph_t* smooth_and_lace(const odgi::graph_t &graph,
                 for (auto &path_range : block.path_ranges) {
                     auto path_handle =
                         graph.get_path_handle_of_step(path_range.begin);
-                    auto last_step = graph.get_previous_step(path_range.end);
+					std::cerr << as_integers(path_range.end)[0] << " " << as_integers(path_range.end)[1] << std::endl;
+					auto last_step = graph.get_previous_step(path_range.end);
                     path_mapping.append(
                         {path_handle, // target path
 						 step_index.get_position(

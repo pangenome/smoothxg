@@ -132,6 +132,7 @@ public:
     const uint64_t& max_edge_jump,
     const bool& order_paths_from_longest,
     int num_threads,
-	const odgi::algorithms::step_index_t &step_index);
+	const odgi::algorithms::step_index_t &step_index,
+	const std::vector<uint64_t> &node_offsets);
 
 }

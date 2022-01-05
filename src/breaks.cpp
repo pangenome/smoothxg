@@ -121,10 +121,9 @@ double wfa_gap_compressed_identity(
                       const bool &break_repeats,
                       const uint64_t &thread_count,
                       const bool &write_block_to_split_fastas,
-					  const odgi::algorithms::step_index_t &step_index
+					  const odgi::algorithms::step_index_t &step_index,
+					  const std::vector<uint64_t> &node_offsets
     ) {
-        const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
-
         std::cerr
                 << "[smoothxg::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length ("
                 << max_poa_length << ") and depth >= " << min_dedup_depth_for_block_splitting << std::endl;

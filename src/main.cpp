@@ -356,6 +356,15 @@ int main(int argc, char **argv) {
             }
         }
 
+		// we need to have the nucleotide offset of each node at hand
+		std::vector<uint64_t> node_offsets;
+		node_offsets.reserve(graph.get_node_count() + 1);
+		uint64_t offset = 0;
+		graph.for_each_handle([&](const handle_t &handle) {
+			node_offsets[graph.get_id(handle)] = offset;
+			offset++;
+		});
+
         auto *blockset = new smoothxg::blockset_t();
         smoothxg::smoothable_blocks(graph,
                                     *blockset,
@@ -365,7 +374,8 @@ int main(int argc, char **argv) {
                                     max_edge_jump,
                                     order_paths_from_longest,
                                     num_threads,
-									*step_index);
+									*step_index,
+									node_offsets);
 
         const uint64_t min_autocorr_z = 5;
         const uint64_t autocorr_stride = 50;
@@ -388,7 +398,8 @@ int main(int argc, char **argv) {
                                true,
                                n_threads,
                                args::get(write_block_to_split_fastas),
-							   *step_index);
+							   *step_index,
+							   node_offsets);
 
         // build the path_step_rank_ranges -> index_in_blocks_vector
         // flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:

@@ -42,6 +42,7 @@ void break_blocks(const odgi::graph_t& graph,
                   const bool& break_repeats,
                   const uint64_t& thread_count,
                   const bool& write_block_to_split_fastas,
-				  const odgi::algorithms::step_index_t &step_index);
+				  const odgi::algorithms::step_index_t &step_index,
+				  const std::vector<uint64_t> &node_offsets);
 
 }
