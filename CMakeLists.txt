@@ -250,8 +250,7 @@ set(CMAKE_BUILD_TYPE Release)
 add_library(smoothxg_objs OBJECT
   src/tempfile.cpp
   src/xg.cpp
-  src/chain.cpp
-  src/prep.cpp
+        src/prep.cpp
   src/cleanup.cpp
   src/blocks.cpp
   ${mkmh_INCLUDE}/murmur3/murmur3.cpp
