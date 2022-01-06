@@ -379,7 +379,7 @@ target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
 
 # version stuff
 file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/include)
-execute_process(COMMAND bash scripts/generate_git_version.sh ${CMAKE_SOURCE_DIR}/include)
+execute_process(COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/generate_git_version.sh ${CMAKE_SOURCE_DIR}/include)
 
 install(TARGETS smoothxg DESTINATION bin)
 #install(TARGETS libsmoothxg_static ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
