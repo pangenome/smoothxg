@@ -21,9 +21,11 @@ namespace smoothxg {
         for (auto &path_range : block.path_ranges) {
             seqs.emplace_back();
             auto &seq = seqs.back();
-            for (step_handle_t step = path_range.begin; step != path_range.end;
-                 step = graph.get_next_step(step)) {
+			step_handle_t step = path_range.begin;
+            while (true) {
                 seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+				if (step == path_range.end) break;
+				step = graph.get_next_step(step);
             }
             std::stringstream namess;
             namess << graph.get_path_name(
@@ -218,10 +220,13 @@ double wfa_gap_compressed_identity(
                         // steps in id space
                         std::string seq;
                         std::string name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
-                        for (step_handle_t step = path_range.begin;
-                             step != path_range.end;
-                             step = graph.get_next_step(step)) {
+						step_handle_t step = path_range.begin;
+                        while (true) {
                             seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+							if (step == path_range.end) {
+								break;
+							}
+							step = graph.get_next_step(step);
                         }
                         if (seq.length() >= 2 * min_copy_length) {
                             //std::cerr << "on " << name << "\t" << seq.length() << std::endl;
@@ -279,10 +284,8 @@ double wfa_gap_compressed_identity(
                     step_handle_t last_end = path_range.begin;
                     //path_range_t* new_range = nullptr;
                     uint64_t pos = 0;
-                    step_handle_t step;
-                    for (step = path_range.begin;
-                         step != path_range.end;
-                         step = graph.get_next_step(step)) {
+                    step_handle_t step = path_range.begin;
+                    while (true) {
                         //handle_t h = graph.get_handle_of_step(step);
                         //uint64_t id = graph.get_id(h);
                         //int64_t node_pos = vec_graph.node_vector_offset(id);
@@ -293,6 +296,10 @@ double wfa_gap_compressed_identity(
                             last_end = next;
                             last_cut = pos;
                         }
+						if (step == path_range.end) {
+							break;
+						}
+						step = graph.get_next_step(step);
                     }
                     if (step != last_end) {
                         chopped_ranges.push_back({last_end, step, pos - last_cut});
@@ -332,10 +339,13 @@ double wfa_gap_compressed_identity(
                     auto& path_range = block.path_ranges[rank];
 
                     std::string seq;
-                    for (step_handle_t step = path_range.begin;
-                         step != path_range.end;
-                         step = graph.get_next_step(step)) {
+					step_handle_t step = path_range.begin;
+                    while (true) {
                         seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+						if (step == path_range.end) {
+							break;
+						}
+						step = graph.get_next_step(step);
                     }
                     auto seq_rev = odgi::reverse_complement(seq);
 

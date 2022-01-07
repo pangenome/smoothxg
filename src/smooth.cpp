@@ -95,7 +95,7 @@ void append_to_sequence(const odgi::graph_t &graph,
     uint64_t characters_to_add = poa_padding;
     std::string tmp;
     //ToDo: check if the condition is right
-    while (step != final_step && characters_to_add > 0){
+    while (characters_to_add > 0){
         const auto h = graph.get_handle_of_step(step);
         const auto l = graph.get_length(h);
 
@@ -118,7 +118,7 @@ void append_to_sequence(const odgi::graph_t &graph,
             fwd_bp += characters_added;
         }
         characters_to_add -= characters_added;
-
+		if (step == final_step) break;
         step = on_the_left ? graph.get_previous_step(step) : graph.get_next_step(step);
     }
 
@@ -171,9 +171,8 @@ odgi::graph_t* smooth_abpoa(const odgi::graph_t &graph, const block_t &block, co
                            path_handle, path_range.begin,
                            seq, fwd_bp, rev_bp,
                            poa_padding, true);
-
-        for (step_handle_t step = path_range.begin; step != path_range.end;
-             step = graph.get_next_step(step)) {
+		step_handle_t step = path_range.begin;
+        while (true) {
             const auto h = graph.get_handle_of_step(step);
             const auto l = graph.get_length(h);
             seq.append(graph.get_sequence(h));
@@ -182,6 +181,8 @@ odgi::graph_t* smooth_abpoa(const odgi::graph_t &graph, const block_t &block, co
             } else {
                 fwd_bp += l;
             }
+			if (step == path_range.end) break;
+			step = graph.get_next_step(step);
         }
 
         append_to_sequence(graph,
@@ -606,8 +607,8 @@ odgi::graph_t* smooth_spoa(const odgi::graph_t &graph, const block_t &block,
                            seq, fwd_bp, rev_bp,
                            poa_padding, true);
 
-        for (step_handle_t step = path_range.begin; step != path_range.end;
-             step = graph.get_next_step(step)) {
+		step_handle_t step = path_range.begin;
+        while (true) {
             const auto h = graph.get_handle_of_step(step);
             const auto l = graph.get_length(h);
             seq.append(graph.get_sequence(h));
@@ -616,6 +617,8 @@ odgi::graph_t* smooth_spoa(const odgi::graph_t &graph, const block_t &block,
             } else {
                 fwd_bp += l;
             }
+			if (step == path_range.end) break;
+			step = graph.get_next_step(step);
         }
 
         append_to_sequence(graph,
@@ -1744,11 +1747,13 @@ odgi::graph_t* smooth_and_lace(const odgi::graph_t &graph,
             uint64_t max_seq_len = 0;
             for (auto &path_range : block.path_ranges) {
                 uint64_t seq_length = 0;
-                for (step_handle_t step = path_range.begin; step != path_range.end;
-                     step = graph.get_next_step(step)) {
+				step_handle_t step = path_range.begin;
+                while (true) {
                     const auto h = graph.get_handle_of_step(step);
                     const auto l = graph.get_length(h);
                     seq_length += l;
+					if (step == path_range.end) break;
+					step = graph.get_next_step(step);
                 }
 
                 max_seq_len = std::max(max_seq_len, seq_length);
@@ -1770,10 +1775,12 @@ odgi::graph_t* smooth_and_lace(const odgi::graph_t &graph,
                     // In blocks not too deep we can increase the padding size
                     for (auto &path_range : block.path_ranges) {
                         const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
-                        for (step_handle_t step = path_range.begin; step != path_range.end;
-                        step = graph.get_next_step(step)) {
+						step_handle_t step = path_range.begin;
+                        while (true) {
                             const auto h = graph.get_handle_of_step(step);
                             average_seq_len += (float)graph.get_length(h);
+							if (step == path_range.end) break;
+							step = graph.get_next_step(step);
                         }
                     }
                     average_seq_len /= (float)block.path_ranges.size();
@@ -1828,10 +1835,11 @@ odgi::graph_t* smooth_and_lace(const odgi::graph_t &graph,
                 // graph
                 uint64_t path_id = 0;
                 for (auto &path_range : block.path_ranges) {
+
                     auto path_handle =
                         graph.get_path_handle_of_step(path_range.begin);
-					std::cerr << as_integers(path_range.end)[0] << " " << as_integers(path_range.end)[1] << std::endl;
-					auto last_step = graph.get_previous_step(path_range.end);
+					step_handle_t last_step;
+						last_step = path_range.end;
                     path_mapping.append(
                         {path_handle, // target path
 						 step_index.get_position(

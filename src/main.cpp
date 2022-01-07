@@ -22,6 +22,7 @@
 #include "rkmh.hpp"
 #include <chrono>
 #include <deps/odgi/src/odgi.hpp>
+#include <deps/odgi/deps/libhandlegraph/src/include/handlegraph/util.hpp>
 #include "version.hpp"
 #include "deps/odgi/src/algorithms/stepindex.hpp"
 
@@ -316,6 +317,7 @@ int main(int argc, char **argv) {
 
 		auto step_index = std::make_unique<odgi::algorithms::step_index_t>();
 		odgi::graph_t graph;
+		path_handle_t first_path;
 
 		if (!args::get(xg_in).empty()) {
 			// TODO in the future we expect a graph in ODGI file as input here, then we build the step index on the fly or it is at input_graph.stpidx
@@ -342,7 +344,7 @@ int main(int argc, char **argv) {
             } else {
                 gfa_in_name = args::get(gfa_in);
             }
-            std::cerr << "[smoothxg::main] building xg index" << std::endl;
+            std::cerr << "[smoothxg::main] building ODGI graph" << std::endl;
 			// TODO build ODGI graph from GFA
 			odgi::gfa_to_handle(gfa_in_name, &graph, false, num_threads, true);
 			std::vector<path_handle_t> paths;
@@ -350,6 +352,8 @@ int main(int argc, char **argv) {
 			graph.for_each_path_handle([&](const path_handle_t &path) {
 				paths.push_back(path);
 			});
+
+			std::cerr << "[smoothxg::main] building step index" << std::endl;
 			step_index = std::make_unique<odgi::algorithms::step_index_t>(graph, paths, num_threads, true, 8);
             if (!args::get(keep_temp) && !args::get(no_prep)) {
                 std::remove(gfa_in_name.c_str());

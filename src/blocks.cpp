@@ -37,7 +37,7 @@ void smoothable_blocks(
         };
     auto mark_step =
         [&](const step_handle_t& step) {
-            seen_steps[as_integer(graph.get_path_handle_of_step(step)) - 1][step_rank(step)] = 1;
+            seen_steps[as_integer(graph.get_path_handle_of_step(step)) - 1][as_integers(step)[1]] = 1;
         };
     auto toposplit_block =
         [&](const block_t& block) {
@@ -46,9 +46,8 @@ void smoothable_blocks(
             // collect handles
             uint64_t node_count = 0;
             for (auto& path_range : block.path_ranges) {
-                for (step_handle_t step = path_range.begin;
-                     step != path_range.end;
-                     step = graph.get_next_step(step)) {
+				step_handle_t step = path_range.begin;
+                while (true) {
                     auto h = graph.get_handle_of_step(step);
                     auto id = graph.get_id(h);
                     auto f = id_to_entry.find(id);
@@ -56,6 +55,8 @@ void smoothable_blocks(
                         id_to_entry[id] = node_count++;
                         nodes.push_back(id);
                     }
+					if (step == path_range.end) break;
+					step = graph.get_next_step(step);
                 }
             }
             std::vector<std::atomic<odgi::DisjointSets::Aint>> data(nodes.size()+1); // maps into this set of disjoint sets
@@ -64,10 +65,10 @@ void smoothable_blocks(
                 step_handle_t step = path_range.begin;
                 while (true) {
                     auto next = graph.get_next_step(step);
-                    if (next == path_range.end) break;
                     dset.unite(id_to_entry[graph.get_id(graph.get_handle_of_step(step))],
                                id_to_entry[graph.get_id(graph.get_handle_of_step(next))]);
-                    step = next;
+					if (next == path_range.end) break;
+					step = next;
                 }
             }
             // compute the block count and node to block mapping
@@ -75,9 +76,8 @@ void smoothable_blocks(
             ska::flat_hash_map<uint64_t, uint64_t> dset_ids;
             ska::flat_hash_map<uint64_t, uint64_t> node_to_dset;
             for (auto& path_range : block.path_ranges) {
-                for (step_handle_t step = path_range.begin;
-                     step != path_range.end;
-                     step = graph.get_next_step(step)) {
+				step_handle_t step = path_range.begin;
+                while (true) {
                     auto id_node = graph.get_id(graph.get_handle_of_step(step));
                     auto entry = id_to_entry[id_node];
                     auto id_dset = dset.find(entry);
@@ -86,6 +86,8 @@ void smoothable_blocks(
                         dset_ids[id_dset] = n_dsets++;
                     }
                     node_to_dset[id_node] = dset_ids[id_dset];
+					if (step == path_range.end) break;
+					step = graph.get_next_step(step);
                 }
             }
             std::vector<block_t> blocks(n_dsets);
@@ -93,11 +95,11 @@ void smoothable_blocks(
             for (auto& path_range : block.path_ranges) {
                 step_handle_t step = path_range.begin;
                 uint64_t dset_id = node_to_dset[graph.get_id(graph.get_handle_of_step(step))];
-                for ( ;
-                     step != path_range.end;
-                     step = graph.get_next_step(step)) {
+                while (true) {
                     uint64_t next_dset_id = node_to_dset[graph.get_id(graph.get_handle_of_step(step))];
                     assert(dset_id == next_dset_id);
+					if (step == path_range.end) break;
+					step = graph.get_next_step(step);
                 }
                 blocks[dset_id].path_ranges.push_back(path_range);
             }
@@ -137,6 +139,7 @@ void smoothable_blocks(
                 } else {
                     auto& path_range = path_ranges.back();
                     auto& last = path_range.end;
+					// TODO WE MIGHT HAVE TO FIX THIS
                     if (as_integer(graph.get_path_handle_of_step(last)) != as_integer(graph.get_path_handle_of_step(step))
                         || (step_index.get_position(step, graph)
                             - (step_index.get_position(last, graph) + graph.get_length(graph.get_handle_of_step(last)))
@@ -153,12 +156,13 @@ void smoothable_blocks(
             for (auto& path_range : path_ranges) {
                 uint64_t included_path_length = 0;
                 // update the path range end to point to the one-past element
-				path_range.end = graph.get_next_step(path_range.end);
+				// TODO FIX THIS
+				if (graph.has_next_step(path_range.end)) {
+					path_range.end = graph.get_next_step(path_range.end);
+				}
                 path_range_t* curr_path_range = nullptr;
-                step_handle_t curr_step;
-                for (curr_step = path_range.begin;
-                     curr_step != path_range.end;
-                     curr_step = graph.get_next_step(curr_step)) { 
+                step_handle_t curr_step = path_range.begin;
+                while (true) {
                     //if (curr_step == graph.path_end(graph.get_path_handle_of_step(curr_step))
                     if (curr_path_range == nullptr) {
                         block.path_ranges.emplace_back();
@@ -169,7 +173,9 @@ void smoothable_blocks(
                     if (seen_step(curr_step)) {
                         curr_path_range = nullptr;
                     }
-                }
+					if (curr_step == path_range.end) break;
+					curr_step = graph.get_next_step(curr_step);
+				}
                 if (curr_path_range != nullptr) {
                     curr_path_range->end = curr_step;
                 }
@@ -192,12 +198,13 @@ void smoothable_blocks(
                 auto& included_path_length = path_range.length;
                 included_path_length = 0;
                 // here we need to break when we see significant nonlinearities
-                for (step_handle_t curr_step = path_range.begin;
-                     curr_step != path_range.end;
-                     curr_step = graph.get_next_step(curr_step)) {
+				step_handle_t curr_step = path_range.begin;
+                while (true) {
                     mark_step(curr_step);
                     included_path_length += graph.get_length(graph.get_handle_of_step(curr_step));
-                }
+					if (curr_step == path_range.end) break;
+					curr_step = graph.get_next_step(curr_step);
+				}
                 _total_path_length += included_path_length;
             }
 
