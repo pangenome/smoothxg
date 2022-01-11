@@ -23,6 +23,7 @@
 #include <chrono>
 #include <deps/odgi/src/odgi.hpp>
 #include <deps/odgi/deps/libhandlegraph/src/include/handlegraph/util.hpp>
+#include <filesystem>
 #include "version.hpp"
 #include "deps/odgi/src/algorithms/stepindex.hpp"
 
@@ -35,7 +36,7 @@ int main(int argc, char **argv) {
 										smoothxg::Version::get_codename());
     args::HelpFlag help(parser, "help", "display this help menu", {'h', "help"});
     args::ValueFlag<std::string> gfa_in(parser, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
-    args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
+    args::ValueFlag<std::string> odgi_in(parser, "FILE", "Read the preprocessed ODGI graph from this file. Ideally, there already exists a step index for that graph. Else it will be build automatically.", {'i', "in"});
     args::ValueFlag<std::string> smoothed_out(parser, "FILE",
                                               "write GFA to this file (not /dev/stdout if consensus graph is made)",
                                               {'o', "smoothed-out"});
@@ -317,19 +318,24 @@ int main(int argc, char **argv) {
 
 		auto step_index = std::make_unique<odgi::algorithms::step_index_t>();
 		odgi::graph_t graph;
-		path_handle_t first_path;
 
-		if (!args::get(xg_in).empty()) {
-			// TODO in the future we expect a graph in ODGI file as input here, then we build the step index on the fly or it is at input_graph.stpidx
-			odgi::gfa_to_handle(args::get(xg_in), &graph, false, num_threads, true);
-			std::vector<path_handle_t> paths;
-			paths.reserve(graph.get_path_count());
-			graph.for_each_path_handle([&](const path_handle_t &path) {
-				paths.push_back(path);
-			});
-			step_index = std::make_unique<odgi::algorithms::step_index_t>(graph, paths, num_threads, true, 8);
-			// TODO build ODGI graph from GFA
-			// TODO build step index from ODGI graph
+		if (!args::get(odgi_in).empty()) {
+			// we need to load the graph
+			ifstream f(args::get(odgi_in).c_str());
+			graph.deserialize(f);
+			f.close();
+			// odgi::gfa_to_handle(args::get(odgi_in), &graph, false, num_threads, true);
+			std::string step_index_in = args::get(odgi_in) + ".stpidx";
+			if (std::filesystem::exists(step_index_in)) {
+				step_index->load(step_index_in);
+			} else {
+				std::vector<path_handle_t> paths;
+				paths.reserve(graph.get_path_count());
+				graph.for_each_path_handle([&](const path_handle_t &path) {
+					paths.push_back(path);
+				});
+				step_index = std::make_unique<odgi::algorithms::step_index_t>(graph, paths, num_threads, true, 8);
+			}
         } else if (!args::get(gfa_in).empty()) {
             // prep the graph by default
             std::string gfa_in_name;
@@ -345,7 +351,7 @@ int main(int argc, char **argv) {
                 gfa_in_name = args::get(gfa_in);
             }
             std::cerr << "[smoothxg::main] building ODGI graph" << std::endl;
-			// TODO build ODGI graph from GFA
+			// build ODGI graph from GFA
 			odgi::gfa_to_handle(gfa_in_name, &graph, false, num_threads, true);
 			std::vector<path_handle_t> paths;
 			paths.reserve(graph.get_path_count());
@@ -366,7 +372,7 @@ int main(int argc, char **argv) {
 		uint64_t offset = 0;
 		graph.for_each_handle([&](const handle_t &handle) {
 			node_offsets[graph.get_id(handle)] = offset;
-			offset++;
+			offset += graph.get_length(handle);
 		});
 
         auto *blockset = new smoothxg::blockset_t();
@@ -380,6 +386,29 @@ int main(int argc, char **argv) {
                                     num_threads,
 									*step_index,
 									node_offsets);
+
+		/*
+		// TODO iterate block set and print
+		// num_blocks
+		std::cerr << "[STEP INDEX]: number of blocks: " << blockset->size() << std::endl;
+		// iterate over blocks and print
+		for (uint64_t block_id = 0; block_id < blockset->size(); ++block_id) {
+			auto block = blockset->get_block(block_id);
+			// block_id: number of ranges
+			std::cerr << "BLOCK_ID: " << block_id << " NUMBER OF RANGES: " << block.path_ranges.size() << std::endl;
+			for (auto &path_range: block.path_ranges) {
+				//     print path ranges: path_name, length, path_start_pos, path_end_pos
+				uint64_t len = path_range.length;
+				step_handle_t begin = path_range.begin;
+				step_handle_t end = path_range.end;
+				std::string path_name = graph.get_path_name(graph.get_path_handle_of_step(begin));
+				uint64_t begin_pos = step_index->get_position(begin, graph);
+				uint64_t end_pos = step_index->get_position(end, graph);
+				std::cerr << "    " << path_name << " " << len << " " << begin_pos << " " << end_pos << std::endl;
+
+			}
+		}
+		*/
 
         const uint64_t min_autocorr_z = 5;
         const uint64_t autocorr_stride = 50;
@@ -415,9 +444,9 @@ int main(int argc, char **argv) {
         std::string maf_header;
         if (write_msa_in_maf_format) {
             basic_string<char> filename;
-            if (!args::get(xg_in).empty()) {
-                size_t found = args::get(xg_in).find_last_of("/\\");
-                filename = (args::get(xg_in).substr(found + 1));
+            if (!args::get(odgi_in).empty()) {
+                size_t found = args::get(odgi_in).find_last_of("/\\");
+                filename = (args::get(odgi_in).substr(found + 1));
             } else if (!args::get(gfa_in).empty()) {
                 size_t found = args::get(gfa_in).find_last_of("/\\");
                 filename = (args::get(gfa_in).substr(found + 1));
