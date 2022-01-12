@@ -10,24 +10,27 @@ namespace smoothxg {
     using namespace handlegraph;
 
 
-    void _prepare_and_write_fasta_for_block(const xg::XG &graph,
+    void _prepare_and_write_fasta_for_block(const odgi::graph_t &graph,
                                             const block_t &block,
                                             const uint64_t &block_id,
                                             const std::string& prefix,
+											const odgi::algorithms::step_index_t &step_index,
                                             const std::string& suffix = ""){
         std::vector<std::string> seqs;
         std::vector<std::string> names;
         for (auto &path_range : block.path_ranges) {
             seqs.emplace_back();
             auto &seq = seqs.back();
-            for (step_handle_t step = path_range.begin; step != path_range.end;
-                 step = graph.get_next_step(step)) {
+			step_handle_t step = path_range.begin;
+            while (true) {
                 seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+				if (step == path_range.end) break;
+				step = graph.get_next_step(step);
             }
             std::stringstream namess;
             namess << graph.get_path_name(
                     graph.get_path_handle_of_step(path_range.begin))
-                   << "_" << graph.get_position_of_step(path_range.begin);
+                   << "_" << step_index.get_position(path_range.begin, graph);
             names.push_back(namess.str());
         }
 
@@ -102,7 +105,7 @@ double wfa_gap_compressed_identity(
 
 // break the path ranges at likely VNTR boundaries
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
-    void break_blocks(const xg::XG &graph,
+    void break_blocks(const odgi::graph_t &graph,
                       blockset_t *&blockset,
                       const double &length_ratio_min,
                       const uint64_t &min_length_mash_based_clustering,
@@ -119,10 +122,10 @@ double wfa_gap_compressed_identity(
                       const bool &order_paths_from_longest,
                       const bool &break_repeats,
                       const uint64_t &thread_count,
-                      const bool &write_block_to_split_fastas
+                      const bool &write_block_to_split_fastas,
+					  const odgi::algorithms::step_index_t &step_index,
+					  const std::vector<uint64_t> &node_offsets
     ) {
-        const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
-
         std::cerr
                 << "[smoothxg::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length ("
                 << max_poa_length << ") and depth >= " << min_dedup_depth_for_block_splitting << std::endl;
@@ -217,10 +220,13 @@ double wfa_gap_compressed_identity(
                         // steps in id space
                         std::string seq;
                         std::string name = graph.get_path_name(graph.get_path_handle_of_step(path_range.begin));
-                        for (step_handle_t step = path_range.begin;
-                             step != path_range.end;
-                             step = graph.get_next_step(step)) {
+						step_handle_t step = path_range.begin;
+                        while (true) {
                             seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+							if (step == path_range.end) {
+								break;
+							}
+							step = graph.get_next_step(step);
                         }
                         if (seq.length() >= 2 * min_copy_length) {
                             //std::cerr << "on " << name << "\t" << seq.length() << std::endl;
@@ -278,10 +284,8 @@ double wfa_gap_compressed_identity(
                     step_handle_t last_end = path_range.begin;
                     //path_range_t* new_range = nullptr;
                     uint64_t pos = 0;
-                    step_handle_t step;
-                    for (step = path_range.begin;
-                         step != path_range.end;
-                         step = graph.get_next_step(step)) {
+                    step_handle_t step = path_range.begin;
+                    while (true) {
                         //handle_t h = graph.get_handle_of_step(step);
                         //uint64_t id = graph.get_id(h);
                         //int64_t node_pos = vec_graph.node_vector_offset(id);
@@ -292,6 +296,10 @@ double wfa_gap_compressed_identity(
                             last_end = next;
                             last_cut = pos;
                         }
+						if (step == path_range.end) {
+							break;
+						}
+						step = graph.get_next_step(step);
                     }
                     if (step != last_end) {
                         chopped_ranges.push_back({last_end, step, pos - last_cut});
@@ -331,10 +339,13 @@ double wfa_gap_compressed_identity(
                     auto& path_range = block.path_ranges[rank];
 
                     std::string seq;
-                    for (step_handle_t step = path_range.begin;
-                         step != path_range.end;
-                         step = graph.get_next_step(step)) {
+					step_handle_t step = path_range.begin;
+                    while (true) {
                         seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
+						if (step == path_range.end) {
+							break;
+						}
+						step = graph.get_next_step(step);
                     }
                     auto seq_rev = odgi::reverse_complement(seq);
 
@@ -548,7 +559,7 @@ double wfa_gap_compressed_identity(
                             ready_blocks[block_id].push_back(new_block);
 
                             if (write_block_to_split_fastas) {
-                                _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_",
+                                _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_", step_index,
                                                                    "_" + std::to_string(i++));
                             }
                         }
@@ -557,7 +568,7 @@ double wfa_gap_compressed_identity(
                             std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
 
                             // collect sequences
-                            _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_",
+                            _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_", step_index,
                                                                "_split_in_" + std::to_string(groups.size()) + "_in_" +
                                                                std::to_string(elapsed_time.count()) + "s");
                         }

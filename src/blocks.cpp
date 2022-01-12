@@ -5,40 +5,39 @@
 namespace smoothxg {
 
 void smoothable_blocks(
-    const xg::XG& graph,
+    const odgi::graph_t& graph,
     blockset_t& blockset,
     const uint64_t& max_block_weight,
     const uint64_t& max_block_path_length,
     const uint64_t& max_path_jump,
     const uint64_t& max_edge_jump,
     const bool& order_paths_from_longest,
-    const int num_threads
+    const int num_threads,
+	const odgi::algorithms::step_index_t &step_index,
+	const std::vector<uint64_t> &node_offsets
     ) {
     // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
     block_t block;
     std::vector<handle_t> block_handles;
-    std::vector<sdsl::bit_vector> seen_steps(graph.get_path_count());
+    std::vector<sdsl::bit_vector> seen_steps(graph.get_node_count());
 
     // cast to vectorizable graph for determining the sort position of nodes
-    const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
     std::cerr << "[smoothxg::smoothable_blocks] computing blocks" << std::endl;
 
     uint64_t rank = 0;
-    graph.for_each_path_handle([&](const path_handle_t& path) {
-        sdsl::util::assign(seen_steps[rank++], sdsl::bit_vector(graph.get_step_count(path), 0));
+    graph.for_each_handle([&](const handle_t& handle) {
+        sdsl::util::assign(seen_steps[rank++], sdsl::bit_vector(graph.get_step_count(handle), 0));
     });
 
     rank = 0;
 
     auto seen_step =
         [&](const step_handle_t& step) {
-            // in xg, the first half of the step is the path handle, which is it's rank + 1
-            // and the second half of the step is the rank in the path
-            return seen_steps[path_rank(step)-1][step_rank(step)];
+            return seen_steps[graph.get_id(graph.get_handle_of_step(step)) - 1][as_integers(step)[1]];
         };
     auto mark_step =
         [&](const step_handle_t& step) {
-            seen_steps[path_rank(step)-1][step_rank(step)] = 1;
+            seen_steps[graph.get_id(graph.get_handle_of_step(step)) - 1][as_integers(step)[1]] = 1;
         };
     auto toposplit_block =
         [&](const block_t& block) {
@@ -47,9 +46,8 @@ void smoothable_blocks(
             // collect handles
             uint64_t node_count = 0;
             for (auto& path_range : block.path_ranges) {
-                for (step_handle_t step = path_range.begin;
-                     step != path_range.end;
-                     step = graph.get_next_step(step)) {
+				step_handle_t step = path_range.begin;
+                while (true) {
                     auto h = graph.get_handle_of_step(step);
                     auto id = graph.get_id(h);
                     auto f = id_to_entry.find(id);
@@ -57,6 +55,8 @@ void smoothable_blocks(
                         id_to_entry[id] = node_count++;
                         nodes.push_back(id);
                     }
+					if (step == path_range.end) break;
+					step = graph.get_next_step(step);
                 }
             }
             std::vector<std::atomic<odgi::DisjointSets::Aint>> data(nodes.size()+1); // maps into this set of disjoint sets
@@ -65,10 +65,10 @@ void smoothable_blocks(
                 step_handle_t step = path_range.begin;
                 while (true) {
                     auto next = graph.get_next_step(step);
-                    if (next == path_range.end) break;
                     dset.unite(id_to_entry[graph.get_id(graph.get_handle_of_step(step))],
                                id_to_entry[graph.get_id(graph.get_handle_of_step(next))]);
-                    step = next;
+					if (next == path_range.end) break;
+					step = next;
                 }
             }
             // compute the block count and node to block mapping
@@ -76,9 +76,8 @@ void smoothable_blocks(
             ska::flat_hash_map<uint64_t, uint64_t> dset_ids;
             ska::flat_hash_map<uint64_t, uint64_t> node_to_dset;
             for (auto& path_range : block.path_ranges) {
-                for (step_handle_t step = path_range.begin;
-                     step != path_range.end;
-                     step = graph.get_next_step(step)) {
+				step_handle_t step = path_range.begin;
+                while (true) {
                     auto id_node = graph.get_id(graph.get_handle_of_step(step));
                     auto entry = id_to_entry[id_node];
                     auto id_dset = dset.find(entry);
@@ -87,6 +86,8 @@ void smoothable_blocks(
                         dset_ids[id_dset] = n_dsets++;
                     }
                     node_to_dset[id_node] = dset_ids[id_dset];
+					if (step == path_range.end) break;
+					step = graph.get_next_step(step);
                 }
             }
             std::vector<block_t> blocks(n_dsets);
@@ -94,11 +95,11 @@ void smoothable_blocks(
             for (auto& path_range : block.path_ranges) {
                 step_handle_t step = path_range.begin;
                 uint64_t dset_id = node_to_dset[graph.get_id(graph.get_handle_of_step(step))];
-                for ( ;
-                     step != path_range.end;
-                     step = graph.get_next_step(step)) {
+                while (true) {
                     uint64_t next_dset_id = node_to_dset[graph.get_id(graph.get_handle_of_step(step))];
                     assert(dset_id == next_dset_id);
+					if (step == path_range.end) break;
+					step = graph.get_next_step(step);
                 }
                 blocks[dset_id].path_ranges.push_back(path_range);
             }
@@ -118,14 +119,28 @@ void smoothable_blocks(
                     });
             }
 
+			std::cout << "TRAVERSALS: " << std::endl;
+			for (auto& traversal : traversals) {
+				std::cout << "    node_id: " << graph.get_id(graph.get_handle_of_step(traversal)) << std::endl;
+				std::cout << "    path_name: " << graph.get_path_name(graph.get_path_handle_of_step(traversal)) << std::endl;
+				std::cout << "    path_position: " << step_index.get_position(traversal, graph) << std::endl;
+			}
+
             std::vector<handle_t>().swap(block_handles);
 
             // sort them
             std::sort(
                 traversals.begin(), traversals.end(),
                 [&](const step_handle_t& a, const step_handle_t& b) {
-                    return path_rank(a) < path_rank(b) || path_rank(a) == path_rank(b) && step_rank(a) < step_rank(b);
+                    return graph.get_path_name(graph.get_path_handle_of_step(a)) < graph.get_path_name(graph.get_path_handle_of_step(b)) || as_integer(graph.get_path_handle_of_step(a)) == as_integer(graph.get_path_handle_of_step(b)) && step_index.get_position(a, graph) < step_index.get_position(b, graph);
                 });
+
+			std::cout << "SORTED TRAVERSALS: " << std::endl;
+			for (auto& traversal : traversals) {
+				std::cout << "    node_id: " << graph.get_id(graph.get_handle_of_step(traversal)) << std::endl;
+				std::cout << "    path_name: " << graph.get_path_name(graph.get_path_handle_of_step(traversal)) << std::endl;
+				std::cout << "    path_position: " << step_index.get_position(traversal, graph) << std::endl;
+			}
             // determine the path ranges in the block
             // break them when we pass some threshold for how much block-external sequence to include
             // (this parameter is meant to allow us to reduce dispersed collapses in the graph)
@@ -138,9 +153,9 @@ void smoothable_blocks(
                 } else {
                     auto& path_range = path_ranges.back();
                     auto& last = path_range.end;
-                    if (path_rank(last) != path_rank(step)
-                        || (graph.get_position_of_step(step)
-                            - (graph.get_position_of_step(last) + graph.get_length(graph.get_handle_of_step(last)))
+                    if (as_integer(graph.get_path_handle_of_step(last)) != as_integer(graph.get_path_handle_of_step(step))
+                        || (step_index.get_position(step, graph)
+                            - (step_index.get_position(last, graph) + graph.get_length(graph.get_handle_of_step(last)))
                             > max_path_jump)) {
                         // make a new range
                         path_ranges.push_back({step, step, 0});
@@ -150,41 +165,80 @@ void smoothable_blocks(
                     }
                 }
             }
+
+			// TODO PRINT PATH RANGES HERE
+			for (auto &path_range: path_ranges) {
+				//     print path ranges: path_name, path_start_pos, path_end_pos
+				step_handle_t begin = path_range.begin;
+				step_handle_t end = path_range.end;
+				std::string path_name = graph.get_path_name(graph.get_path_handle_of_step(begin));
+				uint64_t begin_pos = step_index.get_position(begin, graph);
+				uint64_t end_pos = step_index.get_position(end, graph);
+				std::cout << "    " << path_name << " " << begin_pos << " " << end_pos << std::endl;
+
+			}
+
             // break the path ranges on seen steps
             for (auto& path_range : path_ranges) {
                 uint64_t included_path_length = 0;
                 // update the path range end to point to the one-past element
-                path_range.end = graph.get_next_step(path_range.end);
+				// TODO FIX THIS
+
+				path_range.end = graph.get_next_step(path_range.end);
+
                 path_range_t* curr_path_range = nullptr;
-                step_handle_t curr_step;
-                for (curr_step = path_range.begin;
-                     curr_step != path_range.end;
-                     curr_step = graph.get_next_step(curr_step)) { 
+                step_handle_t curr_step = path_range.begin;
+                while (true) {
                     //if (curr_step == graph.path_end(graph.get_path_handle_of_step(curr_step))
-                    if (curr_path_range == nullptr) {
-                        block.path_ranges.emplace_back();
-                        curr_path_range = &block.path_ranges.back();
-                        curr_path_range->begin = curr_step;
-                    }
-                    curr_path_range->end = curr_step;
-                    if (seen_step(curr_step)) {
-                        curr_path_range = nullptr;
-                    }
-                }
+					if (curr_path_range == nullptr) {
+						block.path_ranges.emplace_back();
+						curr_path_range = &block.path_ranges.back();
+						curr_path_range->begin = curr_step;
+					}
+					curr_path_range->end = curr_step;
+					if (seen_step(curr_step)) {
+						curr_path_range = nullptr;
+					}
+					if (curr_step == path_range.end) break;
+					curr_step = graph.get_next_step(curr_step);
+				}
                 if (curr_path_range != nullptr) {
                     curr_path_range->end = curr_step;
                 }
             }
+
+			// TODO PRINT PATH RANGES HERE
+			std::cout << "BLOCK RANGES" << std::endl;
+			for (auto &path_range: block.path_ranges) {
+				//     print path ranges: path_name, path_start_pos, path_end_pos
+				step_handle_t begin = path_range.begin;
+				step_handle_t end = path_range.end;
+				std::string path_name = graph.get_path_name(graph.get_path_handle_of_step(begin));
+				uint64_t begin_pos = step_index.get_position(begin, graph);
+				uint64_t end_pos = step_index.get_position(end, graph);
+				std::cout << "    " << path_name << " " << begin_pos << " " << end_pos << std::endl;
+
+			}
 
             // erase any empty path ranges that we picked up
             // and any path ranges that are shorter than our minimum subpath size
             block.path_ranges.erase(
                 std::remove_if(
                     block.path_ranges.begin(), block.path_ranges.end(),
-                    [&graph](const path_range_t& path_range) {
-                        return path_range.begin == path_range.end;
+                    [&graph, &step_index](const path_range_t& path_range) {
+                        return graph.get_path_name(graph.get_path_handle_of_step(path_range.begin)) == graph.get_path_name(graph.get_path_handle_of_step(path_range.end))&& step_index.get_position(path_range.begin, graph) == step_index.get_position(path_range.end, graph);
                     }),
                 block.path_ranges.end());
+
+			std::cout << "BEFORE MARKING" << std::endl;
+			graph.for_each_path_handle(
+					[&](const handlegraph::path_handle_t &path) {
+						std::cout << graph.get_path_name(path) << ":";
+						graph.for_each_step_in_path(path, [&] (const step_handle_t& step) {
+							std::cout << " " << seen_step(step);
+						});
+						std::cout << std::endl;
+					});
 
             // finally, mark which steps we've kept and record the total length
             uint64_t _total_path_length = 0; // recalculate how much sequence we have
@@ -193,14 +247,26 @@ void smoothable_blocks(
                 auto& included_path_length = path_range.length;
                 included_path_length = 0;
                 // here we need to break when we see significant nonlinearities
-                for (step_handle_t curr_step = path_range.begin;
-                     curr_step != path_range.end;
-                     curr_step = graph.get_next_step(curr_step)) {
-                    mark_step(curr_step);
-                    included_path_length += graph.get_length(graph.get_handle_of_step(curr_step));
-                }
+				step_handle_t curr_step = path_range.begin;
+				// TODO maybe stop earlier or the path_range is too long?!
+                while (true) {
+					if (curr_step == path_range.end) break;
+					mark_step(curr_step);
+					included_path_length += graph.get_length(graph.get_handle_of_step(curr_step));
+					curr_step = graph.get_next_step(curr_step);
+				}
                 _total_path_length += included_path_length;
             }
+
+			std::cout << "AFTER MARKING" << std::endl;
+			graph.for_each_path_handle(
+					[&](const handlegraph::path_handle_t &path) {
+						std::cout << graph.get_path_name(path) << ":";
+						graph.for_each_step_in_path(path, [&] (const step_handle_t& step) {
+							std::cout << " " << seen_step(step);
+						});
+						std::cout << std::endl;
+					});
 
             if (_total_path_length > 0) {
                 // order the path ranges from longest/shortest to shortest/longest
@@ -259,14 +325,21 @@ void smoothable_blocks(
                                                       : (double) p.second.second / (double) block_handles.size()));
                 max_path_length = std::max(path_len_est + handle_length, max_path_length);
             }
+			/* FIXME
+			std::cerr << "NODE_ID: " << graph.get_id(handle) << std::endl;
+			std::cerr << "max_path_length: " << max_path_length << std::endl;
+			*/
             // for each edge, find the jump length
             int64_t longest_edge_jump = 0;
-            int64_t handle_vec_offset = vec_graph.node_vector_offset(graph.get_id(handle));
-            //int64_t handle_length = graph.get_length(handle);
+            int64_t handle_vec_offset = node_offsets[graph.get_id(handle)];
+			// FIXME
+			// std::cerr << "handle_vec_offset: " << handle_vec_offset << std::endl;
+
+			//int64_t handle_length = graph.get_length(handle);
             graph.follow_edges(
                 handle, false,
                 [&](const handle_t& o) {
-                    int64_t other_vec_offset = vec_graph.node_vector_offset(graph.get_id(o))
+                    int64_t other_vec_offset = node_offsets[graph.get_id(o)]
                         + (graph.get_is_reverse(o) ? graph.get_length(o) : 0);
                     int64_t jump = std::abs(other_vec_offset - (handle_vec_offset + handle_length));
                     longest_edge_jump = std::max(longest_edge_jump, jump);
@@ -274,7 +347,7 @@ void smoothable_blocks(
             graph.follow_edges(
                 handle, true,
                 [&](const handle_t& o) {
-                    int64_t other_vec_offset = vec_graph.node_vector_offset(graph.get_id(o))
+                    int64_t other_vec_offset = node_offsets[graph.get_id(o)]
                         + (graph.get_is_reverse(o) ? 0 : graph.get_length(o));
                     int64_t jump = std::abs(other_vec_offset - handle_vec_offset);
                     longest_edge_jump = std::max(longest_edge_jump, jump);
@@ -307,7 +380,10 @@ void smoothable_blocks(
                 total_path_length += sequence_to_add;
             }
 
-            graph.for_each_step_on_handle(
+			// FIXME
+			// std::cerr << "total_path_length: " << total_path_length << std::endl;
+
+			graph.for_each_step_on_handle(
                 handle,
                 [&](const step_handle_t& step) {
                     if (!seen_step(step)) {
@@ -322,7 +398,7 @@ void smoothable_blocks(
         });
 
     blocks_progress.finish();
-    
+
     if (block.path_ranges.empty()) {
         finalize_block(block, block_handles);
     }

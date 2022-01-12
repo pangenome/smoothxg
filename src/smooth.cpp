@@ -32,7 +32,10 @@ void _clear_maf_block(ska::flat_hash_map<std::string, std::vector<maf_partial_ro
 */
 
 // if we want a vectorized layout representation of the block
-void write_tsv_for_block(const xg::XG &graph,
+/// currently not used, therefore commented out
+// if used in the future, keep in mind that you can't cast a graph_t to a vectorized graph
+/*
+void write_tsv_for_block(const odgi::graph_t &graph,
                          const block_t &block,
                          const uint64_t &block_id,
                          const std::vector<std::string>& seqs,
@@ -63,8 +66,9 @@ void write_tsv_for_block(const xg::XG &graph,
     }
     vs.close();
 }
+ */
 
-void write_fasta_for_block(const xg::XG &graph,
+void write_fasta_for_block(const odgi::graph_t &graph,
                            const block_t &block,
                            const uint64_t &block_id,
                            const std::vector<std::string>& seqs,
@@ -80,7 +84,7 @@ void write_fasta_for_block(const xg::XG &graph,
     fasta.close();
 }
 
-void append_to_sequence(const xg::XG &graph,
+void append_to_sequence(const odgi::graph_t &graph,
                         const path_handle_t &path_handle, const step_handle_t& starting_step,
                         std::basic_string<char> &seq, uint64_t &fwd_bp, uint64_t &rev_bp,
                         int poa_padding, bool on_the_left) {
@@ -91,7 +95,7 @@ void append_to_sequence(const xg::XG &graph,
     uint64_t characters_to_add = poa_padding;
     std::string tmp;
     //ToDo: check if the condition is right
-    while (step != final_step && characters_to_add > 0){
+    while (characters_to_add > 0){
         const auto h = graph.get_handle_of_step(step);
         const auto l = graph.get_length(h);
 
@@ -114,7 +118,7 @@ void append_to_sequence(const xg::XG &graph,
             fwd_bp += characters_added;
         }
         characters_to_add -= characters_added;
-
+		if (step == final_step) break;
         step = on_the_left ? graph.get_previous_step(step) : graph.get_next_step(step);
     }
 
@@ -140,12 +144,13 @@ void append_to_sequence(const xg::XG &graph,
     }
 };
 
-odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t block_id,
+odgi::graph_t* smooth_abpoa(const odgi::graph_t &graph, const block_t &block, const uint64_t block_id,
                             int poa_m, int poa_n, int poa_g,
                             int poa_e, int poa_q, int poa_c,
                             int poa_padding,
                             bool local_alignment,
                             std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
+							const odgi::algorithms::step_index_t &step_index,
                             bool banded_alignment,
                             const std::string &consensus_name,
                             bool save_block_fastas) {
@@ -166,9 +171,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                            path_handle, path_range.begin,
                            seq, fwd_bp, rev_bp,
                            poa_padding, true);
-
-        for (step_handle_t step = path_range.begin; step != path_range.end;
-             step = graph.get_next_step(step)) {
+		step_handle_t step = path_range.begin;
+        while (true) {
             const auto h = graph.get_handle_of_step(step);
             const auto l = graph.get_length(h);
             seq.append(graph.get_sequence(h));
@@ -177,6 +181,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             } else {
                 fwd_bp += l;
             }
+			if (step == path_range.end) break;
+			step = graph.get_next_step(step);
         }
 
         append_to_sequence(graph,
@@ -190,7 +196,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         }
         std::stringstream namess;
         namess << graph.get_path_name(path_handle)
-               << "_" << graph.get_position_of_step(path_range.begin);
+               << "_" << step_index.get_position(path_range.begin, graph);
         names.push_back(namess.str());
 
         max_sequence_size = std::max(max_sequence_size, seq.size());
@@ -416,13 +422,13 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                 auto path_handle = graph.get_path_handle_of_step(block.path_ranges[seq_rank].begin);
 
                 path_name = graph.get_path_name(path_handle);
-                path_length = graph.get_path_length(path_handle);
+                path_length = step_index.get_path_len(path_handle);
 
                 // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
-                uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
+                uint64_t path_range_begin = step_index.get_position(block.path_ranges[seq_rank].begin, graph);
                 auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
                 record_start = is_rev[seq_rank] ?
-                               (path_length - graph.get_position_of_step(last_step) -
+                               (path_length - step_index.get_position(last_step, graph) -
                                 graph.get_length(graph.get_handle_of_step(last_step))) :
                                path_range_begin;
 
@@ -573,13 +579,14 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     return output_graph;
 }
 
-odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
+odgi::graph_t* smooth_spoa(const odgi::graph_t &graph, const block_t &block,
                            const uint64_t block_id,
                            std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
                            std::int8_t poa_e, std::int8_t poa_q, std::int8_t poa_c,
                            int poa_padding,
                            bool local_alignment,
                            std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
+						   const odgi::algorithms::step_index_t &step_index,
                            const std::string &consensus_name,
                            bool save_block_fastas) {
     // collect sequences
@@ -600,8 +607,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            seq, fwd_bp, rev_bp,
                            poa_padding, true);
 
-        for (step_handle_t step = path_range.begin; step != path_range.end;
-             step = graph.get_next_step(step)) {
+		step_handle_t step = path_range.begin;
+        while (true) {
             const auto h = graph.get_handle_of_step(step);
             const auto l = graph.get_length(h);
             seq.append(graph.get_sequence(h));
@@ -610,6 +617,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
             } else {
                 fwd_bp += l;
             }
+			if (step == path_range.end) break;
+			step = graph.get_next_step(step);
         }
 
         append_to_sequence(graph,
@@ -623,7 +632,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         }
         std::stringstream namess;
         namess << graph.get_path_name(path_handle)
-               << "_" << graph.get_position_of_step(path_range.begin);
+               << "_" << step_index.get_position(path_range.begin, graph);
         names.push_back(namess.str());
 
         max_sequence_size = std::max(max_sequence_size, seq.size());
@@ -753,13 +762,13 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 auto path_handle = graph.get_path_handle_of_step(block.path_ranges[seq_rank].begin);
 
                 path_name = graph.get_path_name(path_handle);
-                path_length = graph.get_path_length(path_handle);
+                path_length = step_index.get_path_len(path_handle);
 
                 // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
-                uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
+                uint64_t path_range_begin = step_index.get_position(block.path_ranges[seq_rank].begin, graph);
                 auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
                 record_start = is_rev[seq_rank] ?
-                               (path_length - graph.get_position_of_step(last_step) - graph.get_length(graph.get_handle_of_step(last_step))):
+                               (path_length - step_index.get_position(last_step, graph) - graph.get_length(graph.get_handle_of_step(last_step))):
                                path_range_begin;
 
                 seq_size = seqs[seq_rank].size(); - 2 * poa_padding;// <==> block.path_ranges[seq_rank].length
@@ -1318,7 +1327,7 @@ void _write_merged_maf_blocks(
     */
 }
 
-odgi::graph_t* smooth_and_lace(const xg::XG &graph,
+odgi::graph_t* smooth_and_lace(const odgi::graph_t &graph,
                                blockset_t*& blockset,
                                int poa_m, int poa_n,
                                int poa_g, int poa_e,
@@ -1334,7 +1343,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                const std::string &consensus_base_name,
                                std::vector<std::string>& consensus_path_names,
                                bool write_fasta_blocks,
-                               uint64_t max_merged_groups_in_memory) {
+                               uint64_t max_merged_groups_in_memory,
+							   const odgi::algorithms::step_index_t &step_index) {
 
     bool add_consensus = !consensus_base_name.empty();
 
@@ -1737,11 +1747,13 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             uint64_t max_seq_len = 0;
             for (auto &path_range : block.path_ranges) {
                 uint64_t seq_length = 0;
-                for (step_handle_t step = path_range.begin; step != path_range.end;
-                     step = graph.get_next_step(step)) {
+				step_handle_t step = path_range.begin;
+                while (true) {
                     const auto h = graph.get_handle_of_step(step);
                     const auto l = graph.get_length(h);
                     seq_length += l;
+					if (step == path_range.end) break;
+					step = graph.get_next_step(step);
                 }
 
                 max_seq_len = std::max(max_seq_len, seq_length);
@@ -1763,10 +1775,12 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     // In blocks not too deep we can increase the padding size
                     for (auto &path_range : block.path_ranges) {
                         const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
-                        for (step_handle_t step = path_range.begin; step != path_range.end;
-                        step = graph.get_next_step(step)) {
+						step_handle_t step = path_range.begin;
+                        while (true) {
                             const auto h = graph.get_handle_of_step(step);
                             average_seq_len += (float)graph.get_length(h);
+							if (step == path_range.end) break;
+							step = graph.get_next_step(step);
                         }
                     }
                     average_seq_len /= (float)block.path_ranges.size();
@@ -1788,6 +1802,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                            local_alignment,
                                            (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                            produce_maf,
+										   step_index,
                                            true, // banded alignment
                                            consensus_name,
                                            write_fasta_blocks);
@@ -1805,6 +1820,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                           local_alignment,
                                           (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                           produce_maf,
+										  step_index,
                                           consensus_name,
                                           write_fasta_blocks);
             }
@@ -1819,15 +1835,17 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 // graph
                 uint64_t path_id = 0;
                 for (auto &path_range : block.path_ranges) {
+
                     auto path_handle =
                         graph.get_path_handle_of_step(path_range.begin);
-                    auto last_step = graph.get_previous_step(path_range.end);
+					step_handle_t last_step;
+						last_step = path_range.end;
                     path_mapping.append(
                         {path_handle, // target path
-                         graph.get_position_of_step(
-                             path_range.begin), // start position
-                         (graph.get_position_of_step(
-                             last_step) // end position
+						 step_index.get_position(
+                             path_range.begin, graph), // start position
+                         (step_index.get_position(
+                             last_step, graph) // end position
                           + graph.get_length(
                               graph.get_handle_of_step(last_step))),
                          as_path_handle(++path_id), block_id});
@@ -2062,7 +2080,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             }
             // now add in any final sequence in the path
             // and add it to the path, add the edge
-            if (graph.get_path_length(get_base_path(pos_range)) > last_end_pos) {
+            if (step_index.get_path_len(get_base_path(pos_range)) > last_end_pos) {
                 assert(false); // assert that we've included all sequence in the blocks
             }
         }

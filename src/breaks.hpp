@@ -16,6 +16,7 @@
 #include "sautocorr.hpp"
 #include "xg.hpp"
 #include "odgi/dna.hpp"
+#include <deps/odgi/src/algorithms/stepindex.hpp>
 
 namespace smoothxg {
 
@@ -23,7 +24,7 @@ using namespace handlegraph;
 
 // break the path ranges at likely VNTR boundaries
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
-void break_blocks(const xg::XG& graph,
+void break_blocks(const odgi::graph_t& graph,
                   blockset_t*& blockset,
                   const double &length_ratio_min,
                   const uint64_t& min_length_mash_based_clustering,
@@ -40,6 +41,8 @@ void break_blocks(const xg::XG& graph,
                   const bool& order_paths_from_longest,
                   const bool& break_repeats,
                   const uint64_t& thread_count,
-                  const bool& write_block_to_split_fastas);
+                  const bool& write_block_to_split_fastas,
+				  const odgi::algorithms::step_index_t &step_index,
+				  const std::vector<uint64_t> &node_offsets);
 
 }
