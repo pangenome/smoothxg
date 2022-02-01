@@ -308,7 +308,7 @@ int main(int argc, char **argv) {
 
         }
 
-        const bool order_paths_from_longest = true; //args::get(use_spoa);
+        const bool order_paths_from_longest = false;
         const float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
         const int node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
