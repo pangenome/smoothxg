@@ -6,18 +6,6 @@
 
 namespace smoothxg {
 
-// to write each block to a FASTA and TSV
-//#define SMOOTH_WRITE_BLOCKS_FASTA true
-
-static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
-    uint64_t t, tt;
-    if ((tt = v >> 32)) {
-        return (t = tt >> 16) ? 48 + LogTable65536[t]
-                              : 32 + LogTable65536[tt];
-    }
-    return (t = v >> 16) ? 16 + LogTable65536[t] : LogTable65536[v];
-}
-
 /*
 void _clear_maf_block(ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>> &maf){
     for (const auto &path_to_maf_rows : maf){
@@ -29,7 +17,6 @@ void _clear_maf_block(ska::flat_hash_map<std::string, std::vector<maf_partial_ro
     maf.clear();
     ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>().swap(maf);
 }
-*/
 
 // if we want a vectorized layout representation of the block
 void write_tsv_for_block(const xg::XG &graph,
@@ -63,6 +50,7 @@ void write_tsv_for_block(const xg::XG &graph,
     }
     vs.close();
 }
+*/
 
 void write_fasta_for_block(const xg::XG &graph,
                            const block_t &block,
@@ -138,7 +126,7 @@ void append_to_sequence(const xg::XG &graph,
         }
         //std::cerr << "\n";
     }
-};
+}
 
 odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t block_id,
                             int poa_m, int poa_n, int poa_g,
@@ -762,7 +750,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                                (path_length - graph.get_position_of_step(last_step) - graph.get_length(graph.get_handle_of_step(last_step))):
                                path_range_begin;
 
-                seq_size = seqs[seq_rank].size(); - 2 * poa_padding;// <==> block.path_ranges[seq_rank].length
+                seq_size = seqs[seq_rank].size() - 2 * poa_padding;// <==> block.path_ranges[seq_rank].length
             }else{
                 // The last sequence is the gapped consensus
 
@@ -2448,7 +2436,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                 num = abg->node[cur_id].read_ids[i];
                 while (num) {
                     tmp = num & -num;
-                    read_id = ilog2_64(abpt, tmp);
+                    read_id = ilog2_64(tmp);
                     read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id;
                     num ^= tmp;
                 }
