@@ -3,6 +3,7 @@
 #include "deps/abPOA/src/abpoa_graph.c"
 //#include "deps/abPOA/src/abpoa_seq.c"
 #include "deps/abPOA/src/abpoa_align.c"
+#include "rkmh.hpp"
 
 namespace smoothxg {
 
@@ -1311,6 +1312,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                int poa_m, int poa_n,
                                int poa_g, int poa_e,
                                int poa_q, int poa_c,
+                               const uint64_t &kmer_size,
                                float poa_padding_fraction,
                                uint64_t max_block_depth_for_padding_more,
                                bool local_alignment,
@@ -1736,7 +1738,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             }
 
             int poa_padding = 0;
-
             if (poa_padding_fraction > 0) {
                 if (block.path_ranges.size() <= max_block_depth_for_padding_more) {
                     // min amount of flanking sequences to add
@@ -1761,6 +1762,65 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     poa_padding = std::max((int)(average_seq_len * poa_padding_fraction), poa_padding);
                 }
             }
+
+            // Estimate the pairwise identity in the block for tuning the POA penalties
+            // Avoid the identity estimation for too-deep blocks (todo random sampling for deep block???)
+            if (block.path_ranges.size() > 1 && block.path_ranges.size() <= max_block_depth_for_padding_more) {
+                // Deduplication (todo eventually, keep it simple for now)
+
+                // Prepare sequences
+                std::vector<std::string* > seqs; seqs.reserve(block.path_ranges.size());
+                for (const auto& path_range : block.path_ranges) {
+                    auto seq = new std::string();
+                    for (step_handle_t step = path_range.begin; step != path_range.end; step = graph.get_next_step(step)) {
+                        seq->append(graph.get_sequence(graph.get_handle_of_step(step)));
+                    }
+
+                    // We can't compute the hashes for what is shorter than the kmer size
+                    // Skip too short sequences
+                    if (seq->size() >= 16 * kmer_size) {
+                        seqs.push_back(seq);
+                    } else {
+                        delete seq;
+                    }
+                }
+
+                // Check if there are still sequences to compare
+                if (seqs.size() > 1) {
+                    // Compute hashes
+                    std::vector<std::vector<mkmh::hash_t>> seq_hashes;
+                    std::vector<int> seq_hash_lens;
+
+                    seq_hashes.resize(seqs.size());
+                    seq_hash_lens.resize(seqs.size());
+                    rkmh::hash_sequences(seqs, seq_hashes, seq_hash_lens, kmer_size);
+
+                    // All-vs-All comparison
+                    std::vector<float> estimated_distances; //todo on-the-fly percentile computation to avoid a big vector in memory?
+
+                    estimated_distances.reserve(seqs.size() * (seqs.size() - 1) / 2); // N * (N - 1) / 2 comparisons
+                    for (uint64_t i = 0; i < seqs.size(); ++i) {
+                        for (uint64_t j = i + 1; j < seqs.size(); ++j) {
+                            const float est_identity = 1.0 - rkmh::compare(seq_hashes[i], seq_hashes[j], kmer_size, true);
+                            estimated_distances.push_back(est_identity);
+                        }
+                    }
+
+                    // Take 30% percentile as identity threshold (70% of the pairs have identity >= to this value)
+                    std::sort(estimated_distances.begin(), estimated_distances.end());
+
+                    const float est_identity_threshold = std::max((float)0.7, estimated_distances[(estimated_distances.size() - 1) * 0.30]);
+
+
+                    // Tune POA penalties
+                    // todo
+                }
+
+                for (auto& seq : seqs) {
+                    delete seq;
+                }
+            }
+
 
             if (use_abpoa) {
                 block_graph = smooth_abpoa(graph,

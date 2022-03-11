@@ -233,7 +233,7 @@ int main(int argc, char **argv) {
         const uint64_t max_copy_length = _max_copy_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_copy_length), 20000) : 20000;
         const uint64_t target_poa_length = _target_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_target_poa_length), 5000) : 5000;
         const uint64_t max_poa_length = _max_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_poa_length), 2 * target_poa_length) : 2 * target_poa_length;
-        const float poa_padding_fraction = _poa_padding_fraction ? args::get(_poa_padding_fraction) : 0.01;
+        const float poa_padding_fraction = _poa_padding_fraction ? args::get(_poa_padding_fraction) : (float) 0.01;
         const uint64_t max_block_depth_for_padding_more = _max_block_depth_for_padding_more ?
                 (uint64_t)smoothxg::handy_parameter(args::get(_max_block_depth_for_padding_more), 1000) : 1000;
 
@@ -436,6 +436,7 @@ int main(int argc, char **argv) {
                                                       poa_e,
                                                       poa_q,
                                                       poa_c,
+                                                      kmer_size,
                                                       poa_padding_fraction,
                                                       max_block_depth_for_padding_more,
                                                       local_alignment,

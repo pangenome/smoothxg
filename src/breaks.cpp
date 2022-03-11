@@ -34,71 +34,72 @@ namespace smoothxg {
         write_fasta_for_block(graph, block, block_id, seqs, names, prefix, suffix);
     }
 
-
-double edlib_gap_compressed_identity(
-    const unsigned char* const alignment,
-    const int alignment_length) {
-    char move_c[] = {'=', 'I', 'D', 'X'};
-    int idx = 0;
-    int matches = 0;
-    int mismatches = 0;
-    int indels = 0;
-    bool last_is_gap = false;
-    while (idx < alignment_length) {
-        switch (move_c[alignment[idx++]]) {
-        case '=':
-            last_is_gap = false;
-            ++matches;
-            break;
-        case 'X':
-            last_is_gap = false;
-            ++mismatches;
-            break;
-        case 'I':
-        case 'D':
-            if (!last_is_gap) {
-                ++indels;
-                last_is_gap = true;
+/*
+    double edlib_gap_compressed_identity(
+        const unsigned char* const alignment,
+        const int alignment_length) {
+        char move_c[] = {'=', 'I', 'D', 'X'};
+        int idx = 0;
+        int matches = 0;
+        int mismatches = 0;
+        int indels = 0;
+        bool last_is_gap = false;
+        while (idx < alignment_length) {
+            switch (move_c[alignment[idx++]]) {
+            case '=':
+                last_is_gap = false;
+                ++matches;
+                break;
+            case 'X':
+                last_is_gap = false;
+                ++mismatches;
+                break;
+            case 'I':
+            case 'D':
+                if (!last_is_gap) {
+                    ++indels;
+                    last_is_gap = true;
+                }
+                break;
+            default:
+                break;
             }
-            break;
-        default:
-            break;
         }
+        return (double)(matches) / (double)(matches + mismatches + indels);
     }
-    return (double)(matches) / (double)(matches + mismatches + indels);
-}
+*/
 
-double wfa_gap_compressed_identity(
-    const wfa::edit_cigar_t* const edit_cigar) {
-    int start_idx = edit_cigar->begin_offset;
-    int end_idx = edit_cigar->end_offset;
-    int matches = 0;
-    int mismatches = 0;
-    int indels = 0;
-    bool last_is_gap = false;
-    for (int i = start_idx; i <= end_idx; i++) {
-        switch (edit_cigar->operations[i]) {
-        case 'M':
-            last_is_gap = false;
-            ++matches;
-            break;
-        case 'X':
-            last_is_gap = false;
-            ++mismatches;
-            break;
-        case 'I':
-        case 'D':
-            if (!last_is_gap) {
-                ++indels;
-                last_is_gap = true;
+    double wfa_gap_compressed_identity(
+        const wfa::edit_cigar_t* const edit_cigar) {
+        int start_idx = edit_cigar->begin_offset;
+        int end_idx = edit_cigar->end_offset;
+        int matches = 0;
+        int mismatches = 0;
+        int indels = 0;
+        bool last_is_gap = false;
+        for (int i = start_idx; i <= end_idx; i++) {
+            switch (edit_cigar->operations[i]) {
+            case 'M':
+                last_is_gap = false;
+                ++matches;
+                break;
+            case 'X':
+                last_is_gap = false;
+                ++mismatches;
+                break;
+            case 'I':
+            case 'D':
+                if (!last_is_gap) {
+                    ++indels;
+                    last_is_gap = true;
+                }
+                break;
+            default:
+                break;
             }
-            break;
-        default:
-            break;
         }
+        return (double)(matches) / (double)(matches + mismatches + indels);
     }
-    return (double)(matches) / (double)(matches + mismatches + indels);
-}
 
 // break the path ranges at likely VNTR boundaries
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
