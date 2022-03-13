@@ -323,7 +323,6 @@ namespace smoothxg {
             // ensure that the sequences in the block are within our identity threshold
             // if not, peel them off into splits
             if ((block_group_identity > 0 || block_group_est_identity > 0) && block.path_ranges.size() > 1) {
-
                 std::vector<std::pair<std::uint64_t, std::string>> rank_and_seqs_dedup;
                 std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
 

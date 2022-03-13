@@ -1778,7 +1778,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                     // We can't compute the hashes for what is shorter than the kmer size
                     // Skip too short sequences
-                    if (seq->size() >= 16 * kmer_size) {
+                    if (seq->size() >= 8 * kmer_size) {
                         seqs.push_back(seq);
                     } else {
                         delete seq;
@@ -1808,6 +1808,12 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                     // Take 30% percentile as identity threshold (70% of the pairs have identity >= to this value)
                     std::sort(estimated_distances.begin(), estimated_distances.end());
+//                    std::cerr << "estimated_distances.size() ---> " << estimated_distances.size() << std::endl;
+//                    std::cerr << std::fixed << std::setprecision(3) << "min ---> " << estimated_distances[0] * 100.0 << std::endl;
+//                    std::cerr << std::fixed << std::setprecision(3) << "30% ---> " << estimated_distances[(estimated_distances.size() - 1) * 0.30] * 100.0 << std::endl;
+//                    std::cerr << std::fixed << std::setprecision(3) << "50% ---> " << estimated_distances[(estimated_distances.size() - 1) * 0.50] * 100.0 << std::endl;
+//                    std::cerr << std::fixed << std::setprecision(3) << "80% ---> " << estimated_distances[(estimated_distances.size() - 1) * 0.80] * 100.0 << std::endl;
+//                    std::cerr << std::fixed << std::setprecision(3) << "max ---> " << estimated_distances.back() * 100.0 << std::endl;
 
                     const float est_identity_threshold = std::max((float)0.7, estimated_distances[(estimated_distances.size() - 1) * 0.30]);
 
