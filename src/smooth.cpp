@@ -1763,6 +1763,14 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 }
             }
 
+            // Set/default penalties
+            int poa_m_to_use = poa_m;
+            int poa_n_to_use = poa_n;
+            int poa_g_to_use = poa_g;
+            int poa_e_to_use = poa_e;
+            int poa_q_to_use = poa_q;
+            int poa_c_to_use = poa_c;
+
             // Estimate the pairwise identity in the block for tuning the POA penalties
             // Avoid the identity estimation for too-deep blocks (todo random sampling for deep block???)
             if (block.path_ranges.size() > 1 && block.path_ranges.size() <= max_block_depth_for_padding_more) {
@@ -1808,18 +1816,45 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                     // Take 30% percentile as identity threshold (70% of the pairs have identity >= to this value)
                     std::sort(estimated_distances.begin(), estimated_distances.end());
-//                    std::cerr << "estimated_distances.size() ---> " << estimated_distances.size() << std::endl;
-//                    std::cerr << std::fixed << std::setprecision(3) << "min ---> " << estimated_distances[0] * 100.0 << std::endl;
-//                    std::cerr << std::fixed << std::setprecision(3) << "30% ---> " << estimated_distances[(estimated_distances.size() - 1) * 0.30] * 100.0 << std::endl;
-//                    std::cerr << std::fixed << std::setprecision(3) << "50% ---> " << estimated_distances[(estimated_distances.size() - 1) * 0.50] * 100.0 << std::endl;
-//                    std::cerr << std::fixed << std::setprecision(3) << "80% ---> " << estimated_distances[(estimated_distances.size() - 1) * 0.80] * 100.0 << std::endl;
-//                    std::cerr << std::fixed << std::setprecision(3) << "max ---> " << estimated_distances.back() * 100.0 << std::endl;
-
                     const float est_identity_threshold = std::max((float)0.7, estimated_distances[(estimated_distances.size() - 1) * 0.30]);
 
-
                     // Tune POA penalties
-                    // todo
+                    if (est_identity_threshold >= 0.99) {
+                        poa_m_to_use = 1;
+                        poa_n_to_use = 19;
+                        poa_g_to_use = 39;
+                        poa_e_to_use = 3;
+                        poa_q_to_use = 81;
+                        poa_c_to_use = 1;
+                    } else if (est_identity_threshold >= 0.98) {
+                        poa_m_to_use = 1;
+                        poa_n_to_use = 13;
+                        poa_g_to_use = 31;
+                        poa_e_to_use = 3;
+                        poa_q_to_use = 51;
+                        poa_c_to_use = 1;
+                    } else if (est_identity_threshold >= 0.97) {
+                        poa_m_to_use = 1;
+                        poa_n_to_use = 9;
+                        poa_g_to_use = 16;
+                        poa_e_to_use = 2;
+                        poa_q_to_use = 41;
+                        poa_c_to_use = 1;
+                    } else if (est_identity_threshold >= 0.95) {
+                        poa_m_to_use = 1;
+                        poa_n_to_use = 7;
+                        poa_g_to_use = 11;
+                        poa_e_to_use = 2;
+                        poa_q_to_use = 33;
+                        poa_c_to_use = 1;
+                    } else if (est_identity_threshold >= 0.90) {
+                        poa_m_to_use = 1;
+                        poa_n_to_use = 4;
+                        poa_g_to_use = 6;
+                        poa_e_to_use = 2;
+                        poa_q_to_use = 26;
+                        poa_c_to_use = 1;
+                    } // else use the set/default penalties
                 }
 
                 for (auto& seq : seqs) {
@@ -1827,17 +1862,16 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 }
             }
 
-
             if (use_abpoa) {
                 block_graph = smooth_abpoa(graph,
                                            block,
                                            block_id,
-                                           poa_m,
-                                           poa_n,
-                                           poa_g,
-                                           poa_e,
-                                           poa_q,
-                                           poa_c,
+                                           poa_m_to_use,
+                                           poa_n_to_use,
+                                           poa_g_to_use,
+                                           poa_e_to_use,
+                                           poa_q_to_use,
+                                           poa_c_to_use,
                                            poa_padding,
                                            local_alignment,
                                            (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
@@ -1849,12 +1883,12 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 block_graph = smooth_spoa(graph,
                                           block,
                                           block_id,
-                                          poa_m,
-                                          -poa_n,
-                                          -poa_g,
-                                          -poa_e,
-                                          -poa_q,
-                                          -poa_c,
+                                          poa_m_to_use,
+                                          -poa_n_to_use,
+                                          -poa_g_to_use,
+                                          -poa_e_to_use,
+                                          -poa_q_to_use,
+                                          -poa_c_to_use,
                                           poa_padding,
                                           local_alignment,
                                           (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
