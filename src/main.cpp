@@ -270,13 +270,14 @@ int main(int argc, char **argv) {
         int poa_c = 1;
 
         if (!args::get(poa_params).empty()) {
-            if (args::get(poa_params).find(',') == std::string::npos) {
+            const std::vector<std::string> params_str = smoothxg::split(args::get(poa_params), ',');
+            if (params_str.size() != 4 && params_str.size() != 6) {
                 std::cerr
                         << "[smoothxg::main] error: either 4 or 6 POA scoring parameters must be given to -p --poa-params"
                         << std::endl;
                 return 1;
             }
-            std::vector<std::string> params_str = smoothxg::split(args::get(poa_params), ',');
+
             std::vector<int> params(params_str.size());
             std::transform(params_str.begin(), params_str.end(), params.begin(),
                            [](const std::string &s) { return std::stoi(s); });
@@ -287,7 +288,7 @@ int main(int argc, char **argv) {
                 poa_e = params[3];
                 poa_q = params[4];
                 poa_c = params[5];
-            } else if (params.size() == 4) {
+            } else /*if (params.size() == 4)*/ {
                 poa_m = params[0];
                 poa_n = params[1];
                 poa_g = params[2];
@@ -299,13 +300,7 @@ int main(int argc, char **argv) {
                     poa_q = 0;
                     poa_c = 0;
                 }
-            } else {
-                std::cerr
-                        << "[smoothxg::main] error: either 4 or 6 POA scoring parameters must be given to -p --poa-params"
-                        << std::endl;
-                return 1;
             }
-
         }
 
         const bool order_paths_from_longest = true; //args::get(use_spoa);
