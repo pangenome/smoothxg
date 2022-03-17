@@ -96,6 +96,9 @@ int main(int argc, char **argv) {
     args::ValueFlag<std::string> poa_params(poa_opts, "match,mismatch,gap1,ext1(,gap2,ext2)",
                                             "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 1,4,6,2,26,1]",
                                             {'p', "poa-params"});
+    args::Flag adaptive_poa_params(poa_opts, "adaptive-poa-params",
+                        "set POA score parameters adaptively by estimating the pairwise similarity between the sequences in the blocks",
+                        {'a', "adaptive-poa-params"});
     args::ValueFlag<std::string> _target_poa_length(poa_opts, "N", "target length to put into POA, blocks are split when paths go over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 5000]",
                                                     {'l', "poa-length-target"});
     args::ValueFlag<std::string> _max_poa_length(poa_opts, "N", "maximum sequence length to put into POA, cut sequences over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 2*poa-length-target = 10k]",
@@ -139,7 +142,7 @@ int main(int argc, char **argv) {
                                                          "write the multiple sequence alignments (MSAs) in MAF format in this file",
                                                          {'m', "write-msa-in-maf-format"});
 
-    args::Group block_merge_opts(parser, "[ Block union  Options ]");
+    args::Group block_merge_opts(parser, "[ Block union Options ]");
     args::Flag merge_blocks(block_merge_opts, "bool",
                             "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",
                             {'M', "merge-blocks"});
@@ -447,6 +450,7 @@ int main(int argc, char **argv) {
                                                       poa_e,
                                                       poa_q,
                                                       poa_c,
+                                                      args::get(adaptive_poa_params),
                                                       kmer_size,
                                                       poa_padding_fraction,
                                                       max_block_depth_for_padding_more,
