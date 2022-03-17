@@ -32,124 +32,140 @@ using namespace xg;
 int main(int argc, char **argv) {
     args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator\n" + smoothxg::Version::get_version() + ": " +
 										smoothxg::Version::get_codename());
-    args::HelpFlag help(parser, "help", "display this help menu", {'h', "help"});
-    args::ValueFlag<std::string> gfa_in(parser, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
-    args::ValueFlag<std::string> xg_in(parser, "FILE", "read the xg index from this file", {'i', "in"});
-    args::ValueFlag<std::string> smoothed_out(parser, "FILE",
+    args::Group mandatory_opts(parser, "[ MANDATORY OPTIONS ]");
+    args::ValueFlag<std::string> gfa_in(mandatory_opts, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
+    args::ValueFlag<std::string> smoothed_out(mandatory_opts, "FILE",
                                               "write GFA to this file (not /dev/stdout if consensus graph is made)",
                                               {'o', "smoothed-out"});
-    args::ValueFlag<std::string> _smoothed_in_gfa(parser, "FILE", "read GFA from this file", {'F', "smoothed-in"});
-    args::ValueFlag<std::string> write_msa_in_maf_format(parser, "FILE",
-                                                         "write the multiple sequence alignments (MSAs) in MAF format in this file",
-                                                         {'m', "write-msa-in-maf-format"});
-    args::ValueFlag<std::string> _ref_paths(parser, "FILE",
-                                            "a file listing (one per line) sequences to preserved as paths in the consensus output graphs",
-                                            {'P', "ref-paths"});
-    //args::Flag _only_ref_paths(parser, "", "use only the reference paths in the consensus graph, ignoring any other consensus paths", {'O', "only-ref-paths"});
-    args::ValueFlag<std::string> _write_consensus_path_names(parser, "FILE",
-                                                             "write the consensus path names to this file",
-                                                             {'f', "write-consensus-path-names"});
-    args::ValueFlag<std::string> _read_consensus_path_names(parser, "FILE",
-                                                            "don't smooth, just generate the consensus, taking the consensus path names from this file",
-                                                            {'H', "consensus-from"});
-    //args::ValueFlag<std::string> write_consensus_graph(parser, "BASENAME", "write the consensus graph to BASENAME.cons_[spec].gfa", {'s', "write-consensus-graph"});
-    args::ValueFlag<std::string> _consensus_spec(parser, "BASENAME[,min_len[:refs[:(y|n)[:min_cov[:max_len]?]?]?]?]*",
-                                                 "consensus graph specification: write the consensus graph to BASENAME.cons_[spec].gfa; where each spec contains at least a min_len parameter (which defines the length of divergences from consensus paths to preserve in the output), optionally a file containing reference paths to preserve in the output, a flag (y/n) indicating whether we should also use the POA consensus paths, a minimum coverage of consensus paths to retain (min_cov), and a maximum allele length (max_len, defaults to 1e6); example: cons,100,1000:refs1.txt:n,1000:refs2.txt:y:2.3:1000000,10000 [default: unset]",
-                                                 {'C', "consensus-spec"});
 
-    args::ValueFlag<std::string> _consensus_path_prefix(parser, "PREFIX",
-                                                        "prepend the consensus path names with PREFIX [default: Consensus]",
-                                                        {'Q', "consensus-prefix"});
-    // Merge blocks (for merging MAF blocks and consensus sequences)
-    args::Flag merge_blocks(parser, "bool",
-                            "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",
-                            {'M', "merge-blocks"});
-    args::Flag vanish_consensus(parser, "bool",
-                                "remove the consensus paths from the emitted graph",
-                                {'V', "vanish-consensus"});
-    args::Flag _preserve_unmerged_consensus(parser, "bool",
-                                            "do not delete original consensus sequences in the merged MAF blocks and in the smoothed graph",
-                                            {'N', "preserve-unmerged-consensus"});
-    args::ValueFlag<double> _contiguous_path_jaccard(parser, "float",
-                                                     "minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",
-                                                     {'J', "contiguous-path-jaccard"});
-
-    args::Flag write_block_to_split_fastas(parser, "bool", "write the FASTA sequences for split blocks",
-                                           {'A', "write-split-block-fastas"});
-    args::Flag write_block_fastas(parser, "bool", "write the FASTA sequences for blocks put into poa",
-                                  {'B', "write-poa-block-fastas"});
-
-    args::ValueFlag<std::string> base(parser, "BASE", "use this basename for temporary files during build",
-                                      {'b', "base"});
-    args::Flag no_prep(parser, "bool",
+    args::Group io_opts(parser, "[ Files IO Options ]");
+    args::ValueFlag<std::string> xg_in(io_opts, "FILE", "read the xg index from this file", {'i', "in"});
+    args::ValueFlag<std::string> _smoothed_in_gfa(io_opts, "FILE", "read GFA from this file", {'F', "smoothed-in"});
+    args::Flag no_prep(io_opts, "bool",
                        "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)",
                        {'n', "no-prep"});
-    args::ValueFlag<std::string> _max_block_weight(parser, "N", "maximum seed sequence in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 10M]",
-                                                {'w', "block-weight-max"});
-    args::ValueFlag<std::string> _max_block_jump(parser, "N", "maximum path jump to include in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 100]",
-                                              {'j', "path-jump-max"});
-    args::ValueFlag<std::string> _max_edge_jump(parser, "N", "maximum edge jump before breaking (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 0 / off]",
-                                             {'e', "edge-jump-max"});
+    args::ValueFlag<std::string> base(io_opts, "BASE", "use this basename for temporary files during build",
+                                      {'b', "base"});
+    args::Flag keep_temp(io_opts, "keep-temp", "keep temporary files", {'K', "keep-temp"});
 
-    args::ValueFlag<uint64_t> _max_merged_groups_in_memory(parser, "N",
+    args::Group prep_opts(parser, "[ Graph Preparation Options ]");
+    args::ValueFlag<int> _prep_node_chop(prep_opts, "N", "during prep, chop nodes to this length [default: 100]",
+                                         {'X', "chop-to"});
+    args::ValueFlag<float> _prep_sgd_min_term_updates(prep_opts, "N",
+                                                      "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]",
+                                                      {'U', "path-sgd-term-updates"});
+
+    args::Group block_comp_opts(parser, "[ Block Computation Options ]");
+    args::ValueFlag<std::string> _max_block_weight(block_comp_opts, "N", "maximum seed sequence in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 10M]",
+                                                   {'w', "block-weight-max"});
+    args::ValueFlag<std::string> _max_block_jump(block_comp_opts, "N", "maximum path jump to include in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 100]",
+                                                 {'j', "path-jump-max"});
+    args::ValueFlag<std::string> _max_edge_jump(block_comp_opts, "N", "maximum edge jump before breaking (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 0 / off]",
+                                                {'e', "edge-jump-max"});
+
+    args::Group copy_length_opts(parser, "[ Copy Length Options ]");
+    args::ValueFlag<std::string> _min_copy_length(copy_length_opts, "N", "minimum repeat length to collapse (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 1000]",
+                                                  {'c', "copy-length-min"});
+    args::ValueFlag<std::string> _max_copy_length(copy_length_opts, "N",
+                                                  "maximum repeat length to attempt to detect (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 20K]",
+                                                  {'W', "copy-length-max"});
+
+    args::Group block_split_opts(parser, "[ Block splitting Options ]");
+    args::ValueFlag<double> _block_group_identity(block_split_opts, "N",
+                                                  "minimum edit-based identity to cluster sequences [default: 0.0]",
+                                                  {'I', "block-id-min"});
+    args::ValueFlag<double> _block_length_ratio_min(block_split_opts, "N",
+                                                    "minimum small / large length ratio to cluster in a block [default: 0.0]",
+                                                    {'R', "block-ratio-min"});
+    args::ValueFlag<std::string> _min_dedup_depth_for_block_splitting(block_split_opts, "N",
+                                                                      "minimum (deduplicated) block depth for applying the block split (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 0, disabled]",
+                                                                      {'d', "min-block-depth-split"});
+    args::ValueFlag<std::string> _min_dedup_depth_for_mash_clustering(block_split_opts, "N",
+                                                                      "minimum (deduplicated) block depth for applying the mash-based clustering (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 12000, 0 to disable it]",
+                                                                      {'D', "min-block-depth-mash"});
+    args::ValueFlag<std::string> _min_length_mash_based_clustering(block_split_opts, "N",
+                                                                   "minimum sequence length to cluster sequences using mash-distance (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 200, 0 to disable it]",
+                                                                   {'L', "min-seq-len-mash"});
+    args::ValueFlag<double> _block_group_est_identity(block_split_opts, "N",
+                                                      "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]",
+                                                      {'E', "block-est-id-max"});
+    args::ValueFlag<uint64_t> _kmer_size(block_split_opts, "N", "kmer size to compute the mash distance [default: 17]",
+                                         {'k', "kmer-size-mash-distance"});
+
+    args::Group poa_opts(parser, "[ Partial Order Alignment (POA) Options ]");
+    args::ValueFlag<std::string> poa_params(poa_opts, "match,mismatch,gap1,ext1(,gap2,ext2)",
+                                            "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 1,4,6,2,26,1]",
+                                            {'p', "poa-params"});
+    args::ValueFlag<std::string> _target_poa_length(poa_opts, "N", "target length to put into POA, blocks are split when paths go over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 5000]",
+                                                    {'l', "poa-length-target"});
+    args::ValueFlag<std::string> _max_poa_length(poa_opts, "N", "maximum sequence length to put into POA, cut sequences over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 2*poa-length-target = 10k]",
+                                                 {'q', "poa-length-max"});
+    args::ValueFlag<float> _poa_padding_fraction(poa_opts, "N", "flanking sequence length fraction (padding = average sequence length in the block * N) to pad each end of each sequence with during POA, in effect overlapping and trimming the POA problems [default: 0.01]",
+                                                 {'O', "poa-padding-ratio"});
+    args::ValueFlag<std::string> _max_block_depth_for_padding_more(poa_opts, "N",
+                                                                   "maximum block depth beyond which a (small) fixed amount of flanking nucleotides is not added (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 1000, 0 to disable it]",
+                                                                   {'Y', "max-block-depth-adaptive-poa-padding"});
+    args::Flag use_spoa(poa_opts, "use-spoa",
+                        "run spoa (in local alignment mode) instead of abPOA (in global alignment mode) for smoothing",
+                        {'S', "spoa"});
+    args::Flag change_alignment_mode(poa_opts, "change-alignment-mode",
+                                     "change the alignment mode of spoa to global, and of abpoa to local",
+                                     {'Z', "change-alignment-mode"});
+
+    args::Group consensus_opts(parser, "[ Consensus Graph(s) Options ]");
+    args::ValueFlag<std::string> _ref_paths(consensus_opts, "FILE",
+                                            "a file listing (one per line) sequences to preserved as paths in the consensus output graphs",
+                                            {'P', "ref-paths"});
+    //args::Flag _only_ref_paths(consensus_opts, "", "use only the reference paths in the consensus graph, ignoring any other consensus paths", {'O', "only-ref-paths"});
+    args::ValueFlag<std::string> _write_consensus_path_names(consensus_opts, "FILE",
+                                                             "write the consensus path names to this file",
+                                                             {'f', "write-consensus-path-names"});
+    args::ValueFlag<std::string> _read_consensus_path_names(consensus_opts, "FILE",
+                                                            "don't smooth, just generate the consensus, taking the consensus path names from this file",
+                                                            {'H', "consensus-from"});
+    //args::ValueFlag<std::string> write_consensus_graph(consensus_opts, "BASENAME", "write the consensus graph to BASENAME.cons_[spec].gfa", {'s', "write-consensus-graph"});
+    args::ValueFlag<std::string> _consensus_spec(consensus_opts, "BASENAME[,min_len[:refs[:(y|n)[:min_cov[:max_len]?]?]?]?]*",
+                                                 "consensus graph specification: write the consensus graph to BASENAME.cons_[spec].gfa; where each spec contains at least a min_len parameter (which defines the length of divergences from consensus paths to preserve in the output), optionally a file containing reference paths to preserve in the output, a flag (y/n) indicating whether we should also use the POA consensus paths, a minimum coverage of consensus paths to retain (min_cov), and a maximum allele length (max_len, defaults to 1e6); example: cons,100,1000:refs1.txt:n,1000:refs2.txt:y:2.3:1000000,10000 [default: unset]",
+                                                 {'C', "consensus-spec"});
+    args::ValueFlag<std::string> _consensus_path_prefix(consensus_opts, "PREFIX",
+                                                        "prepend the consensus path names with PREFIX [default: Consensus]",
+                                                        {'Q', "consensus-prefix"});
+    args::Flag vanish_consensus(consensus_opts, "bool",
+                                "remove the consensus paths from the emitted graph",
+                                {'V', "vanish-consensus"});
+
+    args::Group maf_opts(parser, "[ Multiple Alignment Format (MAF) Options ]");
+    args::ValueFlag<std::string> write_msa_in_maf_format(maf_opts, "FILE",
+                                                         "write the multiple sequence alignments (MSAs) in MAF format in this file",
+                                                         {'m', "write-msa-in-maf-format"});
+
+    args::Group block_merge_opts(parser, "[ Block union  Options ]");
+    args::Flag merge_blocks(block_merge_opts, "bool",
+                            "merge contiguous MAF blocks in the MAF output and consensus sequences in the smoothed graph",
+                            {'M', "merge-blocks"});
+    args::Flag _preserve_unmerged_consensus(block_merge_opts, "bool",
+                                            "do not delete original consensus sequences in the merged MAF blocks and in the smoothed graph",
+                                            {'N', "preserve-unmerged-consensus"});
+    args::ValueFlag<double> _contiguous_path_jaccard(block_merge_opts, "float",
+                                                     "minimum fraction of paths that have to be contiguous for merging MAF blocks and consensus sequences (default: 1.0)",
+                                                     {'J', "contiguous-path-jaccard"});
+    args::ValueFlag<uint64_t> _max_merged_groups_in_memory(block_merge_opts, "N",
                                                            "increasing this value, much more blocks that are not immediately contiguous along the graph will be merged [default: 50]",
                                                            {'G', "max-block-groups-in-memory"});
 
-    // Block split
-    args::ValueFlag<double> _block_group_identity(parser, "N",
-                                                  "minimum edit-based identity to cluster sequences [default: 0.0]",
-                                                  {'I', "block-id-min"});
-    args::ValueFlag<double> _block_length_ratio_min(parser, "N",
-                                                    "minimum small / large length ratio to cluster in a block [default: 0.0]",
-                                                    {'R', "block-ratio-min"});
-    args::ValueFlag<std::string> _min_dedup_depth_for_block_splitting(parser, "N",
-                                                                   "minimum (deduplicated) block depth for applying the block split (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 0, disabled]",
-                                                                   {'d', "min-block-depth-split"});
-    args::ValueFlag<std::string> _min_dedup_depth_for_mash_clustering(parser, "N",
-                                                                   "minimum (deduplicated) block depth for applying the mash-based clustering (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 12000, 0 to disable it]",
-                                                                   {'D', "min-block-depth-mash"});
-    args::ValueFlag<std::string> _min_length_mash_based_clustering(parser, "N",
-                                                                "minimum sequence length to cluster sequences using mash-distance (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 200, 0 to disable it]",
-                                                                {'L', "min-seq-len-mash"});
-    args::ValueFlag<double> _block_group_est_identity(parser, "N",
-                                                      "minimum mash-based estimated identity to cluster sequences [default: equals to block-id-min]",
-                                                      {'E', "block-est-id-max"});
+    args::Group debugging_opts(parser, "[ Debugging Options ]");
+    args::Flag write_block_to_split_fastas(debugging_opts, "bool", "write the FASTA sequences for split blocks",
+                                           {'A', "write-split-block-fastas"});
+    args::Flag write_block_fastas(debugging_opts, "bool", "write the FASTA sequences for blocks put into poa",
+                                  {'B', "write-poa-block-fastas"});
 
-    args::ValueFlag<uint64_t> _kmer_size(parser, "N", "kmer size to compute the mash distance [default: 17]",
-                                         {'k', "kmer-size-mash-distance"});
+    args::Group threading_opts(parser, "[ Threading ]");
+    args::ValueFlag<uint64_t> num_threads(threading_opts, "N", "use this many threads during parallel steps", {'t', "threads"});
+    args::ValueFlag<uint64_t> num_poa_threads(threading_opts, "N", "use this many POA threads (can be used to reduce memory requirements with large --poa-length-target settings) [default: --threads]", {'T', "poa-threads"});
 
-    args::ValueFlag<std::string> _min_copy_length(parser, "N", "minimum repeat length to collapse (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 1000]",
-                                               {'c', "copy-length-min"});
-    args::ValueFlag<std::string> _max_copy_length(parser, "N",
-                                               "maximum repeat length to attempt to detect (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 20K]",
-                                               {'W', "copy-length-max"});
-    args::ValueFlag<std::string> _target_poa_length(parser, "N", "target length to put into POA, blocks are split when paths go over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 5000]",
-                                              {'l', "poa-length-target"});
-    args::ValueFlag<std::string> _max_poa_length(parser, "N", "maximum sequence length to put into POA, cut sequences over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 2*poa-length-target = 10k]",
-                                              {'q', "poa-length-max"});
-    args::ValueFlag<float> _poa_padding_fraction(parser, "N", "flanking sequence length fraction (padding = average sequence length in the block * N) to pad each end of each sequence with during POA, in effect overlapping and trimming the POA problems [default: 0.01]",
-                                           {'O', "poa-padding-ratio"});
-    args::ValueFlag<std::string> _max_block_depth_for_padding_more(parser, "N",
-                                                                   "maximum block depth beyond which a (small) fixed amount of flanking nucleotides is not added (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 1000, 0 to disable it]",
-                                                                      {'Y', "max-block-depth-adaptive-poa-padding"});
-    args::ValueFlag<uint64_t> num_threads(parser, "N", "use this many threads during parallel steps", {'t', "threads"});
-    args::ValueFlag<uint64_t> num_poa_threads(parser, "N", "use this many POA threads (can be used to reduce memory requirements with large --poa-length-target settings) [default: --threads]", {'T', "poa-threads"});
-    args::ValueFlag<std::string> poa_params(parser, "match,mismatch,gap1,ext1(,gap2,ext2)",
-                                            "score parameters for partial order alignment, if 4 then gaps are affine, if 6 then gaps are convex [default: 1,4,6,2,26,1]",
-                                            {'p', "poa-params"});
-    args::ValueFlag<int> _prep_node_chop(parser, "N", "during prep, chop nodes to this length [default: 100]",
-                                         {'X', "chop-to"});
-    args::ValueFlag<float> _prep_sgd_min_term_updates(parser, "N",
-                                                      "path-guided SGD sort quality parameter (N * sum_path_length updates per iteration) for graph prep [default: 1]",
-                                                      {'U', "path-sgd-term-updates"});
-    args::Flag use_spoa(parser, "use-spoa",
-                        "run spoa (in local alignment mode) instead of abPOA (in global alignment mode) for smoothing",
-                        {'S', "spoa"});
-    args::Flag change_alignment_mode(parser, "change-alignment-mode",
-                                     "change the alignment mode of spoa to global, and of abpoa to local",
-                                     {'Z', "change-alignment-mode"});
-    args::Flag keep_temp(parser, "keep-temp", "keep temporary files", {'K', "keep-temp"});
-	args::Flag version(parser, "version", "report the current smoothxg version including the github commit hash", {'v', "version"});
+	args::Group program_info_opts(parser, "[ Program Information ]");
+	args::Flag version(program_info_opts, "version", "report the current version including the github commit hash", {'v', "version"});
+	args::HelpFlag help(program_info_opts, "help", "display this help menu", {'h', "help"});
 
 
 	try {
