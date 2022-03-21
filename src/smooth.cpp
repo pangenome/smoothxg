@@ -3,20 +3,9 @@
 #include "deps/abPOA/src/abpoa_graph.c"
 //#include "deps/abPOA/src/abpoa_seq.c"
 #include "deps/abPOA/src/abpoa_align.c"
+#include "rkmh.hpp"
 
 namespace smoothxg {
-
-// to write each block to a FASTA and TSV
-//#define SMOOTH_WRITE_BLOCKS_FASTA true
-
-static inline int ilog2_64(abpoa_para_t *abpt, uint64_t v) {
-    uint64_t t, tt;
-    if ((tt = v >> 32)) {
-        return (t = tt >> 16) ? 48 + LogTable65536[t]
-                              : 32 + LogTable65536[tt];
-    }
-    return (t = v >> 16) ? 16 + LogTable65536[t] : LogTable65536[v];
-}
 
 /*
 void _clear_maf_block(ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>> &maf){
@@ -29,7 +18,6 @@ void _clear_maf_block(ska::flat_hash_map<std::string, std::vector<maf_partial_ro
     maf.clear();
     ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>().swap(maf);
 }
-*/
 
 // if we want a vectorized layout representation of the block
 void write_tsv_for_block(const xg::XG &graph,
@@ -63,6 +51,7 @@ void write_tsv_for_block(const xg::XG &graph,
     }
     vs.close();
 }
+*/
 
 void write_fasta_for_block(const xg::XG &graph,
                            const block_t &block,
@@ -138,7 +127,7 @@ void append_to_sequence(const xg::XG &graph,
         }
         //std::cerr << "\n";
     }
-};
+}
 
 odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uint64_t block_id,
                             int poa_m, int poa_n, int poa_g,
@@ -762,7 +751,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                                (path_length - graph.get_position_of_step(last_step) - graph.get_length(graph.get_handle_of_step(last_step))):
                                path_range_begin;
 
-                seq_size = seqs[seq_rank].size(); - 2 * poa_padding;// <==> block.path_ranges[seq_rank].length
+                seq_size = seqs[seq_rank].size() - 2 * poa_padding;// <==> block.path_ranges[seq_rank].length
             }else{
                 // The last sequence is the gapped consensus
 
@@ -1323,6 +1312,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                int poa_m, int poa_n,
                                int poa_g, int poa_e,
                                int poa_q, int poa_c,
+                               const bool& adaptive_poa_params,
+                               const uint64_t &kmer_size,
                                float poa_padding_fraction,
                                uint64_t max_block_depth_for_padding_more,
                                bool local_alignment,
@@ -1748,7 +1739,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             }
 
             int poa_padding = 0;
-
             if (poa_padding_fraction > 0) {
                 if (block.path_ranges.size() <= max_block_depth_for_padding_more) {
                     // min amount of flanking sequences to add
@@ -1774,16 +1764,115 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 }
             }
 
+            // Set/default penalties
+            int poa_m_to_use = poa_m;
+            int poa_n_to_use = poa_n;
+            int poa_g_to_use = poa_g;
+            int poa_e_to_use = poa_e;
+            int poa_q_to_use = poa_q;
+            int poa_c_to_use = poa_c;
+
+            // Estimate the pairwise identity in the block for tuning the POA penalties
+            // Avoid the identity estimation for too-deep blocks (todo random sampling for deep block???)
+            if (adaptive_poa_params && block.path_ranges.size() > 1 && block.path_ranges.size() <= max_block_depth_for_padding_more) {
+                // Deduplication (todo eventually, keep it simple for now)
+
+                // Prepare sequences
+                std::vector<std::string* > seqs; seqs.reserve(block.path_ranges.size());
+                for (const auto& path_range : block.path_ranges) {
+                    auto seq = new std::string();
+                    for (step_handle_t step = path_range.begin; step != path_range.end; step = graph.get_next_step(step)) {
+                        seq->append(graph.get_sequence(graph.get_handle_of_step(step)));
+                    }
+
+                    // We can't compute the hashes for what is shorter than the kmer size
+                    // Skip too short sequences
+                    if (seq->size() >= 8 * kmer_size) {
+                        seqs.push_back(seq);
+                    } else {
+                        delete seq;
+                    }
+                }
+
+                // Check if there are still sequences to compare
+                if (seqs.size() > 1) {
+                    // Compute hashes
+                    std::vector<std::vector<mkmh::hash_t>> seq_hashes;
+                    std::vector<int> seq_hash_lens;
+
+                    seq_hashes.resize(seqs.size());
+                    seq_hash_lens.resize(seqs.size());
+                    rkmh::hash_sequences(seqs, seq_hashes, seq_hash_lens, kmer_size);
+
+                    // All-vs-All comparison
+                    std::vector<float> estimated_distances; //todo on-the-fly percentile computation to avoid a big vector in memory?
+
+                    estimated_distances.reserve(seqs.size() * (seqs.size() - 1) / 2); // N * (N - 1) / 2 comparisons
+                    for (uint64_t i = 0; i < seqs.size(); ++i) {
+                        for (uint64_t j = i + 1; j < seqs.size(); ++j) {
+                            const float est_identity = 1.0 - rkmh::compare(seq_hashes[i], seq_hashes[j], kmer_size, true);
+                            estimated_distances.push_back(est_identity);
+                        }
+                    }
+
+                    // Take 30% percentile as identity threshold (70% of the pairs have identity >= to this value)
+                    std::sort(estimated_distances.begin(), estimated_distances.end());
+                    const float est_identity_threshold = std::max((float)0.7, estimated_distances[(estimated_distances.size() - 1) * 0.30]);
+
+                    // Tune POA penalties
+                    if (est_identity_threshold >= 0.99) {
+                        poa_m_to_use = 1;
+                        poa_n_to_use = 19;
+                        poa_g_to_use = 39;
+                        poa_e_to_use = 3;
+                        poa_q_to_use = 81;
+                        poa_c_to_use = 1;
+                    } else if (est_identity_threshold >= 0.98) {
+                        poa_m_to_use = 1;
+                        poa_n_to_use = 13;
+                        poa_g_to_use = 31;
+                        poa_e_to_use = 3;
+                        poa_q_to_use = 51;
+                        poa_c_to_use = 1;
+                    } else if (est_identity_threshold >= 0.97) {
+                        poa_m_to_use = 1;
+                        poa_n_to_use = 9;
+                        poa_g_to_use = 16;
+                        poa_e_to_use = 2;
+                        poa_q_to_use = 41;
+                        poa_c_to_use = 1;
+                    } else if (est_identity_threshold >= 0.95) {
+                        poa_m_to_use = 1;
+                        poa_n_to_use = 7;
+                        poa_g_to_use = 11;
+                        poa_e_to_use = 2;
+                        poa_q_to_use = 33;
+                        poa_c_to_use = 1;
+                    } else if (est_identity_threshold >= 0.90) {
+                        poa_m_to_use = 1;
+                        poa_n_to_use = 4;
+                        poa_g_to_use = 6;
+                        poa_e_to_use = 2;
+                        poa_q_to_use = 26;
+                        poa_c_to_use = 1;
+                    } // else use the set/default penalties
+                }
+
+                for (auto& seq : seqs) {
+                    delete seq;
+                }
+            }
+
             if (use_abpoa) {
                 block_graph = smooth_abpoa(graph,
                                            block,
                                            block_id,
-                                           poa_m,
-                                           poa_n,
-                                           poa_g,
-                                           poa_e,
-                                           poa_q,
-                                           poa_c,
+                                           poa_m_to_use,
+                                           poa_n_to_use,
+                                           poa_g_to_use,
+                                           poa_e_to_use,
+                                           poa_q_to_use,
+                                           poa_c_to_use,
                                            poa_padding,
                                            local_alignment,
                                            (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
@@ -1795,12 +1884,12 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 block_graph = smooth_spoa(graph,
                                           block,
                                           block_id,
-                                          poa_m,
-                                          -poa_n,
-                                          -poa_g,
-                                          -poa_e,
-                                          -poa_q,
-                                          -poa_c,
+                                          poa_m_to_use,
+                                          -poa_n_to_use,
+                                          -poa_g_to_use,
+                                          -poa_e_to_use,
+                                          -poa_q_to_use,
+                                          -poa_c_to_use,
                                           poa_padding,
                                           local_alignment,
                                           (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
@@ -2448,7 +2537,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                 num = abg->node[cur_id].read_ids[i];
                 while (num) {
                     tmp = num & -num;
-                    read_id = ilog2_64(abpt, tmp);
+                    read_id = ilog2_64(tmp);
                     read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id;
                     num ^= tmp;
                 }
