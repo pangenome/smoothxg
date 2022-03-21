@@ -115,7 +115,7 @@ int main(int argc, char **argv) {
                                      "change the alignment mode of spoa to global, and of abpoa to local",
                                      {'Z', "change-alignment-mode"});
     args::Flag sort_from_shortest(poa_opts, "sort-from-shortest",
-                        "sorts shortest to longest sequences before before the POA [default: longest to shortest]",
+                        "sorts shortest to longest sequences before the POA [default: longest to shortest]",
                         {'z', "sort-from-shortest"});
 
     args::Group consensus_opts(parser, "[ Consensus Graph(s) Options ]");
