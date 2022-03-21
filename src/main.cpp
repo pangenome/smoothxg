@@ -114,6 +114,9 @@ int main(int argc, char **argv) {
     args::Flag change_alignment_mode(poa_opts, "change-alignment-mode",
                                      "change the alignment mode of spoa to global, and of abpoa to local",
                                      {'Z', "change-alignment-mode"});
+    args::Flag sort_from_shortest(poa_opts, "sort-from-shortest",
+                        "sorts shortest to longest sequences before before the POA [default: longest to shortest]",
+                        {'z', "sort-from-shortest"});
 
     args::Group consensus_opts(parser, "[ Consensus Graph(s) Options ]");
     args::ValueFlag<std::string> _ref_paths(consensus_opts, "FILE",
@@ -322,7 +325,7 @@ int main(int argc, char **argv) {
             }
         }
 
-        const bool order_paths_from_longest = true;
+        const bool order_paths_from_longest = !args::get(sort_from_shortest);
         const float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
         const int node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
