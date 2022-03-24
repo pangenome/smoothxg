@@ -42,7 +42,8 @@ namespace smoothxg {
 			{"v0.5.1", "Smoothxg 0.5.1 - Scaling up"},
 			{"v0.5.2", "Smoothxg 0.5.2 - Imbottitura"},
 			{"v0.6.0", "unciampato"},
-			{"v0.6.1", "Smoothxg 0.6.1 - Magro"}
+			{"v0.6.1", "Smoothxg 0.6.1 - Magro"},
+			{"v0.6.2", "Magrissimo"}
 			// Add more codenames here
 	};
 
