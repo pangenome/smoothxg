@@ -52,7 +52,13 @@ cmake -H. -Bbuild && cmake --build build -- -j 4
 
 `libzstd-dev` must be of version 1.4 or higher.
 
+#### Notes for distribution
 
+If you need to avoid machine-specific optimizations, use the `CMAKE_BUILD_TYPE=Generic` build type:
+
+```shell
+cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic && cmake --build build -- -j 3
+```
 
 ### Bioconda
 
