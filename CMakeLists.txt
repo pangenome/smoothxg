@@ -7,11 +7,30 @@ project(smoothxg)
 # We build using c++17
 set(CMAKE_CXX_STANDARD 17)
 
-# Use all standard-compliant optimizations
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -g")
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -g")
-#set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -mcx16 -g -fsanitize=address")
-#set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mcx16 -g -fsanitize=address")
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING
+          "Choose the type of build, options are: Release Debug Generic." FORCE)
+endif()
+
+# set(CMAKE_BUILD_TYPE Debug) -- don't uncomment this, instead run
+#   cmake -DCMAKE_BUILD_TYPE=Debug ..
+
+message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
+
+if (${CMAKE_BUILD_TYPE} MATCHES Release)
+  set(EXTRA_FLAGS "-Ofast -march=native")
+  set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG") # reset CXX_FLAGS to replace -O3 with -Ofast
+endif ()
+
+if (${CMAKE_BUILD_TYPE} MATCHES Debug)
+  # Debug use the defaults
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O -mcx16 -g -fsanitize=address")
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O -mcx16 -g -fsanitize=address")
+else()
+  # Use all standard-compliant optimizations - always add these:
+  set (CMAKE_C_FLAGS "${OpenMP_C_FLAGS} ${PIC_FLAG} ${EXTRA_FLAGS} -mcx16")
+  set (CMAKE_CXX_FLAGS "${OpenMP_CXX_FLAGS} ${PIC_FLAG} ${EXTRA_FLAGS} -mcx16")
+endif ()
 
 #set(THREADS_PREFER_PTHREAD_FLAG ON)
 #find_package(Threads REQUIRED)
