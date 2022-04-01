@@ -54,4 +54,4 @@
 	url = https://github.com/1ykos/patchmap.git
 [submodule "deps/WFA"]
 	path = deps/WFA
-	url = https://github.com/ekg/WFA.git
+	url = https://github.com/pangenome/WFA.git
