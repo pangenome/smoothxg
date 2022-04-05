@@ -104,7 +104,7 @@ set(sdsl-lite-divsufsort_LIB "${INSTALL_DIR}/src/sdsl-lite-build/external/libdiv
 ExternalProject_Add(odgi
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/odgi"
   UPDATE_COMMAND ""
-  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>")
+  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>")
 #  INSTALL_COMMAND ""
 #  CONFIGURE_COMMAND "")
 ExternalProject_Get_property(odgi INSTALL_DIR)
@@ -262,9 +262,6 @@ set(mkmh_INCLUDE "${SOURCE_DIR}")
 
 add_subdirectory(deps/edlib EXCLUDE_FROM_ALL)
 add_subdirectory(deps/WFA EXCLUDE_FROM_ALL)
-
-#set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_BUILD_TYPE Release)
 
 add_library(smoothxg_objs OBJECT
   src/tempfile.cpp
