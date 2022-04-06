@@ -71,6 +71,8 @@ message(STATUS "SMOOTHXG CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 message(STATUS "SMOOTHXG CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 message(STATUS "SMOOTHXG CMAKE_C_FLAGS: ${CMAKE_C_FLAGS}")
 
+find_package(ZLIB REQUIRED)
+
 # Set the output folder where your program will be created
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
@@ -378,7 +380,6 @@ target_link_libraries(smoothxg edlib)
 
 # -lz is needed for abPOA, as indicated in the example.c
 # https://github.com/yangao07/abPOA/blob/17d7b287b905bcd0e684ca5015a78e5a73a40798/example.c#L3
-find_package(ZLIB)
 #find_package(ZSTD)
 target_link_libraries(smoothxg ZLIB::ZLIB zstd jemalloc)
 
