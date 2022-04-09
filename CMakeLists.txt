@@ -239,18 +239,26 @@ ExternalProject_Add(sautocorr
 ExternalProject_Get_property(sautocorr SOURCE_DIR)
 set(sautocorr_INCLUDE "${SOURCE_DIR}")
 
-add_subdirectory(deps/spoa EXCLUDE_FROM_ALL)
+add_subdirectory(${CMAKE_SOURCE_DIR}/deps/spoa EXCLUDE_FROM_ALL)
 set(spoa_INCLUDE "${CMAKE_SOURCE_DIR}/deps/spoa/include")
 
-# abPOA (full build using its cmake config)
-ExternalProject_Add(abPOA
-  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/abPOA"
-        CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
-        INSTALL_COMMAND "")
-ExternalProject_Get_property(abPOA INSTALL_DIR)
-set(abPOA_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/include")
-# set(abPOA_src_INCLUDE "${CMAKE_SOURCE_DIR}/abPOA/src")
-set(abPOA_LIB "${INSTALL_DIR}/src/abPOA-build/lib")
+# deps/abPOA sources are built inline because the upstream CMakeLists.txt file
+# is hard coding build parameters and fails on finding zlib.h, for example.
+#
+# We may realign with upstream and convince them to improve their build system
+
+set(abpoa_SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/abPOA")
+add_library(abpoa STATIC
+    ${abpoa_SOURCE_DIR}/src/abpoa_align.c
+    ${abpoa_SOURCE_DIR}/src/abpoa_graph.c
+    ${abpoa_SOURCE_DIR}/src/abpoa_plot.c
+    ${abpoa_SOURCE_DIR}/src/abpoa_seed.c
+    ${abpoa_SOURCE_DIR}/src/abpoa_seq.c
+    ${abpoa_SOURCE_DIR}/src/kalloc.c
+    ${abpoa_SOURCE_DIR}/src/kstring.c
+    ${abpoa_SOURCE_DIR}/src/simd_abpoa_align.c
+    ${abpoa_SOURCE_DIR}/src/simd_check.c
+    ${abpoa_SOURCE_DIR}/src/utils.c)
 
 #add_subdirectory(deps/mmmulti/deps/mio)
 ExternalProject_Add(mio
@@ -315,7 +323,7 @@ add_dependencies(smoothxg_objs libbf)
 add_dependencies(smoothxg_objs dirtyzipf)
 add_dependencies(smoothxg_objs xoshiro)
 add_dependencies(smoothxg_objs sautocorr)
-add_dependencies(smoothxg_objs abPOA)
+add_dependencies(smoothxg_objs abpoa)
 add_dependencies(smoothxg_objs mio)
 add_dependencies(smoothxg_objs mkmh)
 
@@ -380,24 +388,18 @@ set(smoothxg_LIBS
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
   "${odgi_LIB}/libodgi.a"
   "${handlegraph_LIB}/libhandlegraph.a"
-  "${abPOA_LIB}/libabpoa.a"
   "-latomic"
   wfa
   )
-
 
 target_include_directories(smoothxg_objs PUBLIC ${smoothxg_INCLUDES})
 
 add_executable(smoothxg
   $<TARGET_OBJECTS:smoothxg_objs>
   ${CMAKE_SOURCE_DIR}/src/main.cpp)
-target_link_libraries(smoothxg spoa)
+target_link_libraries(smoothxg spoa abpoa)
 target_link_libraries(smoothxg ${smoothxg_LIBS})
-# target_link_libraries(smoothxg edlib)
 
-# -lz is needed for abPOA, as indicated in the example.c
-# https://github.com/yangao07/abPOA/blob/17d7b287b905bcd0e684ca5015a78e5a73a40798/example.c#L3
-#find_package(ZSTD)
 target_link_libraries(smoothxg ZLIB::ZLIB zstd jemalloc)
 
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
