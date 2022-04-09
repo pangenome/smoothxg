@@ -1,11 +1,20 @@
 # Specify the minimum version for CMake
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.16)
 
 # Project's name
 project(smoothxg)
+
 # We build using c++17
 set(CMAKE_CXX_STANDARD 17)
+
+find_package(ZLIB REQUIRED)
+
+enable_testing()
+
+# Preload the following libraries before running tests
+set(PRELOAD "libasan.so:libjemalloc.so.2")
+
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING
@@ -38,7 +47,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   # assumes clang build
   # we can't reliably detect when we're using clang, so for the time being we assume
   # TODO: can't we though?
-  
+
   # adapted from https://stackoverflow.com/questions/46414660/macos-cmake-and-openmp
   # find_package(OpenMP) does not work reliably on macOS, so we do its work ourselves
   set (OpenMP_C "${CMAKE_C_COMPILER}")
@@ -50,30 +59,28 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set (OpenMP_libomp_LIBRARY "omp")
   set (OpenMP_libgomp_LIBRARY "gomp")
   set (OpenMP_libiomp5_LIBRARY "iomp5")
-  
+
   # and now add the OpenMP parameters to the compile flags
   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS} -lomp")
-  
+
 elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
 
   find_package(OpenMP REQUIRED)
-  
+
   # add the flags it detects to the compile flags
   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS} -fopenmp")
   set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -fopenmp")
   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
-  
+
 endif()
 
 message(STATUS "SMOOTHXG CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 message(STATUS "SMOOTHXG CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 message(STATUS "SMOOTHXG CMAKE_C_FLAGS: ${CMAKE_C_FLAGS}")
 
-find_package(ZLIB REQUIRED)
-
-# Set the output folder where your program will be created
+# Set the output folder
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib)
@@ -265,7 +272,16 @@ ExternalProject_Add(mkmh
 ExternalProject_Get_property(mkmh SOURCE_DIR)
 set(mkmh_INCLUDE "${SOURCE_DIR}")
 
-add_subdirectory(deps/edlib EXCLUDE_FROM_ALL)
+ExternalProject_Add(edlib
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/edlib"
+        UPDATE_COMMAND ""
+        INSTALL_COMMAND ""
+        BUILD_COMMAND ""
+	TEST_COMMAND ""
+        CONFIGURE_COMMAND "")
+ExternalProject_Get_property(edlib SOURCE_DIR)
+set(edlib_INCLUDE "${SOURCE_DIR}/edlib/include")
+
 add_subdirectory(deps/WFA EXCLUDE_FROM_ALL)
 
 add_library(smoothxg_objs OBJECT
@@ -354,7 +370,7 @@ set(smoothxg_INCLUDES
   "${abPOA_src_INCLUDE}"
   "${bbhash_INCLUDE}"
   "${mkmh_INCLUDE}"
-  "deps/edlib/edlib/include"
+  "${edlib_INCLUDE}"
   "deps/WFA"
   "deps/patchmap")
 
@@ -377,7 +393,7 @@ add_executable(smoothxg
   ${CMAKE_SOURCE_DIR}/src/main.cpp)
 target_link_libraries(smoothxg spoa)
 target_link_libraries(smoothxg ${smoothxg_LIBS})
-target_link_libraries(smoothxg edlib)
+# target_link_libraries(smoothxg edlib)
 
 # -lz is needed for abPOA, as indicated in the example.c
 # https://github.com/yangao07/abPOA/blob/17d7b287b905bcd0e684ca5015a78e5a73a40798/example.c#L3
@@ -404,6 +420,13 @@ execute_process(COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/generate_git_version.sh
 install(TARGETS smoothxg DESTINATION bin)
 #install(TARGETS libsmoothxg_static ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
 #install(TARGETS libsmoothxg_shared ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
+
+
+add_test(
+    NAME smoothxg-test
+    COMMAND bin/smoothxg -t 2 -g test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.seqwish.gfa -w 10K -j 5k -e 5k -l 10k -m test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.maf -C "consensus,10,100:test/data/gi_568815592_32578768-32589835.txt:y,1000:test/data/gi_568815592_32578768-32589835.txt:n,10000" -o test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.gfa
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+set_tests_properties(smoothxg-test PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=1:symbolize=1;LSAN_OPTIONS=verbosity=0:log_threads=1;LD_LIBRARY_PATH=$ENV{LIBRARY_PATH};LD_PRELOAD=${PRELOAD}")
 
 if (APPLE)
 elseif (TRUE)
