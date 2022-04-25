@@ -70,6 +70,8 @@ void prep(
 
     uint64_t path_sgd_iter_max_learning_rate = 0; // don't use this max iter stuff
     std::string snapshot_prefix = "";
+	const bool target_sorting = false;
+	std::vector<bool> target_nodes;
 
     std::cerr << "[smoothxg::prep] sorting graph" << std::endl;
     auto order
@@ -92,13 +94,16 @@ void prep(
             true,
             path_sgd_seed,
             false,
-            snapshot_prefix);
+            snapshot_prefix,
+			target_sorting,
+			target_nodes);
 
     graph.set_number_of_threads(num_threads);
     graph.apply_ordering(order, true);
 
     // groom
-    graph.apply_ordering(odgi::algorithms::groom(graph, true));
+	const std::vector<handlegraph::path_handle_t> target_paths;
+    graph.apply_ordering(odgi::algorithms::groom(graph, true, target_paths));
     graph.set_number_of_threads(num_threads);
 
     // final toposort

@@ -61,6 +61,8 @@ void cleanup(
 
     uint64_t path_sgd_iter_max_learning_rate = 0; // don't use this max iter stuff
     std::string snapshot_prefix = "";
+	const bool target_sorting = false;
+	std::vector<bool> target_nodes;
 
     auto order
         = odgi::algorithms::path_linear_sgd_order(
@@ -82,7 +84,9 @@ void cleanup(
             true,
             path_sgd_seed,
             false,
-            snapshot_prefix);
+            snapshot_prefix,
+			target_sorting,
+			target_nodes);
 
     graph.apply_ordering(order, true);
 
