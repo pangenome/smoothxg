@@ -24,6 +24,7 @@
 #include "rkmh.hpp"
 #include <chrono>
 #include "version.hpp"
+#include <filesystem>
 
 using namespace std;
 using namespace xg;
@@ -338,7 +339,8 @@ int main(int argc, char **argv) {
                 if (args::get(base).empty()) {
                     gfa_in_name = args::get(gfa_in) + ".prep.gfa";
                 } else {
-                    gfa_in_name = args::get(base) + '/' + args::get(gfa_in) + ".prep.gfa";
+                    const std::string filename  = filesystem::path(args::get(gfa_in)).filename();
+                    gfa_in_name = args::get(base) + '/' + filename + ".prep.gfa";
                 }
                 std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
                 smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true, args::get(base), n_threads);
@@ -346,13 +348,13 @@ int main(int argc, char **argv) {
                 gfa_in_name = args::get(gfa_in);
             }
             std::cerr << "[smoothxg::main] building xg index" << std::endl;
-            graph->from_gfa(gfa_in_name, false, args::get(base));
+            graph->from_gfa(gfa_in_name, false, args::get(base).empty() ? "" : args::get(base) + "/");
             if (!args::get(keep_temp) && !args::get(no_prep)) {
                 std::remove(gfa_in_name.c_str());
             }
         }
 
-        auto *blockset = new smoothxg::blockset_t();
+        auto *blockset = new smoothxg::blockset_t(args::get(base));
         smoothxg::smoothable_blocks(*graph,
                                     *blockset,
                                     max_block_weight,
@@ -367,6 +369,7 @@ int main(int argc, char **argv) {
 
         smoothxg::break_blocks(*graph,
                                blockset,
+                               args::get(base),
                                block_length_ratio_min,
                                min_length_mash_based_clustering,
                                block_group_identity,

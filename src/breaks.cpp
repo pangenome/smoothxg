@@ -105,6 +105,7 @@ namespace smoothxg {
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
     void break_blocks(const xg::XG &graph,
                       blockset_t *&blockset,
+                      const std::string& base,
                       const double &length_ratio_min,
                       const uint64_t &min_length_mash_based_clustering,
                       const double &block_group_identity,
@@ -149,7 +150,7 @@ namespace smoothxg {
         atomicbitvector::atomic_bv_t block_is_ready(blockset->size());
         std::vector<std::vector<block_t>> ready_blocks(blockset->size());
 
-        auto *broken_blockset = new smoothxg::blockset_t();
+        auto *broken_blockset = new smoothxg::blockset_t(base);
 
         auto write_ready_blocks_lambda = [&]() {
             uint64_t num_blocks = block_is_ready.size();
