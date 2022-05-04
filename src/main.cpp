@@ -25,6 +25,7 @@
 #include <chrono>
 #include "version.hpp"
 #include <filesystem>
+#include <deps/odgi/src/algorithms/xp.hpp>
 
 using namespace std;
 using namespace xg;
@@ -45,7 +46,7 @@ int main(int argc, char **argv) {
     args::Flag no_prep(io_opts, "bool",
                        "do not prepare the graph for processing (prep is equivalent to odgi chop followed by odgi sort -p sYgs, and is disabled when taking XG input)",
                        {'n', "no-prep"});
-    args::ValueFlag<std::string> base(io_opts, "BASE", "use this basename for temporary files during build",
+    args::ValueFlag<std::string> tmp_base(io_opts, "BASE", "use this basename for temporary files during build",
                                       {'b', "base"});
     args::Flag keep_temp(io_opts, "keep-temp", "keep temporary files", {'K', "keep-temp"});
 
@@ -208,6 +209,16 @@ int main(int argc, char **argv) {
         write_consensus_graph = true;
     }
 
+    if (tmp_base) {
+        xp::temp_file::set_dir(args::get(tmp_base));
+        temp_file::set_dir(args::get(tmp_base));
+    } else {
+        char* cwd = get_current_dir_name();
+        xp::temp_file::set_dir(std::string(cwd));
+        temp_file::set_dir(std::string(cwd));
+        free(cwd);
+    }
+
     if (!_read_consensus_path_names) {
         bool add_consensus = false;
         if (_write_consensus_path_names) {
@@ -336,25 +347,25 @@ int main(int argc, char **argv) {
             // prep the graph by default
             std::string gfa_in_name;
             if (!args::get(no_prep)) {
-                if (args::get(base).empty()) {
+                if (args::get(tmp_base).empty()) {
                     gfa_in_name = args::get(gfa_in) + ".prep.gfa";
                 } else {
                     const std::string filename  = filesystem::path(args::get(gfa_in)).filename();
-                    gfa_in_name = args::get(base) + '/' + filename + ".prep.gfa";
+                    gfa_in_name = args::get(tmp_base) + '/' + filename + ".prep.gfa";
                 }
                 std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
-                smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true, args::get(base), n_threads);
+                smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true, args::get(tmp_base), n_threads);
             } else {
                 gfa_in_name = args::get(gfa_in);
             }
             std::cerr << "[smoothxg::main] building xg index" << std::endl;
-            graph->from_gfa(gfa_in_name, false, args::get(base).empty() ? "" : args::get(base) + "/");
+            graph->from_gfa(gfa_in_name, false, args::get(tmp_base));
             if (!args::get(keep_temp) && !args::get(no_prep)) {
                 std::remove(gfa_in_name.c_str());
             }
         }
 
-        auto *blockset = new smoothxg::blockset_t(args::get(base));
+        auto *blockset = new smoothxg::blockset_t();
         smoothxg::smoothable_blocks(*graph,
                                     *blockset,
                                     max_block_weight,
@@ -369,7 +380,6 @@ int main(int argc, char **argv) {
 
         smoothxg::break_blocks(*graph,
                                blockset,
-                               args::get(base),
                                block_length_ratio_min,
                                min_length_mash_based_clustering,
                                block_group_identity,
@@ -536,7 +546,7 @@ int main(int argc, char **argv) {
         if (_read_consensus_path_names) {
             std::string smoothed_in_gfa = args::get(_smoothed_in_gfa);
             smoothed_xg.from_gfa(smoothed_in_gfa, false,
-                                 args::get(base).empty() ? smoothed_in_gfa : args::get(base));
+                                 args::get(tmp_base).empty() ? smoothed_in_gfa : args::get(tmp_base));
             std::ifstream file(args::get(_read_consensus_path_names));
             std::string path_name;
             while (std::getline(file, path_name)) {
@@ -544,7 +554,7 @@ int main(int argc, char **argv) {
             }
         } else {
             smoothed_xg.from_gfa(smoothed_out_gfa, false,
-                                 args::get(base).empty() ? smoothed_out_gfa : args::get(base));
+                                 args::get(tmp_base).empty() ? smoothed_out_gfa : args::get(tmp_base));
         }
         for (auto &spec : consensus_specs) {
             //for (auto jump_max : jump_maxes) {
