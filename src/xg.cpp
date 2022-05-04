@@ -697,14 +697,14 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
     gfak::GFAKluge gfa;
     // set up our enumerators
     auto for_each_sequence = [&](const std::function<void(const std::string& seq, const nid_t& node_id)>& lambda) {
-        gfa.for_each_sequence_line_in_file(filename, [&](gfak::sequence_elem s) {
+        gfa.for_each_sequence_line_in_file(filename, [&](const gfak::sequence_elem& s) {
             nid_t node_id = std::stol(s.name);
             lambda(s.sequence, node_id);
         });
     };
     auto for_each_edge = [&](const std::function<void(const nid_t& from_id, const bool& from_rev,
                                                       const nid_t& to_id, const bool& to_rev)>& lambda) {
-        gfa.for_each_edge_line_in_file(filename, [&](gfak::edge_elem e) {
+        gfa.for_each_edge_line_in_file(filename, [&](const gfak::edge_elem& e) {
             if (e.source_name.empty()) return;
             nid_t from_id = std::stol(e.source_name);
             bool from_rev = !e.source_orientation_forward;
@@ -857,7 +857,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
     sdsl::util::assign(s_bv, sdsl::bit_vector(seq_length+1));
     sdsl::util::assign(i_iv, sdsl::int_vector<>(node_count));
     sdsl::util::assign(r_iv, sdsl::int_vector<>(max_id-min_id+1)); // note: possibly discontiguous
-    
+
     // for each node in the sequence
     // concatenate the labels into the s_iv
 #ifdef VERBOSE_DEBUG

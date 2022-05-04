@@ -11,7 +11,7 @@ void prep(
     const uint64_t& max_node_length,
     const float& p_sgd_min_term_updates,
     const bool& toposort,
-    const std::string basename,
+    const std::string& basename,
     const uint64_t& num_threads) {
 
     // load it into an odgi
