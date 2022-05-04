@@ -33,7 +33,7 @@
 	url = https://github.com/rvaser/spoa.git
 [submodule "deps/odgi"]
 	path = deps/odgi
-	url = https://github.com/vgteam/odgi.git
+	url = https://github.com/pangenome/odgi.git
 [submodule "deps/libbf"]
 	path = deps/libbf
 	url = https://github.com/mavam/libbf.git
