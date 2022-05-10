@@ -798,7 +798,7 @@ void XG::from_enumerators(const std::function<void(const std::function<void(cons
                           bool validate, std::string basename) {
 
     if (basename.empty()) {
-        basename = temp_file::create();
+        basename = temp_file::get_dir() + "/";
     }
 
     node_count = 0;

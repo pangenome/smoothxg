@@ -354,12 +354,12 @@ int main(int argc, char **argv) {
                     gfa_in_name = args::get(tmp_base) + '/' + filename + ".prep.gfa";
                 }
                 std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
-                smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true, temp_file::create(), n_threads);
+                smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true, temp_file::get_dir() + '/', n_threads);
             } else {
                 gfa_in_name = args::get(gfa_in);
             }
             std::cerr << "[smoothxg::main] building xg index" << std::endl;
-            graph->from_gfa(gfa_in_name, false, temp_file::create());
+            graph->from_gfa(gfa_in_name, false, temp_file::get_dir() + '/');
             if (!args::get(keep_temp) && !args::get(no_prep)) {
                 std::remove(gfa_in_name.c_str());
             }
