@@ -114,7 +114,7 @@ int main(int argc, char **argv) {
                         "run spoa (in local alignment mode) instead of abPOA (in global alignment mode) for smoothing",
                         {'S', "spoa"});
     args::Flag change_alignment_mode(poa_opts, "change-alignment-mode",
-                                     "change the alignment mode of spoa to global, and of abpoa to local",
+                                     "change the alignment mode to global [default: local]",
                                      {'Z', "change-alignment-mode"});
 
     args::Group consensus_opts(parser, "[ Consensus Graph(s) Options ]");
@@ -402,7 +402,7 @@ int main(int argc, char **argv) {
         // we collect path_step_rank_ranges and the identifier of an interval is the index of a block in the blocks vector
         //ska::flat_hash_map<std::string, IITree<uint64_t , uint64_t>> happy_tree_friends = smoothxg::generate_path_nuc_range_block_index(blocks, graph);
 
-        const bool local_alignment = args::get(use_spoa) ^args::get(change_alignment_mode);
+        const bool local_alignment = !args::get(change_alignment_mode);
 
         std::string maf_header;
         if (write_msa_in_maf_format) {
