@@ -52,3 +52,6 @@
 [submodule "deps/WFA"]
 	path = deps/WFA
 	url = https://github.com/pangenome/WFA.git
+[submodule "deps/spoa"]
+	path = deps/spoa
+	url = https://github.com/rvaser/spoa.git
