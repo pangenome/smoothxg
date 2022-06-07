@@ -200,7 +200,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 
     // initialize abPOA parameters
     abpoa_para_t *abpt = abpoa_init_para();
-    
+
     // if we want to do local alignments
     if (local_alignment) {
         abpt->align_mode = ABPOA_LOCAL_MODE;
@@ -430,7 +430,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                         std::vector<maf_partial_row_t>()
                 ));
             }
-  
+
             (*maf)[path_name].push_back({
                 record_start,
                 seq_size,
@@ -589,28 +589,19 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         return output_graph;
     }
 
-    std::uint8_t spoa_algorithm = local_alignment ? 0 : 1;
-    std::unique_ptr<spoa::AlignmentEngine> alignment_engine = spoa::createAlignmentEngine(
-                    static_cast<spoa::AlignmentType>(spoa_algorithm),
-                    poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
+    auto spoa_algorithm = local_alignment ? spoa::AlignmentType::kSW : spoa::AlignmentType::kNW;
+    auto alignment_engine = spoa::AlignmentEngine::Create(
+        spoa_algorithm,
+        poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
 
-    auto poa_graph = spoa::createGraph();
+    spoa::Graph poa_graph{};
 
-    // preallocation does not seem to help, and it consumes a lot of memory
-    // relative to progressive allocation
-    // alignment_engine->prealloc(max_sequence_size, 4);
     int i = 0;
     for (auto &seq : seqs) {
-        // std::cerr << names[i++] << "\t" << seq << std::endl;
-
-        // try both orientations here: we'll need to record the
-        // orientation in the path somehow to structure the lacing
-        std::int32_t score_fwd = 0;
-        auto alignment = alignment_engine->align(seq, poa_graph, &score_fwd);
-
+        auto alignment = alignment_engine->Align(seq, poa_graph);
         try {
             // could give weight here to influence consensus
-            poa_graph->add_alignment(alignment, seq);
+            poa_graph.AddAlignment(alignment, seq);
         } catch (std::invalid_argument &exception) {
             std::cerr << exception.what() << std::endl;
             assert(false);
@@ -619,15 +610,15 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 
     std::string consensus;
     if (!consensus_name.empty()){
-        consensus = poa_graph->generate_consensus();
+        consensus = poa_graph.GenerateConsensus();
         is_rev.push_back(false);  // the consensus is considered in forward
     }
 
     if (maf != nullptr) {
         bool add_consensus = !consensus_name.empty();
 
-        std::vector<std::string> msa;
-        poa_graph->generate_multiple_sequence_alignment(msa, add_consensus);
+        std::vector<std::string> msa =
+            poa_graph.GenerateMultipleSequenceAlignment(add_consensus);
 
         const int msa_l = msa[0].size();
 
@@ -2364,78 +2355,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     return smoothed;
 }
 
-void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
-               const std::vector<std::string> &sequence_names,
-               bool include_consensus) {
-
-    auto &nodes = graph->nodes();
-    std::vector<std::int32_t> in_consensus(nodes.size(), -1);
-    std::int32_t rank = 0;
-    auto consensus = graph->consensus();
-    for (const auto &id : consensus) {
-        in_consensus[id] = rank++;
-    }
-
-    out << "H"
-        << "\t"
-        << "VN:Z:1.0" << std::endl;
-
-    for (std::uint32_t i = 0; i < nodes.size(); ++i) {
-        out << "S"
-            << "\t" << i + 1 << "\t"
-            << static_cast<char>(graph->decoder(nodes[i]->code()));
-        if (in_consensus[i] != -1) {
-            out << "\t"
-                << "ic:Z:true";
-        }
-        out << std::endl;
-        for (const auto &edge : nodes[i]->out_edges()) {
-            out << "L"
-                << "\t" << i + 1 << "\t"
-                << "+"
-                << "\t" << edge->end_node_id() + 1 << "\t"
-                << "+"
-                << "\t"
-                << "0M"
-                << "\t"
-                << "ew:f:" << edge->total_weight();
-            if (in_consensus[i] + 1 == in_consensus[edge->end_node_id()]) {
-                out << "\t"
-                    << "ic:Z:true";
-            }
-            out << std::endl;
-        }
-    }
-
-    for (std::uint32_t i = 0; i < sequence_names.size(); ++i) {
-        out << "P"
-            << "\t" << sequence_names[i] << "\t";
-        std::uint32_t node_id = graph->sequences_begin_nodes_ids()[i];
-        while (true) {
-            out << node_id + 1 << "+";
-            if (!nodes[node_id]->successor(node_id, i)) {
-                break;
-            } else {
-                out << ",";
-            }
-        }
-        out << "\t"
-            << "*" << std::endl;
-    }
-
-    if (include_consensus) {
-        out << "P"
-            << "\t"
-            << "Consensus"
-            << "\t";
-        for (auto &id : graph->consensus()) {
-            out << id + 1 << "+";
-        }
-        out << "\t"
-            << "*" << std::endl;
-    }
-}
-
 void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::vector<std::string> &sequence_names,
                       const std::vector<bool>& aln_is_reverse,
@@ -2459,7 +2378,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
     kdq_int_t *q = kdq_init_int();
 
     // Breadth-First-Search
-    kdq_push_int(q, ABPOA_SRC_NODE_ID); 
+    kdq_push_int(q, ABPOA_SRC_NODE_ID);
     while ((id = kdq_shift_int(q)) != 0) {
         cur_id = *id;
         if (cur_id == ABPOA_SINK_NODE_ID) {
@@ -2538,10 +2457,10 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                 // It is an handle supported by at least one original path too
                 output->append_step(p, output->get_handle(cur_id-1));
             }
-            //fprintf(stdout, "%d+", cur_id-1); if (i != abc->cons_len[cons_i]-1) fprintf(stdout, ","); else fprintf(stdout, "\t*\n"); 
+            //fprintf(stdout, "%d+", cur_id-1); if (i != abc->cons_len[cons_i]-1) fprintf(stdout, ","); else fprintf(stdout, "\t*\n");
         }
     }
-    
+
     free(in_degree);
     for (i = 0; i < n_seq; ++i)
         free(read_paths[i]);
@@ -2565,40 +2484,37 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
     }
 }
 
-void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
-                const std::vector<std::string> &sequence_names,
-                const int &padding_len,
-                const std::vector<bool> &aln_is_reverse,
-                const std::string &consensus_name, bool include_consensus) {
+void build_odgi_SPOA(spoa::Graph& graph, odgi::graph_t* output,
+                     const std::vector<std::string> &sequence_names,
+                     const int &padding_len,
+                     const std::vector<bool> &aln_is_reverse,
+                     const std::string &consensus_name, bool include_consensus) {
 
-    auto &nodes = graph->nodes();
+    auto &nodes = graph.nodes();
 
-    for (std::uint32_t i = 0; i < nodes.size(); ++i) {
-        std::string seq =
-            std::string(1, static_cast<char>(graph->decoder(nodes[i]->code())));
-        output->create_handle(seq, i + 1);
+    for (const auto& it : graph.nodes()) {
+        std::string s(1, static_cast<char>(graph.decoder(it->code)));
+        auto h = output->create_handle(s, it->id + 1);
     }
-
-    for (std::uint32_t i = 0; i < nodes.size(); ++i) {
-        for (const auto &edge : nodes[i]->out_edges()) {
-            output->create_edge(output->get_handle(i + 1),
-                               output->get_handle(edge->end_node_id() + 1));
+    for (const auto& it : graph.nodes()) {
+        auto h = output->get_handle(it->id + 1);
+        for (const auto& jt : it->outedges) {
+            auto t = output->get_handle(jt->head->id + 1);
+            output->create_edge(h, t);
         }
     }
 
-    for (std::uint32_t i = 0; i < sequence_names.size(); ++i) {
+    for (std::uint32_t i = 0; i < graph.sequences().size(); ++i) {
         path_handle_t p = output->create_path_handle(sequence_names[i]);
-        std::uint32_t node_id = graph->sequences_begin_nodes_ids()[i];
         std::vector<handle_t> steps;
+        auto curr = graph.sequences()[i];
         while (true) {
-            steps.push_back(output->get_handle(node_id + 1));
-            if (!nodes[node_id]->successor(node_id, i)) {
+            steps.emplace_back(output->get_handle(curr->id + 1));
+            if (!(curr = curr->Successor(i))) {
                 break;
             }
         }
-
         steps = std::vector<handle_t>(steps.begin() + padding_len, steps.end() - padding_len);
-
         if (aln_is_reverse[i]) {
             for (auto handle_itr = steps.rbegin(); handle_itr != steps.rend(); ++handle_itr) {
                 output->append_step(p, output->flip(*handle_itr));
@@ -2612,12 +2528,16 @@ void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
 
     if (include_consensus) {
         path_handle_t p = output->create_path_handle(consensus_name);
-        for (auto &id : graph->consensus()) {
+        for (std::uint32_t i = 0; i < graph.consensus().size(); ++i) {
+            output->append_step(p, output->get_handle(graph.consensus()[i]->id + 1));
+            /*
+              // not clear if this is still needed
             const uint64_t step_count = output->steps_of_handle(output->get_handle(id + 1)).size();
             if (step_count > 0) {
                 // It is an handle supported by at least one original path too
                 output->append_step(p, output->get_handle(id + 1));
             }
+            */
         }
     }
 

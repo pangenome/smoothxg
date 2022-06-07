@@ -108,11 +108,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                bool write_fasta_blocks,
                                uint64_t max_merged_groups_in_memory);
 
-void write_gfa(std::unique_ptr<spoa::Graph> &graph, std::ostream &out,
-               const std::vector<std::string> &sequence_names,
-               bool include_consensus);
-
-void build_odgi_SPOA(std::unique_ptr<spoa::Graph> &graph, odgi::graph_t* output,
+void build_odgi_SPOA(spoa::Graph& graph, odgi::graph_t* output,
                 const std::vector<std::string> &sequence_names,
                 const int &padding_len,
                 const std::vector<bool> &aln_is_reverse,
