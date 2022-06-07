@@ -198,29 +198,33 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 
     const bool add_consensus = !consensus_name.empty();
 
-    // initialize abPOA
-    abpoa_t *ab = abpoa_init();
     // initialize abPOA parameters
     abpoa_para_t *abpt = abpoa_init_para();
+    
     // if we want to do local alignments
     if (local_alignment) {
         abpt->align_mode = ABPOA_LOCAL_MODE;
     } else {
         abpt->align_mode = ABPOA_GLOBAL_MODE;
     }
+    // abpt->zdrop = -1;     // disable zdrop
+    // abpt->end_bonus = -1; // disable end bouns
     if (!banded_alignment) {
         abpt->wb = -1;
     } else {
         abpt->wb = 311;
     }
     abpt->wf = 0.03; // hmm
-    //abpt->zdrop = 100; // could be useful in local mode
-    //abpt->end_bonus = 100; // also useful in local mode
-    abpt->rev_cigar = 0;
+    abpt->amb_strand = 0; //we align based on orientation relative to the graph
+    // abpt->ret_cigar = 1;  // return cigar
+    abpt->rev_cigar = 0;  // reverse cigar
+    abpt->out_cons = add_consensus;
+    // abpt->out_fq = 0;     // output consensus sequence in fastq
     abpt->out_gfa = 1; // must be set to get the graph
     abpt->out_msa = maf != nullptr ? 1 : 0; // must be set when we extract the MSA
-    abpt->out_cons = add_consensus;
-    abpt->amb_strand = 0; //we align based on orientation relative to the graph
+    // abpt->max_n_cons = 1; // number of max. generated consensus sequence
+
+    // score matrix
     abpt->match = poa_m;
     abpt->mismatch = poa_n;
     abpt->gap_open1 = poa_g;
@@ -228,24 +232,29 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     abpt->gap_ext1 = poa_e;
     abpt->gap_ext2 = poa_c;
 
-    abpt->disable_seeding = 1; // disable seeding
-    //abpt->disable_seeding = 0; // allow seeding (this greatly reduces runtime and memory)
+    abpt->disable_seeding = 1; // disable seeding (allow seeding greatly reduces runtime and memory, but reducing the accuracy)
+
     abpt->k = 19;
     abpt->w = 10;
     abpt->min_w = 3313;
+    // abpt->progressive_poa = 0; // progressive partial order alignment
 
     // finalize parameters
     abpoa_post_set_para(abpt);
 
-    // collect sequence length, transform ACGT to 0123
+    // initialize abPOA
+    abpoa_t *ab = abpoa_init();
+
+    // alloc our seq count
+     // collect sequence length, transform ACGT to 0123
     const int n_seq = seqs.size();
-    int *seq_lens = (int *)malloc(sizeof(int) * n_seq);
-    auto **bseqs = (uint8_t **)malloc(sizeof(uint8_t *) * n_seq);
+    int *seq_lens = (int *)_err_malloc(sizeof(int) * n_seq);
+    auto **bseqs = (uint8_t **)_err_malloc(sizeof(uint8_t *) * n_seq);
     for (int i = 0; i < n_seq; ++i) {
         seq_lens[i] = seqs[i].size();
-        bseqs[i] = (uint8_t *)malloc(sizeof(uint8_t) * seq_lens[i]);
+        bseqs[i] = (uint8_t *)_err_malloc(sizeof(uint8_t) * seq_lens[i]);
         for (int j = 0; j < seq_lens[i]; ++j) {
-            bseqs[i][j] = ab_nt4_table[(int)seqs[i][j]];
+            bseqs[i][j] = ab_char26_table[(int)seqs[i][j]];
         }
     }
 
