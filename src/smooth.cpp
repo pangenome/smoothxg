@@ -511,7 +511,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                     output_graph->append_step(new_path, new_handle);
                 });
             });
-                    std::cerr << "CIAO F\n";
+
     return output_graph;
 }
 
