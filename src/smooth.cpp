@@ -1,8 +1,6 @@
 #include "smooth.hpp"
-#include "deps/abPOA/src/abpoa_seq.h"
-#include "deps/abPOA/src/abpoa_graph.c"
-//#include "deps/abPOA/src/abpoa_seq.c"
 #include "deps/abPOA/src/abpoa_align.c"
+#include "deps/abPOA/src/abpoa_output.c"
 #include "rkmh.hpp"
 
 namespace smoothxg {
@@ -247,104 +245,69 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         seq_lens[i] = seqs[i].size();
         bseqs[i] = (uint8_t *)malloc(sizeof(uint8_t) * seq_lens[i]);
         for (int j = 0; j < seq_lens[i]; ++j) {
-            bseqs[i][j] = nt4_table[(int)seqs[i][j]];
+            bseqs[i][j] = ab_nt4_table[(int)seqs[i][j]];
         }
     }
 
-    // variables to store result
-    uint8_t **cons_seq; int **cons_cov, *cons_l, cons_n = 0;
-    uint8_t **msa_seq; int msa_l = 0;
-
-    abpoa_reset_graph(ab, abpt, 1024);
+    abpoa_reset(ab, abpt, 1024);
     abpoa_seq_t *abs = ab->abs; int i, exist_n_seq = ab->abs->n_seq;
 
     // alloc our seq count
-    abs->m_seq = 0;
-    abs->n_seq = n_seq;
-    abpoa_realloc_seq(abs);
+    abs->n_seq += n_seq; abpoa_realloc_seq(abs);
+
+    // no seq names
+    for (i = 0; i < n_seq; ++i) {
+        abs->name[exist_n_seq+i].l = 0; abs->name[exist_n_seq+i].m = 0;
+    }
 
     // determine the max sequence length
-    int max_len = 0;
-    for (i = 0; i < n_seq; ++i) {
-        if (seq_lens[i] > max_len) max_len = seq_lens[i];
-    }
+    // int max_len = 0;
+    // for (i = 0; i < n_seq; ++i) {
+    //     if (seq_lens[i] > max_len) max_len = seq_lens[i];
+    // }
 
-    if (abpt->disable_seeding || abpt->align_mode != ABPOA_GLOBAL_MODE) {
-        abpoa_poa(ab, abpt, bseqs, seq_lens, exist_n_seq, n_seq);
-    } else {
-        // sequence pos to node id
-        int *tpos_to_node_id = (int*)_err_calloc(max_len, sizeof(int)), *qpos_to_node_id = (int*)_err_calloc(max_len, sizeof(int));
-        // seeding, build guide tree, and partition into small windows
-        int *read_id_map = (int*)_err_malloc(sizeof(int) * n_seq); // guide tree order -> input order
-        u64_v par_anchors = {0, 0, 0}; int *par_c = (int*)_err_malloc(sizeof(int) * n_seq);
+    abpoa_poa(ab, abpt, bseqs, seq_lens, exist_n_seq, n_seq);
 
-        abpoa_build_guide_tree_partition(bseqs, seq_lens, n_seq, abpt, read_id_map, &par_anchors, par_c);
-        if (abpt->incr_fn) { // collect anchors between last one path and first seq
-            // anchors
-            // new_par_anchors
-            // push anchors 
-            // free(par_anchors.a);
-            // par_anchors = new_par_anchors;
-            // collect tpos_to_node_id for last one path
-        }
-
-        // perform partial order alignment
-        abpoa_anchor_poa(ab, abpt, bseqs, seq_lens, par_anchors, par_c, tpos_to_node_id, qpos_to_node_id, read_id_map, exist_n_seq, n_seq);
-        free(read_id_map); free(tpos_to_node_id); free(qpos_to_node_id); free(par_c);
-        if (par_anchors.m > 0) free(par_anchors.a);
-    }
-
-    abpoa_topological_sort(ab->abg, abpt);
+    // It seems not necessary, as the Breadth-First-Search (in build_odgi_abPOA) follows the graph topology
+    //abpoa_topological_sort(ab->abg, abpt);
 
     if (maf != nullptr){
-        abpoa_generate_rc_msa(ab, abpt, NULL, &msa_seq, &msa_l);
-
-        /*fprintf(stdout, ">Multiple_sequence_alignment\n");
-        for (i = 0; i < n_seq; ++i) {
-            for (int j = 0; j < msa_l; ++j) {
-                fprintf(stdout, "%c", "ACGTN-"[msa_seq[i][j]]);
-            }
-            fprintf(stdout, "\n");
-        }*/
+        abpoa_generate_rc_msa(ab, abpt);
     }
 
     if (add_consensus) {
-        abpoa_generate_consensus(ab, abpt, NULL, &cons_seq, &cons_cov, &cons_l, &cons_n);
+        abpoa_generate_consensus(ab, abpt);
         if (ab->abg->is_called_cons == 0) {
             err_printf("ERROR: no consensus sequence generated.\n");
             exit(1);
         }
         is_rev.push_back(false);  // the consensus is considered in forward
 
-        /*fprintf(stdout, "=== output to variables ===\n");
-        for (int i = 0; i < cons_n; ++i) {
-            fprintf(stdout, ">Consensus_sequence\n");
-            for (int j = 0; j < cons_l[i]; ++j)
-                fprintf(stdout, "%c", nst_nt256_table[cons_seq[i][j]]);
-            fprintf(stdout, "\n");
-        }*/
+        //abpoa_output_fx_consensus(ab, abpt, stdout);
     }
 
     if (maf != nullptr) {
+        abpoa_output_rc_msa(ab, abpt, stdout);
+
         for (int i = 0; i < n_seq; ++i) {
             // Remove padded characters
             int j = 0;
             uint64_t characters_to_remove = poa_padding;
             while (characters_to_remove > 0) {
-                if (msa_seq[i][j] != 5){
-                    msa_seq[i][j] = 5;
+                if (ab->abc->msa_base[i][j] != 5){
+                    ab->abc->msa_base[i][j] = 5;
                     --characters_to_remove;
                 }
 
                 ++j;
             }
 
-            j = msa_l;
+            j = ab->abc->msa_len;
             characters_to_remove = poa_padding;
             while (characters_to_remove > 0) {
                 --j;
-                if (msa_seq[i][j] != 5){
-                    msa_seq[i][j] = 5;
+                if (ab->abc->msa_base[i][j] != 5){
+                    ab->abc->msa_base[i][j] = 5;
                     --characters_to_remove;
                 }
             }
@@ -352,11 +315,11 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 
         // Find the starting position where to trim the MSA
         uint64_t start_pos_to_trim = 0;
-        for (; start_pos_to_trim < msa_l; ++start_pos_to_trim) {
+        for (; start_pos_to_trim < ab->abc->msa_len; ++start_pos_to_trim) {
             int i = 0;
             // Find a non-gap character in the current MSA-column
             for (; i < n_seq; ++i) {
-                if (msa_seq[i][start_pos_to_trim] != 5){
+                if (ab->abc->msa_base[i][start_pos_to_trim] != 5){
                     break;
                 }
             }
@@ -368,12 +331,12 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         }
 
         // Find the ending position where to trim the MSA
-        int64_t end_pos_to_trim = msa_l - 1;
+        int64_t end_pos_to_trim = ab->abc->msa_len - 1;
         for (; end_pos_to_trim >= 0; --end_pos_to_trim) {
             int i = 0;
             // Find a non-gap character in the current MSA-column
             for (; i < n_seq; ++i) {
-                if (msa_seq[i][end_pos_to_trim] != 5){
+                if (ab->abc->msa_base[i][end_pos_to_trim] != 5){
                     break;
                 }
             }
@@ -398,7 +361,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             if (!add_consensus || seq_rank < num_seqs - 1) {
                 if (keep_sequence){
                     for (int j = start_pos_to_trim; j < end_pos_to_trim; ++j) {
-                        aligned_seq += "ACGTN-"[msa_seq[seq_rank][j]];
+                        aligned_seq += ab_char256_table[ab->abc->msa_base[seq_rank][j]];
                     }
                 }
 
@@ -419,30 +382,35 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             } else {
                 // The last sequence is the gapped consensus
                 if (keep_sequence){
-                    int j, k, aligned_id, rank;
-                    i = ab->abg->node[ABPOA_SRC_NODE_ID].max_out_id;
-                    int last_rank = 1;
-                    while (i != ABPOA_SINK_NODE_ID) {
-                        rank = abpoa_graph_node_id_to_msa_rank(ab->abg, i);
-                        for (k = 0; k < ab->abg->node[i].aligned_node_n; ++k) {
-                            aligned_id = ab->abg->node[i].aligned_node_id[k];
-                            rank = MAX_OF_TWO(rank, abpoa_graph_node_id_to_msa_rank(ab->abg, aligned_id));
-                        }
-                        // last_rank -> rank : -
-                        for (k = last_rank; k < rank; ++k) aligned_seq += '-';
-                        // rank : base
-                        aligned_seq += "ACGTN"[ab->abg->node[i].base];
-                        last_rank = rank+1;
-                        i = ab->abg->node[i].max_out_id;
+                    // TODO: is it really enough to replace the old code?
+                    for (i = 0; i < ab->abc->msa_len; ++i){
+                        aligned_seq += ab_char256_table[ab->abc->msa_base[ab->abc->n_seq][i]];
                     }
-                    // last_rank -> msa_l:-
-                    for (k = last_rank; k <= msa_l; ++k) aligned_seq += '-';
+
+                    // int j, k, aligned_id, rank;
+                    // i = ab->abg->node[ABPOA_SRC_NODE_ID].max_out_id;
+                    // int last_rank = 1;
+                    // while (i != ABPOA_SINK_NODE_ID) {
+                    //     rank = abpoa_graph_node_id_to_msa_rank(ab->abg, i);
+                    //     for (k = 0; k < ab->abg->node[i].aligned_node_n; ++k) {
+                    //         aligned_id = ab->abg->node[i].aligned_node_id[k];
+                    //         rank = MAX_OF_TWO(rank, abpoa_graph_node_id_to_msa_rank(ab->abg, aligned_id));
+                    //     }
+                    //     // last_rank -> rank : -
+                    //     for (k = last_rank; k < rank; ++k) aligned_seq += '-';
+                    //     // rank : base
+                    //     aligned_seq += "ACGTN"[ab->abg->node[i].base];
+                    //     last_rank = rank+1;
+                    //     i = ab->abg->node[i].ma.max_out_id;
+                    // }
+                    // // last_rank -> msa_l:-
+                    // for (k = last_rank; k <= ab->abc->msa_len; ++k) aligned_seq += '-';
 
                     aligned_seq = aligned_seq.substr(start_pos_to_trim, end_pos_to_trim - start_pos_to_trim);
                 }
 
                 path_name = consensus_name;
-                path_length = cons_l[0] - 2 * poa_padding;
+                path_length = ab->abc->cons_len[0] - 2 * poa_padding;
                 record_start = 0;
                 seq_size = path_length;
             }
@@ -453,7 +421,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                         std::vector<maf_partial_row_t>()
                 ));
             }
-
+  
             (*maf)[path_name].push_back({
                 record_start,
                 seq_size,
@@ -468,21 +436,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     }
 
     // free memory
-    if (cons_n) {
-        for (i = 0; i < cons_n; ++i) {
-            free(cons_seq[i]);
-            free(cons_cov[i]);
-        }
-        free(cons_seq);
-        free(cons_cov);
-        free(cons_l);
-    }
-    if (msa_l) {
-        for (i = 0; i < n_seq; ++i) {
-            free(msa_seq[i]);
-        }
-        free(msa_seq);
-    }
     for (i = 0; i < n_seq; ++i) {
         free(bseqs[i]);
     }
@@ -558,7 +511,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                     output_graph->append_step(new_path, new_handle);
                 });
             });
-
+                    std::cerr << "CIAO F\n";
     return output_graph;
 }
 
@@ -2482,118 +2435,109 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                       const std::string &consensus_name,
                       const int &padding_len,
                       bool include_consensus) {
-    abpoa_graph_t *abg = ab->abg;
+    abpoa_seq_t *abs = ab->abs; abpoa_graph_t *abg = ab->abg;
     // how would this happen, and can we manage the error externally?
     if (abg->node_n <= 2) return;
 
-    int seq_n = sequence_names.size();
-
     // traverse graph
-    int *in_degree = (int *)_err_malloc(abg->node_n * sizeof(int));
-    int **read_paths = (int **)_err_malloc(seq_n * sizeof(int *)),
-        *read_path_i = (int *)_err_calloc(seq_n, sizeof(int));
-    int i, j, cur_id, pre_id, out_id;
+    int *in_degree = (int*)_err_malloc(abg->node_n * sizeof(int));
+    int n_seq = abs->n_seq;
+    int **read_paths = (int**)_err_malloc(n_seq * sizeof(int*)), *read_path_i = (int*)_err_calloc(n_seq, sizeof(int));
+    int i, j, cur_id, pre_id, out_id, *id;
     for (i = 0; i < abg->node_n; ++i)
         in_degree[i] = abg->node[i].in_edge_n;
-    for (i = 0; i < seq_n; ++i)
-        read_paths[i] = (int *)_err_malloc(abg->node_n * sizeof(int));
+    for (i = 0; i < n_seq; ++i)
+        read_paths[i] = (int*)_err_malloc(abg->node_n * sizeof(int));
 
-    std::vector<int> stack_node_ids;
-    for (i = 0; i < abg->node[ABPOA_SRC_NODE_ID].out_edge_n; ++i) {
-        out_id = abg->node[ABPOA_SRC_NODE_ID].out_id[i];
-        if (--in_degree[out_id] == 0) {
-            stack_node_ids.push_back(out_id);
-        }
-    }
-    while (!stack_node_ids.empty()) {
-        cur_id = stack_node_ids.back();
-        stack_node_ids.pop_back();
+    kdq_int_t *q = kdq_init_int();
 
-        if (cur_id != ABPOA_SINK_NODE_ID) {
-            // output node
-            // fprintf(stdout, "S\t%d\t%c\n", cur_id - 1,
-            // "ACGTN"[abg->node[cur_id].base]); add node to output graph
-            std::string seq = std::string(1, "ACGTN"[abg->node[cur_id].base]);
-            // std::cerr << "seq: " << seq << std::endl;
-            output->create_handle(seq, cur_id);
-            // std::cerr << "cur_id: " << cur_id << std::endl;
-            // output all links based pre_ids
-            for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
-                pre_id = abg->node[cur_id].in_id[i];
-                if (pre_id != ABPOA_SRC_NODE_ID) {
-                    // output edge
-                    // fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id,
-                    // cur_id); std::cerr << "cur_id edge: " << cur_id
-                    // << std::endl; std::cerr << "pre_id edge: " <<
-                    // pre_id << std::endl;
-                    output->create_edge(output->get_handle(pre_id), output->get_handle(cur_id));
+    // Breadth-First-Search
+    kdq_push_int(q, ABPOA_SRC_NODE_ID); 
+    while ((id = kdq_shift_int(q)) != 0) {
+        cur_id = *id;
+        if (cur_id == ABPOA_SINK_NODE_ID) {
+            kdq_destroy_int(q);
+            break;
+        } else {
+            if (cur_id != ABPOA_SRC_NODE_ID) {
+                // output node
+                //fprintf(stdout, "S\t%d\t%c\n", cur_id-1, ab_char256_table[abg->node[cur_id].base]);
+                // add node to output graph
+                std::string seq = std::string(1, ab_char256_table[abg->node[cur_id].base]);
+                // std::cerr << "seq: " << seq << std::endl;
+                output->create_handle(seq, cur_id);
+                // output all links based pre_ids
+                for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
+                    pre_id = abg->node[cur_id].in_id[i];
+                    if (pre_id != ABPOA_SRC_NODE_ID){
+                        //fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id-1, cur_id-1);
+                        output->create_edge(output->get_handle(pre_id), output->get_handle(cur_id));
+                    }
+                }
+                // add node id to read path
+                int b, read_id; uint64_t num, tmp;
+                b = 0;
+                for (i = 0; i < abg->node[cur_id].read_ids_n; ++i) {
+                    for (j = 0; j < abg->node[cur_id].out_edge_n; ++j) {
+                        num = abg->node[cur_id].read_ids[j][i];
+                        while (num) {
+                            tmp = num & -num;
+                            read_id = ilog2_64(tmp);
+                            read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id-1;
+                            num ^= tmp;
+                        }
+                    }
+                    b += 64;
                 }
             }
-            // add node id to read path
-            int b, read_id;
-            uint64_t num, tmp;
-            b = 0;
-            for (i = 0; i < abg->node[cur_id].read_ids_n; ++i) {
-                num = abg->node[cur_id].read_ids[i];
-                while (num) {
-                    tmp = num & -num;
-                    read_id = ilog2_64(tmp);
-                    read_paths[b+read_id][read_path_i[b+read_id]++] = cur_id;
-                    num ^= tmp;
-                }
-                b += 64;
-            }
-
             for (i = 0; i < abg->node[cur_id].out_edge_n; ++i) {
                 out_id = abg->node[cur_id].out_id[i];
                 if (--in_degree[out_id] == 0) {
-                    stack_node_ids.push_back(out_id);
+                    kdq_push_int(q, out_id);
                 }
             }
         }
     }
-
     // output read paths
-    for (i = 0; i < seq_n; ++i) {
-        // fprintf(stdout, "P\t%s\t", sequence_names[i]);
-        // std::cerr << "P\t" << sequence_names[i] << "\t";
+    for (i = 0; i < n_seq; ++i) {
+        //fprintf(stdout, "P\t%s\t", sequence_names[i]);
         path_handle_t p = output->create_path_handle(sequence_names[i]);
 
         if (aln_is_reverse[i]) {
             for (j = read_path_i[i] - 1 - padding_len; j >= padding_len; --j) {
-                // fprintf(stdout, "%d-", read_paths[i][j]);
-                output->append_step(p, output->flip(output->get_handle(read_paths[i][j])));
+                //fprintf(stdout, "%d-", read_paths[i][j]);
+                //if (j != 0) fprintf(stdout, ","); else fprintf(stdout, "\t*\n");
+                output->append_step(p, output->flip(output->get_handle(read_paths[i][j] + 1)));
             }
         } else {
             for (j = padding_len; j < read_path_i[i] - padding_len; ++j) {
-                // fprintf(stdout, "%d+", read_paths[i][j]);
-                output->append_step(p, output->get_handle(read_paths[i][j]));
+                //fprintf(stdout, "%d+", read_paths[i][j]);
+                //if (j != read_path_i[i]-1) fprintf(stdout, ","); else fprintf(stdout, "\t*\n");
+                output->append_step(p, output->get_handle(read_paths[i][j] + 1));
             }
         }
     }
     if (include_consensus) {
+        abpoa_cons_t *abc = ab->abc;
+        int cons_i = 0; // Only the first consensus
+
         path_handle_t p = output->create_path_handle(consensus_name);
 
-        int max_out_id = abg->node[ABPOA_SRC_NODE_ID].max_out_id;
-        // fprintf(stdout, "P\tConsensus_sequence\t");
-
-        while (true) {
-            // fprintf(stdout, "%d+", id-1);
-            const uint64_t step_count = output->steps_of_handle(output->get_handle(max_out_id)).size();
+        //fprintf(stdout, "P\tConsensus_sequence"); if (abc->n_cons > 1) fprintf(stdout, "_%d", cons_i+1); fprintf(out_fp, "\t");
+        for (i = 1; i < abc->cons_len[cons_i]; ++i) {
+            cur_id = abc->cons_node_ids[cons_i][i];
+            const uint64_t step_count = output->steps_of_handle(output->get_handle(cur_id)).size();
             if (step_count > 0) {
                 // It is an handle supported by at least one original path too
-                output->append_step(p, output->get_handle(max_out_id));
+                output->append_step(p, output->get_handle(cur_id));
             }
-
-            max_out_id = abg->node[max_out_id].max_out_id;
-            if (max_out_id == ABPOA_SINK_NODE_ID) {
-                break;
-            }
+            
+            //fprintf(stdout, "%d+", cur_id-1); if (i != abc->cons_len[cons_i]-1) fprintf(stdout, ","); else fprintf(stdout, "\t*\n"); 
         }
     }
 
     free(in_degree);
-    for (i = 0; i < seq_n; ++i)
+    for (i = 0; i < n_seq; ++i)
         free(read_paths[i]);
     free(read_paths);
     free(read_path_i);
