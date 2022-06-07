@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
                                                                    "maximum block depth beyond which a (small) fixed amount of flanking nucleotides is not added (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 1000, 0 to disable it]",
                                                                    {'Y', "max-block-depth-adaptive-poa-padding"});
     args::Flag use_spoa(poa_opts, "use-spoa",
-                        "run spoa (in local alignment mode) instead of abPOA (in global alignment mode) for smoothing",
+                        "run spoa instead of abPOA for smoothing",
                         {'S', "spoa"});
     args::Flag change_alignment_mode(poa_opts, "change-alignment-mode",
                                      "change the alignment mode to global [default: local]",
