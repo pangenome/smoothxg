@@ -595,11 +595,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         poa_m, poa_n, poa_g, poa_e, poa_q, poa_c);
 
     spoa::Graph poa_graph{};
-    //auto poa_graph = spoa::createGraph();
 
-    // preallocation does not seem to help, and it consumes a lot of memory
-    // relative to progressive allocation
-    // alignment_engine->prealloc(max_sequence_size, 4);
     int i = 0;
     for (auto &seq : seqs) {
         auto alignment = alignment_engine->Align(seq, poa_graph);
