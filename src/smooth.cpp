@@ -287,7 +287,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     }
 
     if (maf != nullptr) {
-        abpoa_output_rc_msa(ab, abpt, stdout);
+        //abpoa_output_rc_msa(ab, abpt, stdout);
 
         for (int i = 0; i < n_seq; ++i) {
             // Remove padded characters
@@ -447,10 +447,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time.count()) + "s");
     }
 
-
     odgi::graph_t block_graph;
     build_odgi_abPOA(ab, abpt, &block_graph, names, is_rev, consensus_name, poa_padding, add_consensus);
-
     abpoa_free(ab);
     abpoa_free_para(abpt);
 
@@ -2465,13 +2463,13 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
                 // add node to output graph
                 std::string seq = std::string(1, ab_char256_table[abg->node[cur_id].base]);
                 // std::cerr << "seq: " << seq << std::endl;
-                output->create_handle(seq, cur_id);
+                output->create_handle(seq, cur_id-1);
                 // output all links based pre_ids
                 for (i = 0; i < abg->node[cur_id].in_edge_n; ++i) {
                     pre_id = abg->node[cur_id].in_id[i];
                     if (pre_id != ABPOA_SRC_NODE_ID){
                         //fprintf(stdout, "L\t%d\t+\t%d\t+\t0M\n", pre_id-1, cur_id-1);
-                        output->create_edge(output->get_handle(pre_id), output->get_handle(cur_id));
+                        output->create_edge(output->get_handle(pre_id-1), output->get_handle(cur_id-1));
                     }
                 }
                 // add node id to read path
@@ -2507,13 +2505,13 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
             for (j = read_path_i[i] - 1 - padding_len; j >= padding_len; --j) {
                 //fprintf(stdout, "%d-", read_paths[i][j]);
                 //if (j != 0) fprintf(stdout, ","); else fprintf(stdout, "\t*\n");
-                output->append_step(p, output->flip(output->get_handle(read_paths[i][j] + 1)));
+                output->append_step(p, output->flip(output->get_handle(read_paths[i][j])));
             }
         } else {
             for (j = padding_len; j < read_path_i[i] - padding_len; ++j) {
                 //fprintf(stdout, "%d+", read_paths[i][j]);
                 //if (j != read_path_i[i]-1) fprintf(stdout, ","); else fprintf(stdout, "\t*\n");
-                output->append_step(p, output->get_handle(read_paths[i][j] + 1));
+                output->append_step(p, output->get_handle(read_paths[i][j]));
             }
         }
     }
@@ -2526,16 +2524,15 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
         //fprintf(stdout, "P\tConsensus_sequence"); if (abc->n_cons > 1) fprintf(stdout, "_%d", cons_i+1); fprintf(out_fp, "\t");
         for (i = 1; i < abc->cons_len[cons_i]; ++i) {
             cur_id = abc->cons_node_ids[cons_i][i];
-            const uint64_t step_count = output->steps_of_handle(output->get_handle(cur_id)).size();
+            const uint64_t step_count = output->steps_of_handle(output->get_handle(cur_id-1)).size();
             if (step_count > 0) {
                 // It is an handle supported by at least one original path too
-                output->append_step(p, output->get_handle(cur_id));
+                output->append_step(p, output->get_handle(cur_id-1));
             }
-            
             //fprintf(stdout, "%d+", cur_id-1); if (i != abc->cons_len[cons_i]-1) fprintf(stdout, ","); else fprintf(stdout, "\t*\n"); 
         }
     }
-
+    
     free(in_degree);
     for (i = 0; i < n_seq; ++i)
         free(read_paths[i]);
