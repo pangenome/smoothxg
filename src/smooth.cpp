@@ -1694,7 +1694,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 if (block.path_ranges.size() <= max_block_depth_for_padding_more) {
                     // min amount of flanking sequences to add
                     // avoids corner case of padding failure with shallow short blocks
-                    poa_padding = 47;
+                    poa_padding = 311;
                 }
                 // always pad a fraction of our sequence length
                 // note that this can be very short in deep blocks that tend to have many short sequences
