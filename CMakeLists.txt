@@ -26,6 +26,14 @@ endif()
 if (${CMAKE_BUILD_TYPE} MATCHES Release)
   set(EXTRA_FLAGS "-Ofast -march=native")
   set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG") # reset CXX_FLAGS to replace -O3 with -Ofast
+
+  # Increase SPOA's performance
+  set(spoa_optimize_for_portability OFF)
+  set(spoa_optimize_for_native ON)
+else()
+  # Increase SPOA's portability (for Docker/Singularity)
+  set(spoa_optimize_for_portability ON)
+  set(spoa_optimize_for_native OFF)
 endif ()
 
 if (${CMAKE_BUILD_TYPE} MATCHES Debug)
