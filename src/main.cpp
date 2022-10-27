@@ -23,17 +23,21 @@
 #include "consensus_graph.hpp"
 #include "rkmh.hpp"
 #include <chrono>
-#include "version.hpp"
+#include "include/smoothxg_git_version.hpp"
 #include <filesystem>
 #include <deps/odgi/src/algorithms/xp.hpp>
+
+// If the SMOOTHXG_GIT_VERSION doesn't exist at all, define a placeholder
+#ifndef SMOOTHXG_GIT_VERSION
+#define SMOOTHXG_GIT_VERSION "not-from-git"
+#endif
 
 using namespace std;
 using namespace xg;
 
 
 int main(int argc, char **argv) {
-    args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator\n" + smoothxg::Version::get_version() + ": " +
-										smoothxg::Version::get_codename());
+    args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator\n" + std::string(SMOOTHXG_GIT_VERSION));
     args::Group mandatory_opts(parser, "[ MANDATORY OPTIONS ]");
     args::ValueFlag<std::string> gfa_in(mandatory_opts, "FILE", "index the graph in this GFA file", {'g', "gfa-in"});
     args::ValueFlag<std::string> smoothed_out(mandatory_opts, "FILE",
@@ -189,7 +193,7 @@ int main(int argc, char **argv) {
     }
 
 	if (version) {
-		std::cerr << smoothxg::Version::get_version() << std::endl;
+		std::cerr << SMOOTHXG_GIT_VERSION << std::endl;
 		exit(0);
 	}
 
