@@ -313,8 +313,7 @@ add_library(smoothxg_objs OBJECT
   src/zstdutil.cpp
   ${sautocorr_INCLUDE}/sautocorr.cpp
   src/maf.hpp
-  src/consensus_graph.cpp
-  src/version.cpp)
+  src/consensus_graph.cpp)
 
 add_dependencies(smoothxg_objs handlegraph)
 add_dependencies(smoothxg_objs sdsl-lite)
@@ -422,14 +421,13 @@ target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
 #set_target_properties(libsmoothxg_static PROPERTIES PUBLIC_HEADER "${smoothxg_HEADERS}")
 #set_target_properties(libsmoothxg_shared PROPERTIES PUBLIC_HEADER "${smoothxg_HEADERS}")
 
-# version stuff
-file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/include)
-execute_process(COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/generate_git_version.sh ${CMAKE_SOURCE_DIR}/include)
-
 install(TARGETS smoothxg DESTINATION bin)
 #install(TARGETS libsmoothxg_static ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
 #install(TARGETS libsmoothxg_shared ARCHIVE DESTINATION lib LIBRARY DESTINATION lib PUBLIC_HEADER DESTINATION include/smoothxg)
 
+# version stuff
+file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/include)
+execute_process(COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/generate_git_version.sh ${CMAKE_SOURCE_DIR}/include)
 
 add_test(
     NAME smoothxg-test
