@@ -368,6 +368,7 @@ int main(int argc, char **argv) {
 		uint64_t i = 0;
 		uint64_t iter_max = target_poa_lengths.size() - 1;
 
+		std::string gfa_in_name;
 		for (auto poa_len : target_poa_lengths) {
 
 			// how many times do we have to iterate?
@@ -379,7 +380,6 @@ int main(int argc, char **argv) {
 					graph->deserialize(in);
 				} else if (!args::get(gfa_in).empty()) {
 					// prep the graph by default
-					std::string gfa_in_name;
 					if (!args::get(no_prep)) {
 						if (args::get(tmp_base).empty()) {
 							gfa_in_name = args::get(gfa_in) + ".prep.gfa";
@@ -403,6 +403,12 @@ int main(int argc, char **argv) {
 						std::remove(gfa_in_name.c_str());
 					}
 				}
+				delete odgi_graph;
+			} else {
+				odgi_graph->set_number_of_threads(num_threads);
+				smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true,
+							   temp_file::get_dir() + '/', n_threads, *odgi_graph);
+				graph->from_handle_graph(*odgi_graph);
 				delete odgi_graph;
 			}
 
@@ -527,7 +533,7 @@ int main(int argc, char **argv) {
 			smoothed_xg->to_gfa(myfile);
 			myfile.close();
 			 */
-
+			/*
 			delete graph;
 			graph = new XG();
 			graph->from_handle_graph(*odgi_graph);
@@ -535,7 +541,9 @@ int main(int argc, char **argv) {
 			graph->to_gfa(myfile);
 			myfile.close();
 			delete graph;
+			*/
 
+			delete graph;
 			std::cerr << "[smoothxg::main] unchopping smoothed graph" << std::endl;
 			odgi::algorithms::unchop(*odgi_graph, n_threads, true);
 
@@ -548,11 +556,12 @@ int main(int argc, char **argv) {
 					});
 			std::cerr << "[smoothxg::main] smoothed graph length " << smoothed_length << "bp " << "in "
 					  << smoothed_nodes << " nodes" << std::endl;
-
+			// TODO do we want to write all of them?
 			std::cerr << "[smoothxg::main] writing smoothed graph to " << smoothed_out_gfa << std::endl;
 			ofstream out(smoothed_out_gfa.c_str());
 			odgi_graph->to_gfa(out);
 			out.close();
+			// FIXME only after the last iteration
 			delete odgi_graph;
 		}
 
