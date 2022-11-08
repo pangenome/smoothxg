@@ -23,7 +23,6 @@ namespace smoothxg {
 // we'll then build the xg index on top of that in low memory
 
 void prep(
-    const std::string& gfa_in,
     const std::string& gfa_out,
     const uint64_t& max_node_length,
     const float& p_sgd_min_term_updates,

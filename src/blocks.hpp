@@ -75,8 +75,8 @@ private:
     std::string _path_tmp_blocks;
 
 public:
-    explicit blockset_t() {
-        _path_tmp_blocks = temp_file::create();
+    explicit blockset_t(const std::string& base) {
+        _path_tmp_blocks = temp_file::create(base);
 
         _num_blocks = 0;
         _blocks = new mmmulti::map<uint64_t, ranked_path_range_t>(_path_tmp_blocks, {0});

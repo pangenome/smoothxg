@@ -365,6 +365,7 @@ int main(int argc, char **argv) {
 
 		std::vector<string> target_poa_lengths;
 		target_poa_lengths.push_back(std::to_string(target_poa_length));
+		target_poa_lengths.push_back(std::to_string(target_poa_length));
 		uint64_t i = 0;
 		uint64_t iter_max = target_poa_lengths.size() - 1;
 
@@ -392,7 +393,7 @@ int main(int argc, char **argv) {
 
 						odgi::gfa_to_handle(args::get(gfa_in), odgi_graph, true, num_threads, true);
 						odgi_graph->set_number_of_threads(num_threads);
-						smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true,
+						smoothxg::prep(args::get(gfa_in), node_chop, term_updates, true,
 									   temp_file::get_dir() + '/', n_threads, *odgi_graph);
 					} else {
 						gfa_in_name = args::get(gfa_in);
@@ -405,14 +406,16 @@ int main(int argc, char **argv) {
 				}
 				delete odgi_graph;
 			} else {
+				graph = new XG();
 				odgi_graph->set_number_of_threads(num_threads);
-				smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true,
+				smoothxg::prep(args::get(gfa_in), node_chop, term_updates, true,
 							   temp_file::get_dir() + '/', n_threads, *odgi_graph);
+				std::cerr << "[smoothxg::main] building xg index" << std::endl;
 				graph->from_handle_graph(*odgi_graph);
 				delete odgi_graph;
 			}
 
-		auto *blockset = new smoothxg::blockset_t();
+		auto *blockset = new smoothxg::blockset_t(std::to_string(i));
 		smoothxg::smoothable_blocks(*graph,
 									*blockset,
 									max_block_weight,
@@ -544,6 +547,7 @@ int main(int argc, char **argv) {
 			*/
 
 			delete graph;
+			delete blockset;
 			std::cerr << "[smoothxg::main] unchopping smoothed graph" << std::endl;
 			odgi::algorithms::unchop(*odgi_graph, n_threads, true);
 
@@ -562,10 +566,11 @@ int main(int argc, char **argv) {
 			odgi_graph->to_gfa(out);
 			out.close();
 			// FIXME only after the last iteration
-			delete odgi_graph;
+			if (iter_max == i) {
+				delete odgi_graph;
+			}
 		}
 
-		delete blockset;
 
 		// do we need to write the consensus path names?
 		if (_write_consensus_path_names) {
@@ -576,7 +581,7 @@ int main(int argc, char **argv) {
 			}
 			consensus_path_names_out.close();
 		}
-
+		i++;
 	}
 
         // end !_read_consenus_path_names

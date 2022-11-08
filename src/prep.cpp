@@ -6,7 +6,6 @@ namespace smoothxg {
 // we'll then build the xg index on top of that in low memory
 
 void prep(
-    const std::string& gfa_in,
     const std::string& gfa_out,
     const uint64_t& max_node_length,
     const float& p_sgd_min_term_updates,
@@ -53,6 +52,9 @@ void prep(
 
     std::cerr << "[smoothxg::prep] building path index" << std::endl;
     xp::XP path_index;
+	if (!graph.is_optimized()) {
+		graph.optimize(true);
+	}
     path_index.from_handle_graph(graph, basename, num_threads);
 
     uint64_t sum_path_step_count = get_sum_path_step_count(path_sgd_use_paths, path_index);
