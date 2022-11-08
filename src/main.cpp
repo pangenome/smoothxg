@@ -343,7 +343,7 @@ int main(int argc, char **argv) {
         const int node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
         std::cerr << "[smoothxg::main] loading graph" << std::endl;
-        auto graph = std::make_unique<XG>();
+        auto *graph = new XG();
         if (!args::get(xg_in).empty()) {
             std::ifstream in(args::get(xg_in));
             graph->deserialize(in);
@@ -483,6 +483,22 @@ int main(int argc, char **argv) {
                                                       args::get(write_block_fastas),
                                                       max_merged_groups_in_memory);
 
+			/*
+			auto smoothed_xg = std::make_unique<XG>();
+			smoothed_xg->from_handle_graph(*smoothed);
+			ofstream myfile("/home/heumos/Downloads/test.xg");
+			smoothed_xg->to_gfa(myfile);
+			myfile.close();
+			 */
+
+			delete graph;
+			graph = new XG();
+			graph->from_handle_graph(*smoothed);
+			ofstream myfile("/home/heumos/Downloads/test2.xg");
+			graph->to_gfa(myfile);
+			myfile.close();
+			delete graph;
+
             std::cerr << "[smoothxg::main] unchopping smoothed graph" << std::endl;
             odgi::algorithms::unchop(*smoothed, n_threads, true);
 
@@ -590,6 +606,5 @@ int main(int argc, char **argv) {
             delete consensus_graph;
         }
     }
-
     return 0;
 }
