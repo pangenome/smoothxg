@@ -344,6 +344,8 @@ int main(int argc, char **argv) {
 
         std::cerr << "[smoothxg::main] loading graph" << std::endl;
         auto *graph = new XG();
+		odgi::graph_t *odgi_graph = new odgi::graph_t();
+		// 1st time looping
         if (!args::get(xg_in).empty()) {
             std::ifstream in(args::get(xg_in));
             graph->deserialize(in);
@@ -358,7 +360,11 @@ int main(int argc, char **argv) {
                     gfa_in_name = args::get(tmp_base) + '/' + filename + ".prep.gfa";
                 }
                 std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
-                smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true, temp_file::get_dir() + '/', n_threads);
+				// load it into an odgi
+
+				odgi::gfa_to_handle(args::get(gfa_in), odgi_graph, true, num_threads, true);
+				odgi_graph->set_number_of_threads(num_threads);
+                smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true, temp_file::get_dir() + '/', n_threads, *odgi_graph);
             } else {
                 gfa_in_name = args::get(gfa_in);
             }
@@ -368,6 +374,8 @@ int main(int argc, char **argv) {
                 std::remove(gfa_in_name.c_str());
             }
         }
+		delete odgi_graph;
+		// TODO looping
 
         auto *blockset = new smoothxg::blockset_t();
         smoothxg::smoothable_blocks(*graph,

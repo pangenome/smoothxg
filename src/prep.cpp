@@ -12,12 +12,8 @@ void prep(
     const float& p_sgd_min_term_updates,
     const bool& toposort,
     const std::string& basename,
-    const uint64_t& num_threads) {
-
-    // load it into an odgi
-    odgi::graph_t graph;
-    odgi::gfa_to_handle(gfa_in, &graph, true, num_threads, true);
-    graph.set_number_of_threads(num_threads);
+    const uint64_t& num_threads,
+	odgi::graph_t& graph) {
 
     // sort it using a short sorting pipeline equivalent to `odgi sort -p Ygs`
 
@@ -98,7 +94,6 @@ void prep(
 			target_sorting,
 			target_nodes);
 
-    graph.set_number_of_threads(num_threads);
     graph.apply_ordering(order, true);
 
     // groom
