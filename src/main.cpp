@@ -393,7 +393,7 @@ int main(int argc, char **argv) {
 
 						odgi::gfa_to_handle(args::get(gfa_in), odgi_graph, true, num_threads, true);
 						odgi_graph->set_number_of_threads(num_threads);
-						smoothxg::prep(args::get(gfa_in), node_chop, term_updates, true,
+						smoothxg::prep(gfa_in_name, node_chop, term_updates, true,
 									   temp_file::get_dir() + '/', n_threads, *odgi_graph);
 					} else {
 						gfa_in_name = args::get(gfa_in);
@@ -408,7 +408,7 @@ int main(int argc, char **argv) {
 			} else {
 				graph = new XG();
 				odgi_graph->set_number_of_threads(num_threads);
-				smoothxg::prep(args::get(gfa_in), node_chop, term_updates, true,
+				smoothxg::prep(gfa_in_name, node_chop, term_updates, true,
 							   temp_file::get_dir() + '/', n_threads, *odgi_graph);
 				std::cerr << "[smoothxg::main] building xg index" << std::endl;
 				graph->from_handle_graph(*odgi_graph);
