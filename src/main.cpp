@@ -506,7 +506,7 @@ int main(int argc, char **argv) {
                                                           local_alignment,
                                                           n_threads,
                                                           n_poa_threads,
-                                                          (current_iter == num_iterations - 1) ? "" : args::get(write_msa_in_maf_format), maf_header,
+                                                          (current_iter == num_iterations - 1) ? args::get(write_msa_in_maf_format) : "", maf_header,
                                                           args::get(merge_blocks), args::get(_preserve_unmerged_consensus),
                                                           contiguous_path_jaccard,
                                                           !args::get(use_spoa),
