@@ -261,8 +261,9 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-		if (!_n_haps) {
-			std::cerr << "[smoothxg::main] error: Please specify the number of haplotypes with -r/--n-haps." << std::endl;
+		if (!_max_block_weight && !_n_haps) {
+			std::cerr << "[smoothxg::main] error: Please specify either the number of haplotypes with -r/--n-haps (recommended)"
+                         " or the maximum seed in block with -w/block-weight-max." << std::endl;
 			return 1;
 		}
 
@@ -361,8 +362,8 @@ int main(int argc, char **argv) {
         // It assumes that either xg_in or gfa_in is set
         for (uint64_t current_iter; current_iter < num_iterations; ++current_iter) {
 			const uint64_t target_poa_length = (uint64_t)smoothxg::handy_parameter(target_poa_lengths[current_iter], 4000);
-			const uint64_t max_poa_length = _max_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_poa_length), 2 * target_poa_length) : 2 * target_poa_length;
-			const uint64_t max_block_weight = _max_block_weight ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_weight), target_poa_length * n_haps) : target_poa_length * n_haps;
+			const uint64_t max_poa_length = _max_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_poa_length), (2 * target_poa_length)) : 2 * target_poa_length;
+			const uint64_t max_block_weight = _max_block_weight ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_weight), (target_poa_length * n_haps)) : target_poa_length * n_haps;
 			auto graph = std::make_unique<XG>();
 			const uint64_t current_iter_1_based = current_iter + 1;
 			std::stringstream smoothxg_iter_stream;
