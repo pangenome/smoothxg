@@ -43,6 +43,9 @@ int main(int argc, char **argv) {
     args::ValueFlag<std::string> smoothed_out(mandatory_opts, "FILE",
                                               "write GFA to this file (not /dev/stdout if consensus graph is made)",
                                               {'o', "smoothed-out"});
+	args::ValueFlag<uint64_t> _n_haps(mandatory_opts, "N",
+									  "number of haplotypes in the GFA",
+									  {'r', "n-haps"});
 
     args::Group io_opts(parser, "[ Files IO Options ]");
     args::ValueFlag<std::string> xg_in(io_opts, "FILE", "read the xg index from this file", {'i', "in"});
@@ -62,7 +65,7 @@ int main(int argc, char **argv) {
                                                       {'U', "path-sgd-term-updates"});
 
     args::Group block_comp_opts(parser, "[ Block Computation Options ]");
-    args::ValueFlag<std::string> _max_block_weight(block_comp_opts, "N", "maximum seed sequence in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 10M]",
+    args::ValueFlag<std::string> _max_block_weight(block_comp_opts, "N", "maximum seed sequence in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: poa-target-length*n-haps]",
                                                    {'w', "block-weight-max"});
     args::ValueFlag<std::string> _max_block_jump(block_comp_opts, "N", "maximum path jump to include in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 100]",
                                                  {'j', "path-jump-max"});
@@ -258,11 +261,14 @@ int main(int argc, char **argv) {
             return 1;
         }
 
+		if (!_n_haps) {
+			std::cerr << "[smoothxg::main] error: Please specify the number of haplotypes with -r/--n-haps." << std::endl;
+			return 1;
+		}
+
 
         const double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
-
-        const uint64_t max_block_weight = _max_block_weight ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_weight), 10000000) : 10000000;
-        const uint64_t max_block_jump = _max_block_jump ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_jump), 100) : 100;
+		const uint64_t max_block_jump = _max_block_jump ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_jump), 100) : 100;
         const uint64_t max_edge_jump = _max_edge_jump ? (uint64_t)smoothxg::handy_parameter(args::get(_max_edge_jump), 0) : 0;
         const uint64_t min_copy_length = _min_copy_length ? (uint64_t)smoothxg::handy_parameter(args::get(_min_copy_length), 1000) : 1000;
         const uint64_t max_copy_length = _max_copy_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_copy_length), 20000) : 20000;
@@ -350,11 +356,13 @@ int main(int argc, char **argv) {
         std::string path_input_gfa = args::get(gfa_in); // Start with the input GFA, when available
         const std::string prefix = filesystem::path(path_input_gfa).filename();
         const uint64_t num_iterations = target_poa_lengths.size();
+		const uint64_t n_haps = args::get(_n_haps);
 
         // It assumes that either xg_in or gfa_in is set
         for (uint64_t current_iter; current_iter < num_iterations; ++current_iter) {
 			uint64_t target_poa_length = std::stoi(target_poa_lengths[current_iter]);
 			const uint64_t max_poa_length = _max_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_poa_length), 2 * target_poa_length) : 2 * target_poa_length;
+			const uint64_t max_block_weight = _max_block_weight ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_weight), target_poa_length * n_haps) : target_poa_length * n_haps;
 			auto graph = std::make_unique<XG>();
 			const uint64_t current_iter_1_based = current_iter + 1;
 			std::stringstream smoothxg_iter_stream;
