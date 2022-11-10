@@ -76,6 +76,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, uint64_t 
                             bool local_alignment,
                             std::string *maf,
                             bool banded_alignment,
+							const std::string& smoothxg_iter,
                             const std::string &consensus_name = "",
                             bool save_block_fastas = false);
 
@@ -85,6 +86,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block, uint64_t b
                            int poa_padding,
                            bool local_alignment,
                            std::string *maf,
+						   const std::string& smoothxg_iter,
                            const std::string &consensus_name = "",
                            bool save_block_fastas = false);
 
@@ -106,7 +108,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                const std::string &consensus_name,
                                std::vector<std::string>& consensus_path_names,
                                bool write_fasta_blocks,
-                               uint64_t max_merged_groups_in_memory);
+                               uint64_t max_merged_groups_in_memory,
+							   const std::string& smoothxg_iter);
 
 void build_odgi_SPOA(spoa::Graph& graph, odgi::graph_t* output,
                 const std::vector<std::string> &sequence_names,

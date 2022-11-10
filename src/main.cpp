@@ -105,8 +105,8 @@ int main(int argc, char **argv) {
     args::Flag adaptive_poa_params(poa_opts, "adaptive-poa-params",
                         "set POA score parameters adaptively by estimating the pairwise similarity between the sequences in the blocks",
                         {'a', "adaptive-poa-params"});
-    args::ValueFlag<std::string> _target_poa_length(poa_opts, "N", "target length to put into POA, blocks are split when paths go over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 5000]",
-                                                    {'l', "poa-length-target"});
+    args::ValueFlag<std::string> _target_poa_lengths(poa_opts, "N", "target length(s) to put into POA, blocks are split when paths go over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9), can be multiple, ',' delimited, for each length one smoothxg iteration is executed [default: 5000]",
+                                                    {'l', "poa-length-targets"});
     args::ValueFlag<std::string> _max_poa_length(poa_opts, "N", "maximum sequence length to put into POA, cut sequences over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 2*poa-length-target = 10k]",
                                                  {'q', "poa-length-max"});
     args::ValueFlag<float> _poa_padding_fraction(poa_opts, "N", "flanking sequence length fraction (padding = average sequence length in the block * N) to pad each end of each sequence with during POA, in effect overlapping and trimming the POA problems [default: 0.001]",
@@ -266,8 +266,12 @@ int main(int argc, char **argv) {
         const uint64_t max_edge_jump = _max_edge_jump ? (uint64_t)smoothxg::handy_parameter(args::get(_max_edge_jump), 0) : 0;
         const uint64_t min_copy_length = _min_copy_length ? (uint64_t)smoothxg::handy_parameter(args::get(_min_copy_length), 1000) : 1000;
         const uint64_t max_copy_length = _max_copy_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_copy_length), 20000) : 20000;
-        const uint64_t target_poa_length = _target_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_target_poa_length), 5000) : 5000;
-        const uint64_t max_poa_length = _max_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_poa_length), 2 * target_poa_length) : 2 * target_poa_length;
+		std::vector<string> target_poa_lengths;
+		if (_target_poa_lengths) {
+			target_poa_lengths = smoothxg::split(args::get(_target_poa_lengths), ',');
+		} else {
+			target_poa_lengths.push_back("5000");
+		}
         const float poa_padding_fraction = _poa_padding_fraction ? args::get(_poa_padding_fraction) : (float) 0.001;
         const uint64_t max_block_depth_for_padding_more = _max_block_depth_for_padding_more ?
                 (uint64_t)smoothxg::handy_parameter(args::get(_max_block_depth_for_padding_more), 1000) : 1000;
@@ -345,17 +349,18 @@ int main(int argc, char **argv) {
 
         std::string path_input_gfa = args::get(gfa_in); // Start with the input GFA, when available
         const std::string prefix = filesystem::path(path_input_gfa).filename();
-        std::vector<string> target_poa_lengths;
-        // ToDo: to take the POA lengths from an input option
-        target_poa_lengths.push_back(std::to_string(target_poa_length));
-        target_poa_lengths.push_back(std::to_string(target_poa_length));
-        target_poa_lengths.push_back(std::to_string(target_poa_length));
         const uint64_t num_iterations = target_poa_lengths.size();
 
         // It assumes that either xg_in or gfa_in is set
         for (uint64_t current_iter; current_iter < num_iterations; ++current_iter) {
-            auto graph = std::make_unique<XG>();
-            std::cerr << "[smoothxg::main] loading graph" << std::endl;
+			uint64_t target_poa_length = std::stoi(target_poa_lengths[current_iter]);
+			const uint64_t max_poa_length = _max_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_poa_length), 2 * target_poa_length) : 2 * target_poa_length;
+			auto graph = std::make_unique<XG>();
+			const uint64_t current_iter_1_based = current_iter + 1;
+			std::stringstream smoothxg_iter_stream;
+			smoothxg_iter_stream << "[smoothxg::" << "(" << current_iter_1_based << "-" << num_iterations << ")";
+			const std::string smoothxg_iter = smoothxg_iter_stream.str();
+            std::cerr << smoothxg_iter << "::main] loading graph" << std::endl;
 
             // The first iteration can start from the input XG index
             if (current_iter == 0 && !args::get(xg_in).empty()) {
@@ -370,12 +375,14 @@ int main(int argc, char **argv) {
                         const std::string filename = filesystem::path(path_input_gfa).filename();
                         gfa_in_name = args::get(tmp_base) + '/' + filename + ".prep." + std::to_string(current_iter) + ".gfa";
                     }
-                    std::cerr << "[smoothxg::main] prepping graph for smoothing" << std::endl;
-                    smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop, term_updates, true, temp_file::get_dir() + '/', n_threads);
+                    std::cerr << smoothxg_iter << "::main] prepping graph for smoothing" << std::endl;
+                    smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop,
+								   term_updates, true, temp_file::get_dir() + '/', n_threads,
+								   smoothxg_iter);
                 } else {
                     gfa_in_name = path_input_gfa;
                 }
-                std::cerr << "[smoothxg::main] building xg index" << std::endl;
+                std::cerr << smoothxg_iter << "::main] building xg index" << std::endl;
                 graph->from_gfa(gfa_in_name, false, temp_file::get_dir() + '/');
                 if (!args::get(keep_temp) && !args::get(no_prep)) {
                     std::remove(gfa_in_name.c_str());
@@ -390,7 +397,8 @@ int main(int argc, char **argv) {
                                         max_block_jump,
                                         max_edge_jump,
                                         order_paths_from_longest,
-                                        num_threads);
+                                        num_threads,
+										smoothxg_iter);
 
             const uint64_t min_autocorr_z = 5;
             const uint64_t autocorr_stride = 50;
@@ -412,7 +420,8 @@ int main(int argc, char **argv) {
                                    order_paths_from_longest,
                                    true,
                                    n_threads,
-                                   args::get(write_block_to_split_fastas));
+                                   args::get(write_block_to_split_fastas),
+								   smoothxg_iter);
 
             // build the path_step_rank_ranges -> index_in_blocks_vector
             // flat_hash_map using SKA: KEY: path_name, VALUE: sorted interval_tree using cgranges https://github.com/lh3/cgranges:
@@ -494,9 +503,10 @@ int main(int argc, char **argv) {
                                                           (current_iter == num_iterations -1) && add_consensus ? consensus_path_prefix : "",
                                                           consensus_path_names,
                                                           args::get(write_block_fastas),
-                                                          max_merged_groups_in_memory);
+                                                          max_merged_groups_in_memory,
+														  smoothxg_iter);
 
-                std::cerr << "[smoothxg::main] unchopping smoothed graph" << std::endl;
+                std::cerr << smoothxg_iter << "::main] unchopping smoothed graph" << std::endl;
                 odgi::algorithms::unchop(*smoothed, n_threads, true);
 
                 uint64_t smoothed_nodes = 0;
@@ -506,7 +516,7 @@ int main(int argc, char **argv) {
                             ++smoothed_nodes;
                             smoothed_length += smoothed->get_length(h);
                         });
-                std::cerr << "[smoothxg::main] smoothed graph length " << smoothed_length << "bp " << "in "
+                std::cerr << smoothxg_iter << "::main] smoothed graph length " << smoothed_length << "bp " << "in "
                           << smoothed_nodes << " nodes" << std::endl;
 
                 std::string path_smoothed_gfa;
@@ -520,7 +530,7 @@ int main(int argc, char **argv) {
                     path_smoothed_gfa = smoothed_out_gfa;
                 }
 
-                std::cerr << "[smoothxg::main] writing smoothed graph to " << path_smoothed_gfa << std::endl;
+                std::cerr << smoothxg_iter << "::main] writing smoothed graph to " << path_smoothed_gfa << std::endl;
                 ofstream out(path_smoothed_gfa.c_str());
                 smoothed->to_gfa(out);
                 out.close();

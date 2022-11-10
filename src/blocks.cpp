@@ -12,7 +12,8 @@ void smoothable_blocks(
     const uint64_t& max_path_jump,
     const uint64_t& max_edge_jump,
     const bool& order_paths_from_longest,
-    const int num_threads
+    const int num_threads,
+	const std::string& smoothxg_iter
     ) {
     // iterate over the handles in their vectorized order, collecting blocks that we can potentially smooth
     block_t block;
@@ -21,7 +22,7 @@ void smoothable_blocks(
 
     // cast to vectorizable graph for determining the sort position of nodes
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
-    std::cerr << "[smoothxg::smoothable_blocks] computing blocks" << std::endl;
+    std::cerr << smoothxg_iter << "::smoothable_blocks] computing blocks" << std::endl;
 
     uint64_t rank = 0;
     graph.for_each_path_handle([&](const path_handle_t& path) {
@@ -231,7 +232,7 @@ void smoothable_blocks(
         };
     //uint64_t id = 0;
     std::stringstream blocks_banner;
-    blocks_banner << "[smoothxg::smoothable_blocks] computing blocks for "
+    blocks_banner << smoothxg_iter << "::smoothable_blocks] computing blocks for "
                     << graph.get_node_count() << " handles:";
     progress_meter::ProgressMeter blocks_progress(graph.get_node_count(), blocks_banner.str());
 

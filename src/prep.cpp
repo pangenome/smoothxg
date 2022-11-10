@@ -12,7 +12,8 @@ void prep(
     const float& p_sgd_min_term_updates,
     const bool& toposort,
     const std::string& basename,
-    const uint64_t& num_threads) {
+    const uint64_t& num_threads,
+	const std::string& smoothxg_iter) {
 
     // load it into an odgi
     odgi::graph_t graph;
@@ -55,7 +56,7 @@ void prep(
               return max_path_step_count;
           };
 
-    std::cerr << "[smoothxg::prep] building path index" << std::endl;
+    std::cerr << smoothxg_iter << "::prep] building path index" << std::endl;
     xp::XP path_index;
     path_index.from_handle_graph(graph, basename, num_threads);
 
@@ -73,7 +74,7 @@ void prep(
 	const bool target_sorting = false;
 	std::vector<bool> target_nodes;
 
-    std::cerr << "[smoothxg::prep] sorting graph" << std::endl;
+    std::cerr << smoothxg_iter << "::prep] sorting graph" << std::endl;
     auto order
         = odgi::algorithms::path_linear_sgd_order(
             graph,
@@ -113,11 +114,11 @@ void prep(
                              true);
     }
 
-    std::cerr << "[smoothxg::prep] chopping graph to " << max_node_length << std::endl;
+    std::cerr << smoothxg_iter << "::prep] chopping graph to " << max_node_length << std::endl;
     // chop it (preserves order)
     odgi::algorithms::chop(graph, max_node_length, num_threads, true);
 
-    std::cerr << "[smoothxg::prep] writing graph " << gfa_out << std::endl;
+    std::cerr << smoothxg_iter << "::prep] writing graph " << gfa_out << std::endl;
     std::ofstream f(gfa_out);
     graph.to_gfa(f);
     f.close();
