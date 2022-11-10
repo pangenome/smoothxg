@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
     args::Flag adaptive_poa_params(poa_opts, "adaptive-poa-params",
                         "set POA score parameters adaptively by estimating the pairwise similarity between the sequences in the blocks",
                         {'a', "adaptive-poa-params"});
-    args::ValueFlag<std::string> _target_poa_lengths(poa_opts, "N", "target length(s) to put into POA, blocks are split when paths go over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9), can be multiple, ',' delimited, for each length one smoothxg iteration is executed [default: 5000]",
+    args::ValueFlag<std::string> _target_poa_lengths(poa_opts, "N", "target length(s) to put into POA, blocks are split when paths go over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9), can be multiple, ',' delimited, for each length one smoothxg iteration is executed [default: 4000]",
                                                     {'l', "poa-length-targets"});
     args::ValueFlag<std::string> _max_poa_length(poa_opts, "N", "maximum sequence length to put into POA, cut sequences over this length (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 2*poa-length-target = 10k]",
                                                  {'q', "poa-length-max"});
@@ -276,7 +276,7 @@ int main(int argc, char **argv) {
 		if (_target_poa_lengths) {
 			target_poa_lengths = smoothxg::split(args::get(_target_poa_lengths), ',');
 		} else {
-			target_poa_lengths.push_back("5000");
+			target_poa_lengths.push_back("4000");
 		}
         const float poa_padding_fraction = _poa_padding_fraction ? args::get(_poa_padding_fraction) : (float) 0.001;
         const uint64_t max_block_depth_for_padding_more = _max_block_depth_for_padding_more ?
@@ -360,7 +360,7 @@ int main(int argc, char **argv) {
 
         // It assumes that either xg_in or gfa_in is set
         for (uint64_t current_iter; current_iter < num_iterations; ++current_iter) {
-			uint64_t target_poa_length = (uint64_t)smoothxg::handy_parameter(target_poa_lengths[current_iter], 5000);
+			const uint64_t target_poa_length = (uint64_t)smoothxg::handy_parameter(target_poa_lengths[current_iter], 4000);
 			const uint64_t max_poa_length = _max_poa_length ? (uint64_t)smoothxg::handy_parameter(args::get(_max_poa_length), 2 * target_poa_length) : 2 * target_poa_length;
 			const uint64_t max_block_weight = _max_block_weight ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_weight), target_poa_length * n_haps) : target_poa_length * n_haps;
 			auto graph = std::make_unique<XG>();
