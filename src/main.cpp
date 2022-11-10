@@ -439,7 +439,8 @@ int main(int argc, char **argv) {
             const bool local_alignment = !args::get(change_alignment_mode);
 
             std::string maf_header;
-            if (write_msa_in_maf_format) {
+            // We emit the MAF file only during the last iteration
+            if ((current_iter == num_iterations - 1) && write_msa_in_maf_format) {
                 basic_string<char> filename;
                 if (!args::get(xg_in).empty()) {
                     size_t found = args::get(xg_in).find_last_of("/\\");
@@ -504,11 +505,12 @@ int main(int argc, char **argv) {
                                                           local_alignment,
                                                           n_threads,
                                                           n_poa_threads,
-                                                          args::get(write_msa_in_maf_format), maf_header,
+                                                          (current_iter == num_iterations - 1) ? "" : args::get(write_msa_in_maf_format), maf_header,
                                                           args::get(merge_blocks), args::get(_preserve_unmerged_consensus),
                                                           contiguous_path_jaccard,
                                                           !args::get(use_spoa),
-                                                          (current_iter == num_iterations -1) && add_consensus ? consensus_path_prefix : "",
+                                                          // We add consensus paths only during the last iteration
+                                                          (current_iter == num_iterations - 1) && add_consensus ? consensus_path_prefix : "",
                                                           consensus_path_names,
                                                           args::get(write_block_fastas),
                                                           max_merged_groups_in_memory,
