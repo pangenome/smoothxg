@@ -431,7 +431,7 @@ execute_process(COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/generate_git_version.sh
 
 add_test(
     NAME smoothxg-test
-    COMMAND bin/smoothxg -t 2 -g test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.seqwish.gfa -w 10K -j 5k -e 5k -l 10k -m test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.maf -C "consensus,10,100:test/data/gi_568815592_32578768-32589835.txt:y,1000:test/data/gi_568815592_32578768-32589835.txt:n,10000" -o test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.gfa
+    COMMAND bin/smoothxg -t 2 -g test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.seqwish.gfa -w 10K -j 5k -e 5k -l 10k -m test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.maf -C "consensus,10,100:test/data/gi_568815592_32578768-32589835.txt:y,1000:test/data/gi_568815592_32578768-32589835.txt:n,10000" -o test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.gfa -r 12
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 set_tests_properties(smoothxg-test PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=1:symbolize=1;LSAN_OPTIONS=verbosity=0:log_threads=1")
 
