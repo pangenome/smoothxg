@@ -43,9 +43,6 @@ int main(int argc, char **argv) {
     args::ValueFlag<std::string> smoothed_out(mandatory_opts, "FILE",
                                               "write GFA to this file (not /dev/stdout if consensus graph is made)",
                                               {'o', "smoothed-out"});
-	args::ValueFlag<uint64_t> _n_haps(mandatory_opts, "N",
-									  "number of haplotypes in the GFA",
-									  {'r', "n-haps"});
 
     args::Group io_opts(parser, "[ Files IO Options ]");
     args::ValueFlag<std::string> xg_in(io_opts, "FILE", "read the xg index from this file", {'i', "in"});
@@ -65,6 +62,7 @@ int main(int argc, char **argv) {
                                                       {'U', "path-sgd-term-updates"});
 
     args::Group block_comp_opts(parser, "[ Block Computation Options ]");
+    args::ValueFlag<uint64_t> _n_haps(block_comp_opts, "N","number of haplotypes in the GFA",{'r', "n-haps"});
     args::ValueFlag<std::string> _max_block_weight(block_comp_opts, "N", "maximum seed sequence in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: poa-target-length*n-haps]",
                                                    {'w', "block-weight-max"});
     args::ValueFlag<std::string> _max_block_jump(block_comp_opts, "N", "maximum path jump to include in block (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 100]",
