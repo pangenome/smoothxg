@@ -129,6 +129,7 @@ public:
     const uint64_t& max_path_jump,
     const uint64_t& max_edge_jump,
     const bool& order_paths_from_longest,
-    int num_threads);
+    int num_threads,
+	const std::string& smoothxg_iter);
 
 }

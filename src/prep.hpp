@@ -29,6 +29,7 @@ void prep(
     const float& p_sgd_min_term_updates,
     const bool& toposort,
     const std::string& basename,
-    const uint64_t& num_threads);
+    const uint64_t& num_threads,
+	const std::string& smoothxg_iter);
 
 }
