@@ -534,7 +534,11 @@ int main(int argc, char **argv) {
                     const std::string patent_dir = args::get(tmp_base).empty() ?
                             filesystem::path(path_input_gfa).parent_path().string() :
                             args::get(tmp_base);
-                    path_smoothed_gfa = patent_dir + "/" + prefix + ".smooth." + std::to_string(current_iter) + ".gfa";
+					if (patent_dir == "") {
+						path_smoothed_gfa = prefix + ".smooth." + std::to_string(current_iter) + ".gfa";
+					} else {
+						path_smoothed_gfa = patent_dir + "/" + prefix + ".smooth." + std::to_string(current_iter) + ".gfa";
+					}
                 } else {
                     path_smoothed_gfa = smoothed_out_gfa;
                 }
