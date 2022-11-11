@@ -369,9 +369,6 @@ int main(int argc, char **argv) {
 			const std::string smoothxg_iter = smoothxg_iter_stream.str();
             std::cerr << smoothxg_iter << "::main] loading graph" << std::endl;
 
-            odgi::graph_t miao;
-            graph->from_handle_graph(miao);
-
             // The first iteration can start from the input XG index
             if (current_iter == 0 && !args::get(xg_in).empty()) {
                 std::ifstream in(args::get(xg_in));
