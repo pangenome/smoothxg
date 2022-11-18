@@ -82,7 +82,6 @@ void prep(
 																  (uint64_t) MAX_NUMBER_OF_ZIPF_DISTRIBUTIONS);
 	std::cerr << smoothxg_iter << "::prep] path_sgd_zipf_space_max: " << path_sgd_zipf_space_max << std::endl;
 	std::cerr << smoothxg_iter << "::prep] path_sgd_zipf_max_number_of_distributions: " << path_sgd_zipf_max_number_of_distributions << std::endl;
-	// TODO
     uint64_t path_sgd_zipf_space_quantization_step = 100;
 	if (path_sgd_zipf_space > path_sgd_zipf_space_max && path_sgd_zipf_max_number_of_distributions > path_sgd_zipf_space_max) {
 		path_sgd_zipf_space_quantization_step = std::max(
