@@ -2,6 +2,8 @@
 
 namespace smoothxg {
 
+#define MAX_NUMBER_OF_ZIPF_DISTRIBUTIONS 100
+
 // prep the graph into a given GFA file
 // we'll then build the xg index on top of that in low memory
 
@@ -56,6 +58,16 @@ void prep(
               return max_path_step_count;
           };
 
+	std::function<uint64_t(const std::vector<handlegraph::path_handle_t> &,
+						   const xp::XP &)> get_max_path_length
+			= [&](const std::vector<handlegraph::path_handle_t> &path_sgd_use_paths, const xp::XP &path_index) {
+				uint64_t max_path_length = std::numeric_limits<uint64_t>::min();
+				for (auto &path : path_sgd_use_paths) {
+					max_path_length = std::max(max_path_length, path_index.get_path_length(path));
+				}
+				return max_path_length;
+			};
+
     std::cerr << smoothxg_iter << "::prep] building path index" << std::endl;
     xp::XP path_index;
     path_index.from_handle_graph(graph, basename, num_threads);
@@ -63,10 +75,21 @@ void prep(
     uint64_t sum_path_step_count = get_sum_path_step_count(path_sgd_use_paths, path_index);
     uint64_t path_sgd_min_term_updates = p_sgd_min_term_updates * sum_path_step_count;
     uint64_t max_path_step_count = get_max_path_step_count(path_sgd_use_paths, path_index);
-    uint64_t path_sgd_zipf_space = max_path_step_count; //std::min((uint64_t)10000, max_path_step_count);
+    uint64_t path_sgd_zipf_space = get_max_path_length(path_sgd_use_paths, path_index); //std::min((uint64_t)10000, max_path_step_count);
     double path_sgd_max_eta = max_path_step_count * max_path_step_count;
-    uint64_t path_sgd_zipf_space_max = 10000;
+    uint64_t path_sgd_zipf_space_max = 100;
+	uint64_t path_sgd_zipf_max_number_of_distributions = std::max((uint64_t) path_sgd_zipf_space_max + 1,
+																  (uint64_t) MAX_NUMBER_OF_ZIPF_DISTRIBUTIONS);
+	std::cerr << smoothxg_iter << "::prep] path_sgd_zipf_space_max: " << path_sgd_zipf_space_max << std::endl;
+	std::cerr << smoothxg_iter << "::prep] path_sgd_zipf_max_number_of_distributions: " << path_sgd_zipf_max_number_of_distributions << std::endl;
     uint64_t path_sgd_zipf_space_quantization_step = 100;
+	if (path_sgd_zipf_space > path_sgd_zipf_space_max && path_sgd_zipf_max_number_of_distributions > path_sgd_zipf_space_max) {
+		path_sgd_zipf_space_quantization_step = std::max(
+				(uint64_t) 2,
+				(uint64_t) ceil( (double) (path_sgd_zipf_space - path_sgd_zipf_space_max) / (double) (path_sgd_zipf_max_number_of_distributions - path_sgd_zipf_space_max))
+		);
+	}
+
     std::string path_sgd_seed = "pangenomic!";
 
     uint64_t path_sgd_iter_max_learning_rate = 0; // don't use this max iter stuff
