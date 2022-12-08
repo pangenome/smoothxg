@@ -276,7 +276,12 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     //     if (seq_lens[i] > max_len) max_len = seq_lens[i];
     // }
 
-    abpoa_poa(ab, abpt, bseqs, seq_lens, exist_n_seq, n_seq);
+    int j, **weights = (int**)_err_malloc(n_seq * sizeof(int*));
+    for (i = 0; i < n_seq; ++i) {
+        weights[i] = (int*)_err_malloc(seq_lens[i] * sizeof(int));
+        for (j = 0; j < seq_lens[i]; ++j) weights[i][j] = 1;
+    }
+    abpoa_poa(ab, abpt, bseqs, weights, seq_lens, exist_n_seq, n_seq);
 
     // It seems not necessary, as the Breadth-First-Search (in build_odgi_abPOA) follows the graph topology
     //abpoa_topological_sort(ab->abg, abpt);
