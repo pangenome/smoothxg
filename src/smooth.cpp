@@ -453,10 +453,11 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     // free memory
     for (i = 0; i < n_seq; ++i) {
         free(bseqs[i]);
+        free(weights[i]);
     }
     free(bseqs);
     free(seq_lens);
-
+    free(weights);
     if (save_block_fastas) {
         std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time.count()) + "s");
