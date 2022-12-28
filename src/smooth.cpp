@@ -135,8 +135,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                             std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
                             bool banded_alignment,
 							const std::string& smoothxg_iter,
-                            const std::string &consensus_name,
-                            bool save_block_fastas) {
+                            const uint64_t save_block_fastas,
+                            const std::string &consensus_name) {
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
@@ -185,10 +185,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     }
 
     auto start_time = std::chrono::steady_clock::now();
-
-    if (save_block_fastas) {
-        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa_pad" + std::to_string(poa_padding) + "_");
-    }
 
     auto* output_graph = new odgi::graph_t();
 
@@ -458,9 +454,10 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(bseqs);
     free(seq_lens);
     free(weights);
-    if (save_block_fastas) {
-        std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
-        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time.count()) + "s");
+
+    const uint64_t elapsed_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
+    if (elapsed_time_ms >= save_block_fastas) {
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time_ms) + "ms");
     }
 
     odgi::graph_t block_graph;
@@ -537,8 +534,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            bool local_alignment,
                            std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
 						   const std::string& smoothxg_iter,
-                           const std::string &consensus_name,
-                           bool save_block_fastas) {
+                           uint64_t save_block_fastas,
+                           const std::string &consensus_name) {
     // collect sequences
     std::vector<std::string> seqs;
     std::vector<std::string> names;
@@ -586,9 +583,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         max_sequence_size = std::max(max_sequence_size, seq.size());
     }
 
-    if (save_block_fastas) {
-        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_spoa");
-    }
+    auto start_time = std::chrono::steady_clock::now();
 
     auto* output_graph = new odgi::graph_t();
 
@@ -740,6 +735,11 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         }
 
         clear_vector(msa);
+    }
+
+    const uint64_t elapsed_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
+    if (elapsed_time_ms >= save_block_fastas) {
+        write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_spoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time_ms) + "ms");
     }
 
     // write the graph, with consensus as a path
@@ -1283,7 +1283,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                bool use_abpoa,
                                const std::string &consensus_base_name,
                                std::vector<std::string>& consensus_path_names,
-                               bool write_fasta_blocks,
+                               uint64_t write_fasta_blocks,
                                uint64_t max_merged_groups_in_memory,
 							   const std::string& smoothxg_iter) {
 
@@ -1839,8 +1839,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                            produce_maf,
                                            true, // banded alignment
 										   smoothxg_iter,
-                                           consensus_name,
-                                           write_fasta_blocks);
+                                           write_fasta_blocks,
+                                           consensus_name);
             } else {
                 block_graph = smooth_spoa(graph,
                                           block,
@@ -1856,8 +1856,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                           (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                           produce_maf,
 										  smoothxg_iter,
-                                          consensus_name,
-                                          write_fasta_blocks);
+                                          write_fasta_blocks,
+                                          consensus_name);
             }
 
             // std::cerr << std::endl;
