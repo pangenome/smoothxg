@@ -69,6 +69,11 @@ void write_fasta_for_block(const xg::XG &graph,
                          const std::string& prefix,
                          const std::string& suffix = "");
 
+void append_to_sequence(const xg::XG &graph,
+                        const path_handle_t &path_handle, const step_handle_t& starting_step,
+                        std::basic_string<char> &seq, uint64_t &fwd_bp, uint64_t &rev_bp,
+                        int poa_padding, bool on_the_left);
+
 odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, uint64_t block_id,
                             int poa_m, int poa_n, int poa_g,
                             int poa_e, int poa_q, int poa_c,

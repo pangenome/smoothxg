@@ -105,13 +105,15 @@ namespace smoothxg {
 // and break the path ranges to be shorter than our "max" sequence size input to spoa
     void break_blocks(const xg::XG &graph,
                       blockset_t *&blockset,
+                      const float &poa_padding_fraction,
+                      const uint64_t &max_block_depth_for_padding_more,
                       const double &length_ratio_min,
                       const uint64_t &min_length_mash_based_clustering,
                       const double &block_group_identity,
                       const double &block_group_est_identity,
                       const uint64_t &kmer_size,
-                      const uint64_t& min_dedup_depth_for_block_splitting,
-                      const uint64_t& min_dedup_depth_for_mash_clustering,
+                      const uint64_t& min_depth_for_block_splitting,
+                      const uint64_t& min_depth_for_mash_clustering,
                       const uint64_t &max_poa_length,
                       const uint64_t &min_copy_length,
                       const uint64_t &max_copy_length,
@@ -127,7 +129,7 @@ namespace smoothxg {
 
         std::cerr
                 << smoothxg_iter << "::break_and_split_blocks] cutting blocks that contain sequences longer than max-poa-length ("
-                << max_poa_length << ") and depth >= " << min_dedup_depth_for_block_splitting << std::endl;
+                << max_poa_length << ") and depth >= " << min_depth_for_block_splitting << std::endl;
         std::cerr << std::fixed << std::setprecision(3) << smoothxg_iter << "::break_and_split_blocks] splitting "
                   << blockset->size() << " blocks " <<
                   "at identity " << block_group_identity << " (WFA-based clustering) and " <<
@@ -323,20 +325,63 @@ namespace smoothxg {
             // Splitting
             // ensure that the sequences in the block are within our identity threshold
             // if not, peel them off into splits
-            if ((block_group_identity > 0 || block_group_est_identity > 0) && block.path_ranges.size() > 1) {
+            if ((block_group_identity > 0 || block_group_est_identity > 0) && 
+                min_depth_for_block_splitting != 0 && block.path_ranges.size() > min_depth_for_block_splitting) {
                 std::vector<std::pair<std::uint64_t, std::string>> rank_and_seqs_dedup;
                 std::vector<std::vector<uint64_t>> seqs_dedup_original_ranks;
+
+                int poa_padding = 0;
+                if (poa_padding_fraction > 0) {
+                    if (block.path_ranges.size() <= max_block_depth_for_padding_more) {
+                        // min amount of flanking sequences to add
+                        // avoids corner case of padding failure with shallow short blocks
+                        poa_padding = 311;
+                    }
+                    // always pad a fraction of our sequence length
+                    // note that this can be very short in deep blocks that tend to have many short sequences
+                    // (this is because we establish blocks with a target mass and maximum length)
+                    {
+                        float average_seq_len = 0.0;
+                        // In blocks not too deep we can increase the padding size
+                        for (auto &path_range : block.path_ranges) {
+                            const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
+                            for (step_handle_t step = path_range.begin; step != path_range.end;
+                            step = graph.get_next_step(step)) {
+                                const auto h = graph.get_handle_of_step(step);
+                                average_seq_len += (float)graph.get_length(h);
+                            }
+                        }
+                        average_seq_len /= (float)block.path_ranges.size();
+                        poa_padding = std::max((int)(average_seq_len * poa_padding_fraction), poa_padding);
+                    }
+                }
 
                 // Deduplication
                 for (uint64_t rank = 0; rank < block.path_ranges.size(); ++rank) {
                     auto& path_range = block.path_ranges[rank];
 
                     std::string seq;
+
+                    uint64_t fwd_bp = 0;
+                    uint64_t rev_bp = 0;
+                    const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
+
+                    append_to_sequence(graph,
+                                        path_handle, path_range.begin,
+                                        seq, fwd_bp, rev_bp,
+                                        poa_padding, true);
+
                     for (step_handle_t step = path_range.begin;
                          step != path_range.end;
                          step = graph.get_next_step(step)) {
                         seq.append(graph.get_sequence(graph.get_handle_of_step(step)));
                     }
+
+                    append_to_sequence(graph,
+                                    path_handle, path_range.end,
+                                    seq, fwd_bp, rev_bp,
+                                    poa_padding, false);
+
                     auto seq_rev = odgi::reverse_complement(seq);
 
                     bool new_seq = true;
@@ -361,212 +406,207 @@ namespace smoothxg {
                     std::string().swap(seq_rev);
                 }
 
-                if (min_dedup_depth_for_block_splitting != 0 && rank_and_seqs_dedup.size() >= min_dedup_depth_for_block_splitting) {
-                    // Sort by length and lexicographically, to have similar sequences close to each other in the order
-                    std::sort(
-                            rank_and_seqs_dedup.begin(), rank_and_seqs_dedup.end(),
-                            [](const std::pair<std::uint64_t, std::string>& a,
-                               const std::pair<std::uint64_t, std::string>& b) {
-                                return std::make_tuple(a.second.size(), std::ref(a.second)) < std::make_tuple(b.second.size(), std::ref(b.second));
-                            }
-                    );
-
-                    std::vector<std::string *> seqs_dedup;
-
-                    std::vector<std::vector<mkmh::hash_t>> seq_hashes;
-                    std::vector<int> seq_hash_lens;
-
-                    bool mash_based_clustering_enabled = min_length_mash_based_clustering > 0 &&
-                                                         (min_dedup_depth_for_mash_clustering == 0 ||
-                                                          rank_and_seqs_dedup.size() >= min_dedup_depth_for_mash_clustering);
-
-                    if (mash_based_clustering_enabled) {
-                        seqs_dedup.resize(rank_and_seqs_dedup.size());
-
-                        // Prepare sequence pointers
-                        for (uint64_t i = 0; i < rank_and_seqs_dedup.size(); ++i) {
-                            if (rank_and_seqs_dedup[i].second.length() >= min_length_mash_based_clustering) {
-                                seqs_dedup[i] = &rank_and_seqs_dedup[i].second;
-                            }
+                // Sort by length and lexicographically, to have similar sequences close to each other in the order
+                std::sort(
+                        rank_and_seqs_dedup.begin(), rank_and_seqs_dedup.end(),
+                        [](const std::pair<std::uint64_t, std::string>& a,
+                            const std::pair<std::uint64_t, std::string>& b) {
+                            return std::make_tuple(a.second.size(), std::ref(a.second)) < std::make_tuple(b.second.size(), std::ref(b.second));
                         }
+                );
 
-                        // Calculate hashes
-                        seq_hashes.resize(rank_and_seqs_dedup.size());
-                        seq_hash_lens.resize(rank_and_seqs_dedup.size());
+                std::vector<std::string *> seqs_dedup;
 
-                        rkmh::hash_sequences(seqs_dedup, seq_hashes, seq_hash_lens, kmer_size);
+                std::vector<std::vector<mkmh::hash_t>> seq_hashes;
+                std::vector<int> seq_hash_lens;
+
+                bool mash_based_clustering_enabled = min_length_mash_based_clustering > 0 &&
+                                                        (min_depth_for_mash_clustering == 0 ||
+                                                        rank_and_seqs_dedup.size() >= min_depth_for_mash_clustering);
+
+                if (mash_based_clustering_enabled) {
+                    seqs_dedup.resize(rank_and_seqs_dedup.size());
+
+                    // Prepare sequence pointers
+                    for (uint64_t i = 0; i < rank_and_seqs_dedup.size(); ++i) {
+                        if (rank_and_seqs_dedup[i].second.length() >= min_length_mash_based_clustering) {
+                            seqs_dedup[i] = &rank_and_seqs_dedup[i].second;
+                        }
                     }
 
-                    auto start_time = std::chrono::steady_clock::now();
+                    // Calculate hashes
+                    seq_hashes.resize(rank_and_seqs_dedup.size());
+                    seq_hash_lens.resize(rank_and_seqs_dedup.size());
 
-                    // iterate through the seqs
-                    // for each sequence try to match it to a group at the given identity/distance threshold
-                    // if we can't get it to match, add a new group
-                    std::vector<std::vector<uint64_t>> groups;
+                    rkmh::hash_sequences(seqs_dedup, seq_hashes, seq_hash_lens, kmer_size);
+                }
 
-                    groups.push_back({0}); // seed with the first sequence
-                    for (uint64_t i = 1; i < rank_and_seqs_dedup.size(); ++i) {
-                        auto& curr_fwd = rank_and_seqs_dedup[i].second;
-                        auto curr_rev = odgi::reverse_complement(curr_fwd);
-                        uint64_t curr_len = curr_fwd.length();
+                auto start_time = std::chrono::steady_clock::now();
 
-                        double one_minus_block_group_id = 1.0 - block_group_identity;
+                // iterate through the seqs
+                // for each sequence try to match it to a group at the given identity/distance threshold
+                // if we can't get it to match, add a new group
+                std::vector<std::vector<uint64_t>> groups;
 
-                        uint64_t len_threshold_for_edit_clustering = one_minus_block_group_id == 0 ?
-                                                                     // Skip always the alignment
-                                                                     std::numeric_limits<uint64_t>::max() :
-                                                                     block_group_identity / one_minus_block_group_id;
+                groups.push_back({0}); // seed with the first sequence
+                for (uint64_t i = 1; i < rank_and_seqs_dedup.size(); ++i) {
+                    auto& curr_fwd = rank_and_seqs_dedup[i].second;
+                    auto curr_rev = odgi::reverse_complement(curr_fwd);
+                    uint64_t curr_len = curr_fwd.length();
 
-                        uint64_t len_threshold_for_mash_clustering = 0;
-                        if (mash_based_clustering_enabled) {
-                            double value = exp(-one_minus_block_group_id * kmer_size);
-                            len_threshold_for_mash_clustering = (double) seq_hashes[i].size() * value / (2.0 - value);
-                        }
+                    double one_minus_block_group_id = 1.0 - block_group_identity;
 
-                        uint64_t best_group = 0;
-                        bool cluster_found = false;
+                    uint64_t len_threshold_for_edit_clustering = one_minus_block_group_id == 0 ?
+                                                                    // Skip always the alignment
+                                                                    std::numeric_limits<uint64_t>::max() :
+                                                                    block_group_identity / one_minus_block_group_id;
 
-                        bool fwd_or_rev = true;
-                        for (auto &curr : {curr_fwd, curr_rev}) {
-                            // Start looking at from the last group
-                            for (int64_t j = groups.size() - 1; j >= 0; --j) {
-                                auto &group = groups[j];
+                    uint64_t len_threshold_for_mash_clustering = 0;
+                    if (mash_based_clustering_enabled) {
+                        double value = exp(-one_minus_block_group_id * kmer_size);
+                        len_threshold_for_mash_clustering = (double) seq_hashes[i].size() * value / (2.0 - value);
+                    }
 
-                                // Start looking at from the last added sequence to the group
-                                for (int64_t k = group.size() - 1; k >= 0; --k) {
-                                    auto &other = rank_and_seqs_dedup[group[k]].second;
-                                    auto other_len = other.length();
-                                    // other_len <= curr_len by design
-                                    double length_ratio = (double)other_len / (double)curr_len;
+                    uint64_t best_group = 0;
+                    bool cluster_found = false;
 
-                                    // Other sequences in the group will be shorter
-                                    if (length_ratio < length_ratio_min) break;
+                    bool fwd_or_rev = true;
+                    for (auto &curr : {curr_fwd, curr_rev}) {
+                        // Start looking at from the last group
+                        for (int64_t j = groups.size() - 1; j >= 0; --j) {
+                            auto &group = groups[j];
 
-                                    if (mash_based_clustering_enabled &&
-                                        curr_len >= min_length_mash_based_clustering &&
-                                        other_len >= min_length_mash_based_clustering) {
-                                        if (fwd_or_rev) {
-                                            if (seq_hashes[group[k]].size() < len_threshold_for_mash_clustering) {
-                                                // With a mash-based clustering, the identity would be above the threshold
-                                                break;
-                                            }
+                            // Start looking at from the last added sequence to the group
+                            for (int64_t k = group.size() - 1; k >= 0; --k) {
+                                auto &other = rank_and_seqs_dedup[group[k]].second;
+                                auto other_len = other.length();
+                                // other_len <= curr_len by design
+                                double length_ratio = (double)other_len / (double)curr_len;
 
-                                            double est_identity = 1 - rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer_size, false);
-                                            if (est_identity >= block_group_est_identity) {
-                                                best_group = j;
-                                                cluster_found = true;
+                                // Other sequences in the group will be shorter
+                                if (length_ratio < length_ratio_min) break;
 
-                                                break; // Stop with this group
-                                            }
-
-                                        } //else: With the mash distance, we already manage the strandness, and here we already tried to align the curr sequence in the other strand
-                                    } else {
-                                        if (
-                                            // With the gap_compressed_identity, if other_len == curr_len, the alignment is inevitable
-                                                other_len < curr_len &&
-                                                other_len < len_threshold_for_edit_clustering) {
-                                            // With an edit-based clustering, the identity would be below the threshold
+                                if (mash_based_clustering_enabled &&
+                                    curr_len >= min_length_mash_based_clustering &&
+                                    other_len >= min_length_mash_based_clustering) {
+                                    if (fwd_or_rev) {
+                                        if (seq_hashes[group[k]].size() < len_threshold_for_mash_clustering) {
+                                            // With a mash-based clustering, the identity would be above the threshold
                                             break;
                                         }
 
-                                        double id = -1;
-                                        // nb. curr.size() >= other.size() by design
-                                        // use reduced WFA to get a gap-compressed identity metric
-                                        int max_distance_threshold = curr_len * (1.0-block_group_identity) * 2;
-                                        int min_wavefront_length = 16;
-                                        wfa::affine_wavefronts_t* affine_wavefronts
-                                                = affine_wavefronts = affine_wavefronts_new_reduced(
-                                                        curr_len, other_len, &wfa_affine_penalties,
-                                                        min_wavefront_length, max_distance_threshold,
-                                                        NULL, wfa_mm_allocator);
-                                        int max_score = curr_len; //std::round(other_len*(1.0-block_group_identity));; // soft bound
-                                        int score = wfa::affine_wavefronts_align_bounded(affine_wavefronts,
-                                                                                         curr.c_str(),
-                                                                                         curr_len,
-                                                                                         other.c_str(),
-                                                                                         other_len,
-                                                                                         max_score);
-                                        if (score < max_score) {
-                                            id = wfa_gap_compressed_identity(&affine_wavefronts->edit_cigar);
-                                        }
-                                        wfa::affine_wavefronts_delete(affine_wavefronts);
-
-                                        if (id >= block_group_identity) {
+                                        double est_identity = 1 - rkmh::compare(seq_hashes[i], seq_hashes[group[k]], kmer_size, false);
+                                        if (est_identity >= block_group_est_identity) {
                                             best_group = j;
                                             cluster_found = true;
 
                                             break; // Stop with this group
                                         }
-                                    }
-                                }
 
-                                if (cluster_found) {
-                                    break;
+                                    } //else: With the mash distance, we already manage the strandness, and here we already tried to align the curr sequence in the other strand
+                                } else {
+                                    if (
+                                        // With the gap_compressed_identity, if other_len == curr_len, the alignment is inevitable
+                                            other_len < curr_len &&
+                                            other_len < len_threshold_for_edit_clustering) {
+                                        // With an edit-based clustering, the identity would be below the threshold
+                                        break;
+                                    }
+
+                                    double id = -1;
+                                    // nb. curr.size() >= other.size() by design
+                                    // use reduced WFA to get a gap-compressed identity metric
+                                    int max_distance_threshold = curr_len * (1.0-block_group_identity) * 2;
+                                    int min_wavefront_length = 16;
+                                    wfa::affine_wavefronts_t* affine_wavefronts
+                                            = affine_wavefronts = affine_wavefronts_new_reduced(
+                                                    curr_len, other_len, &wfa_affine_penalties,
+                                                    min_wavefront_length, max_distance_threshold,
+                                                    NULL, wfa_mm_allocator);
+                                    int max_score = curr_len; //std::round(other_len*(1.0-block_group_identity));; // soft bound
+                                    int score = wfa::affine_wavefronts_align_bounded(affine_wavefronts,
+                                                                                        curr.c_str(),
+                                                                                        curr_len,
+                                                                                        other.c_str(),
+                                                                                        other_len,
+                                                                                        max_score);
+                                    if (score < max_score) {
+                                        id = wfa_gap_compressed_identity(&affine_wavefronts->edit_cigar);
+                                    }
+                                    wfa::affine_wavefronts_delete(affine_wavefronts);
+
+                                    if (id >= block_group_identity) {
+                                        best_group = j;
+                                        cluster_found = true;
+
+                                        break; // Stop with this group
+                                    }
                                 }
                             }
 
                             if (cluster_found) {
                                 break;
                             }
-
-                            fwd_or_rev = false;
                         }
+
                         if (cluster_found) {
-                            groups[best_group].push_back(i);
-                        } else {
-                            groups.push_back({i});
+                            break;
                         }
+
+                        fwd_or_rev = false;
                     }
-
-                    if (groups.size() == 1) {
-                        // nothing to do
-                        ready_blocks[block_id].push_back(block);
+                    if (cluster_found) {
+                        groups[best_group].push_back(i);
                     } else {
-                        ++split_blocks;
+                        groups.push_back({i});
+                    }
+                }
 
-                        uint64_t i = 0;
-                        for (auto &group : groups) {
-                            block_t new_block;
-                            //new_block.is_split = true;
+                if (groups.size() == 1) {
+                    // nothing to do
+                    ready_blocks[block_id].push_back(block);
+                } else {
+                    ++split_blocks;
 
-                            /*
-                            std::cerr << "group " << i << " contains ";
-                            for (auto& j : group) std::cerr << " " << j;
-                            std::cerr << std::endl;
-                            */
+                    uint64_t i = 0;
+                    for (auto &group : groups) {
+                        block_t new_block;
+                        //new_block.is_split = true;
 
-                            for (auto &j : group) {
-                                // Take the original path_ranges following their original order in the block
-                                for (auto &jj : seqs_dedup_original_ranks[rank_and_seqs_dedup[j].first]) {
-                                    new_block.path_ranges.push_back(block.path_ranges[jj]);
-                                }
-                            }
-                            //for (auto& path_range : new_block.path_ranges) {
-                            //    //new_block.total_path_length += path_range.length;
-                            //    //new_block.max_path_length = std::max(new_block.max_path_length, path_range.length);
-                            //}
+                        /*
+                        std::cerr << "group " << i << " contains ";
+                        for (auto& j : group) std::cerr << " " << j;
+                        std::cerr << std::endl;
+                        */
 
-                            ready_blocks[block_id].push_back(new_block);
-
-                            if (write_block_to_split_fastas) {
-                                _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_",
-                                                                   "_" + std::to_string(i++));
+                        for (auto &j : group) {
+                            // Take the original path_ranges following their original order in the block
+                            for (auto &jj : seqs_dedup_original_ranks[rank_and_seqs_dedup[j].first]) {
+                                new_block.path_ranges.push_back(block.path_ranges[jj]);
                             }
                         }
+                        //for (auto& path_range : new_block.path_ranges) {
+                        //    //new_block.total_path_length += path_range.length;
+                        //    //new_block.max_path_length = std::max(new_block.max_path_length, path_range.length);
+                        //}
+
+                        ready_blocks[block_id].push_back(new_block);
 
                         if (write_block_to_split_fastas) {
-                            std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
-
-                            // collect sequences
-                            _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_",
-                                                               "_split_in_" + std::to_string(groups.size()) + "_in_" +
-                                                               std::to_string(elapsed_time.count()) + "s");
+                            _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_",
+                                                                "_" + std::to_string(i++));
                         }
                     }
-                } else {
-                    // the blocks is too small to be split
-                    ready_blocks[block_id].push_back(block);
-                }
+
+                    if (write_block_to_split_fastas) {
+                        std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
+
+                        // collect sequences
+                        _prepare_and_write_fasta_for_block(graph, block, block_id, "smoothxg_",
+                                                            "_split_in_" + std::to_string(groups.size()) + "_in_" +
+                                                            std::to_string(elapsed_time.count()) + "s");
+                    }
+                }            
             } else {
                 // nothing to do
                 ready_blocks[block_id].push_back(block);

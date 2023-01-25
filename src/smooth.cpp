@@ -1733,8 +1733,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             int poa_c_to_use = poa_c;
 
             // Estimate the pairwise identity in the block for tuning the POA penalties
-            // Avoid the identity estimation for too-deep blocks (todo random sampling for deep block???)
-            if (adaptive_poa_params && block.path_ranges.size() > 1 && block.path_ranges.size() <= max_block_depth_for_padding_more) {
+            // todo: avoid the identity estimation for too-deep blocks??? todo: random sampling for deep block???
+            if (adaptive_poa_params && block.path_ranges.size() > 1) {
                 // Deduplication (todo eventually, keep it simple for now)
 
                 // Prepare sequences

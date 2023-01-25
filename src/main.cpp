@@ -79,16 +79,16 @@ int main(int argc, char **argv) {
 
     args::Group block_split_opts(parser, "[ Block splitting Options ]");
     args::ValueFlag<double> _block_group_identity(block_split_opts, "N",
-                                                  "minimum edit-based identity to cluster sequences [default: 0.0]",
+                                                  "minimum WFA-based identity to cluster sequences [default: 0.0]",
                                                   {'I', "block-id-min"});
     args::ValueFlag<double> _block_length_ratio_min(block_split_opts, "N",
                                                     "minimum small / large length ratio to cluster in a block [default: 0.0]",
                                                     {'R', "block-ratio-min"});
-    args::ValueFlag<std::string> _min_dedup_depth_for_block_splitting(block_split_opts, "N",
-                                                                      "minimum (deduplicated) block depth for applying the block split (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 0, disabled]",
+    args::ValueFlag<std::string> _min_depth_for_block_splitting(block_split_opts, "N",
+                                                                      "minimum block depth for applying the block split (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 0, disabled]",
                                                                       {'d', "min-block-depth-split"});
-    args::ValueFlag<std::string> _min_dedup_depth_for_mash_clustering(block_split_opts, "N",
-                                                                      "minimum (deduplicated) block depth for applying the mash-based clustering (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 12000, 0 to disable it]",
+    args::ValueFlag<std::string> _min_depth_for_mash_clustering(block_split_opts, "N",
+                                                                      "minimum block depth for applying the mash-based clustering (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 12000, 0 to disable it]",
                                                                       {'D', "min-block-depth-mash"});
     args::ValueFlag<std::string> _min_length_mash_based_clustering(block_split_opts, "N",
                                                                    "minimum sequence length to cluster sequences using mash-distance (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 200, 0 to disable it]",
@@ -298,14 +298,14 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        const uint64_t min_dedup_depth_for_block_splitting = _min_dedup_depth_for_block_splitting ?
-                (uint64_t)smoothxg::handy_parameter(args::get(_min_dedup_depth_for_block_splitting), 0) : 0;
+        const uint64_t min_depth_for_block_splitting = _min_depth_for_block_splitting ?
+                (uint64_t)smoothxg::handy_parameter(args::get(_min_depth_for_block_splitting), 0) : 0;
 
         const double block_group_identity = _block_group_identity ? args::get(_block_group_identity) : 0.0;
         const double block_group_est_identity = _block_group_est_identity ? args::get(_block_group_est_identity)
                                                                     : block_group_identity;
-        const uint64_t min_dedup_depth_for_mash_clustering = _min_dedup_depth_for_mash_clustering ?
-                (uint64_t)smoothxg::handy_parameter(args::get(_min_dedup_depth_for_mash_clustering), 12000) : 12000;
+        const uint64_t min_depth_for_mash_clustering = _min_depth_for_mash_clustering ?
+                (uint64_t)smoothxg::handy_parameter(args::get(_min_depth_for_mash_clustering), 12000) : 12000;
 
         int poa_m = 1;
         int poa_n = 4;
@@ -413,13 +413,15 @@ int main(int argc, char **argv) {
 
             smoothxg::break_blocks(*graph,
                                    blockset,
+                                   poa_padding_fraction,
+                                   max_block_depth_for_padding_more,                       
                                    block_length_ratio_min,
                                    min_length_mash_based_clustering,
                                    block_group_identity,
                                    block_group_est_identity,
                                    kmer_size,
-                                   min_dedup_depth_for_block_splitting,
-                                   min_dedup_depth_for_mash_clustering,
+                                   min_depth_for_block_splitting,
+                                   min_depth_for_mash_clustering,
                                    max_poa_length,
                                    min_copy_length,
                                    max_copy_length,
@@ -484,8 +486,8 @@ int main(int argc, char **argv) {
                 maf_header += "# block_group_identity=" + std::to_string(block_group_identity) +
                               " block_group_estimated_identity=" + std::to_string(block_group_est_identity) +
                               " min_length_mash_based_clustering=" + std::to_string(min_length_mash_based_clustering) +
-                              " min_dedup_depth_for_mash_clustering=" +
-                              std::to_string(min_dedup_depth_for_mash_clustering) +
+                              " min_depth_for_mash_clustering=" +
+                              std::to_string(min_depth_for_mash_clustering) +
                               " kmer_size=" + std::to_string(_kmer_size) + "\n";
             }
 
