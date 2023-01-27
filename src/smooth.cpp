@@ -536,15 +536,15 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 						   const std::string& smoothxg_iter,
                            uint64_t save_block_fastas,
                            const std::string &consensus_name) {
-    // collect sequences
-    std::vector<std::string> seqs;
-    std::vector<std::string> names;
-    std::vector<bool> is_rev;
-    std::size_t max_sequence_size = 0;
-
     auto* output_graph = new odgi::graph_t();
 
     if (block.path_ranges.size() <= 4000) {
+        // collect sequences
+        std::vector<std::string> seqs;
+        std::vector<std::string> names;
+        std::vector<bool> is_rev;
+        std::size_t max_sequence_size = 0;
+        
         for (auto &path_range : block.path_ranges) {
             seqs.emplace_back();
             auto &seq = seqs.back();
@@ -808,69 +808,71 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                     });
                 });
     } else {
-        // if the block is too deepth, just mirror the input graph structure
+        // if the block is too deep, just mirror the input graph structure
         for (auto &path_range : block.path_ranges) {
             auto source_path_handle = graph.get_path_handle_of_step(path_range.begin);
-            const std::string path_name = graph.get_path_name(source_path_handle);
-            if (!output_graph->has_path(path_name)){
-                output_graph->create_path_handle(path_name);
-            }
-            auto current_path_handle = output_graph->get_path_handle(path_name);
+            const std::string path_name = graph.get_path_name(source_path_handle) + 
+                                          "_" + to_string(graph.get_position_of_step(path_range.begin));
+            auto current_path_handle = output_graph->create_path_handle(path_name);
             
             for (step_handle_t step = path_range.begin; step != path_range.end; step = graph.get_next_step(step)) {
-                const auto h = graph.get_handle_of_step(step);
+                auto h = graph.get_handle_of_step(step);
                 auto id = graph.get_id(h);
+                bool is_reverse = graph.get_is_reverse(h);
                 if (!output_graph->has_node(id)) {
+                    if (is_reverse){ h = graph.flip(h); }
                     output_graph->create_handle(graph.get_sequence(h), id);
                 }
                 output_graph->append_step(
                     current_path_handle,
-                    output_graph->get_handle(id, graph.get_is_reverse(h))
+                    output_graph->get_handle(id, is_reverse)
                 );
             }
         }
-
-        // add edges
-        ska::flat_hash_set<std::pair<handle_t, handle_t>> edges_to_create;
-        output_graph->for_each_path_handle([&](const path_handle_t& path_handle) {
-            handle_t last;
-            const step_handle_t begin_step = output_graph->path_begin(path_handle);
-            output_graph->for_each_step_in_path(path_handle, [&](const step_handle_t &step) {
-                handle_t h = output_graph->get_handle_of_step(step);
-                if (step != begin_step && !output_graph->has_edge(last, h)) {
-                    edges_to_create.insert({last, h});
-                }
-                last = h;
+        // it seems not necessary, so we save a bit of computation
+        /*if(false){
+            // add edges
+            ska::flat_hash_set<std::pair<handle_t, handle_t>> edges_to_create;
+            output_graph->for_each_path_handle([&](const path_handle_t& path_handle) {
+                handle_t last;
+                const step_handle_t begin_step = output_graph->path_begin(path_handle);
+                output_graph->for_each_step_in_path(path_handle, [&](const step_handle_t &step) {
+                    handle_t h = output_graph->get_handle_of_step(step);
+                    if (step != begin_step && !output_graph->has_edge(last, h)) {
+                        edges_to_create.insert({last, h});
+                    }
+                    last = h;
+                });
             });
-        });
-        for (auto edge: edges_to_create) {
-            output_graph->create_edge(edge.first, edge.second);
-        }
-
-        if (!consensus_name.empty()){        
+            for (auto edge: edges_to_create) {
+                output_graph->create_edge(edge.first, edge.second);
+            }
+        }*/
+        if (!consensus_name.empty()){     
             // As we skipped the POA, we don't formaly have a consensus sequence.
             // For simplicity, we use the longest path as a fake-consensus
             uint64_t max_len = 0;
-            path_handle_t path_handle_max_len;
-            for (auto &path_range : block.path_ranges) {
-                const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
+            std::string path_name_max_len;
+            output_graph->for_each_path_handle([&](const path_handle_t& path_handle) {
                 uint64_t len = 0;
-                for (step_handle_t step = path_range.begin; step != path_range.end; step = graph.get_next_step(step)) {
-                    const auto h = graph.get_handle_of_step(step);
-                    len += graph.get_length(h);
-                }
+                output_graph->for_each_step_in_path(path_handle, [&](const step_handle_t &step) {
+                    const auto h = output_graph->get_handle_of_step(step);
+                    len += output_graph->get_length(h);
+                });
                 if (len > max_len) {
                     max_len = len;
-                    path_handle_max_len = path_handle;
+                    path_name_max_len = output_graph->get_path_name(path_handle);
                 }
-            }
+            });
 
             path_handle_t consensus_path_handle = output_graph->create_path_handle(consensus_name);
-            output_graph->for_each_step_in_path(path_handle_max_len, [&](const step_handle_t& step) {
-                handle_t old_handle = output_graph->get_handle_of_step(step);
-                output_graph->append_step(consensus_path_handle, old_handle);
+            output_graph->for_each_step_in_path(output_graph->get_path_handle(path_name_max_len), [&](const step_handle_t& step) {
+                handle_t handle = output_graph->get_handle_of_step(step);
+                output_graph->append_step(consensus_path_handle, handle);
             });
         }
+
+        output_graph->optimize();
     }
 
     // output_graph.to_gfa(out);
@@ -1889,7 +1891,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 }
             }
 
-            if (use_abpoa || block.path_ranges.size() > 4000) {
+            if (use_abpoa) {
                 block_graph = smooth_abpoa(graph,
                                            block,
                                            block_id,
@@ -1900,8 +1902,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                            poa_q_to_use,
                                            poa_c_to_use,
                                            poa_padding,
-                                           // abPOA local mode is buggy, so when we use abPOA instead of SPOA, go global
-                                           local_alignment && !(!use_abpoa && block.path_ranges.size() > 4000),
+                                           local_alignment,
                                            (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                            produce_maf,
                                            true, // banded alignment
