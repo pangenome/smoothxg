@@ -526,6 +526,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     return output_graph;
 }
 
+#define MAX_POA_BLOCK_DEPTH 4000
+
 odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            const uint64_t block_id,
                            std::int8_t poa_m, std::int8_t poa_n, std::int8_t poa_g,
@@ -538,7 +540,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            const std::string &consensus_name) {
     auto* output_graph = new odgi::graph_t();
 
-    if (block.path_ranges.size() <= 4000) {
+    if (block.path_ranges.size() <= MAX_POA_BLOCK_DEPTH) {
         // collect sequences
         std::vector<std::string> seqs;
         std::vector<std::string> names;
@@ -873,6 +875,13 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         }
 
         output_graph->optimize();
+    }
+
+    if (block.path_ranges.size() >= MAX_POA_BLOCK_DEPTH) {
+        std::string gfa_out = "smoothxg_deep_block_" + to_string(block_id) + ".smoothed.gfa";
+        std::ofstream f(gfa_out);
+        output_graph->to_gfa(f);
+        f.close();
     }
 
     // output_graph.to_gfa(out);
