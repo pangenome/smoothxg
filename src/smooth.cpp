@@ -877,13 +877,6 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         output_graph->optimize();
     }
 
-    if (block.path_ranges.size() >= MAX_POA_BLOCK_DEPTH) {
-        std::string gfa_out = "smoothxg_deep_block_" + to_string(block_id) + ".smoothed.gfa";
-        std::ofstream f(gfa_out);
-        output_graph->to_gfa(f);
-        f.close();
-    }
-
     // output_graph.to_gfa(out);
     return output_graph;
 }
@@ -1900,7 +1893,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 }
             }
 
-            if (use_abpoa) {
+            if (use_abpoa || block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
                 block_graph = smooth_abpoa(graph,
                                            block,
                                            block_id,
@@ -1911,7 +1904,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                            poa_q_to_use,
                                            poa_c_to_use,
                                            poa_padding,
-                                           local_alignment,
+                                          // abPOA local mode is buggy, so when we use abPOA instead of SPOA, go global
+                                           local_alignment && !(!use_abpoa && block.path_ranges.size() > MAX_POA_BLOCK_DEPTH),
                                            (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                            produce_maf,
                                            true, // banded alignment
@@ -1935,6 +1929,13 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 										  smoothxg_iter,
                                           write_fasta_blocks,
                                           consensus_name);
+            }
+
+            if (block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
+                std::string gfa_out = "smoothxg_deep_block_" + to_string(block_id) + ".smoothed.gfa";
+                std::ofstream f(gfa_out);
+                block_graph->to_gfa(f);
+                f.close();
             }
 
             // std::cerr << std::endl;
