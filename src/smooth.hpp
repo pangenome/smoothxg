@@ -78,6 +78,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, uint64_t 
                             bool banded_alignment,
 							const std::string& smoothxg_iter,
                             const uint64_t save_block_fastas,
+                            uint64_t &elapsed_time_ms,
                             const std::string &consensus_name = "");
 
 odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block, uint64_t block_id,
@@ -88,6 +89,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block, uint64_t b
                            std::string *maf,
 						   const std::string& smoothxg_iter,
                            const uint64_t save_block_fastas,
+                           uint64_t &elapsed_time_ms,
                            const std::string &consensus_name = "");
 
 odgi::graph_t* smooth_and_lace(const xg::XG &graph,

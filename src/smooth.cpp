@@ -136,6 +136,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                             bool banded_alignment,
 							const std::string& smoothxg_iter,
                             const uint64_t save_block_fastas,
+                            uint64_t &elapsed_time_ms,
                             const std::string &consensus_name) {
     // collect sequences
     std::vector<std::string> seqs;
@@ -455,7 +456,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(seq_lens);
     free(weights);
 
-    const uint64_t elapsed_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
+    elapsed_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
     if (elapsed_time_ms >= save_block_fastas) {
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time_ms) + "ms");
     }
@@ -526,7 +527,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     return output_graph;
 }
 
-#define MAX_POA_BLOCK_DEPTH 4000
+#define MAX_POA_BLOCK_DEPTH 999999999
 
 odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            const uint64_t block_id,
@@ -537,6 +538,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
 						   const std::string& smoothxg_iter,
                            uint64_t save_block_fastas,
+                           uint64_t &elapsed_time_ms,
                            const std::string &consensus_name) {
     auto* output_graph = new odgi::graph_t();
 
@@ -740,7 +742,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
             clear_vector(msa);
         }
 
-        const uint64_t elapsed_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
+        elapsed_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
         if (elapsed_time_ms >= save_block_fastas) {
             write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_spoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time_ms) + "ms");
         }
@@ -875,6 +877,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         }
 
         output_graph->optimize();
+
+        elapsed_time_ms = 0;
     }
 
     // output_graph.to_gfa(out);
@@ -1336,6 +1340,8 @@ void _write_merged_maf_blocks(
     */
 }
 
+#define DEBUG_EMIT_BLOCK_STATISTICS
+
 odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                blockset_t*& blockset,
                                int poa_m, int poa_n,
@@ -1409,6 +1415,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     atomicbitvector::atomic_bv_t blok_to_flip(blockset->size());
 
     std::vector<bool> is_block_in_a_merged_group((add_consensus && merge_blocks) ? blockset->size() : 0);
+
+#ifdef DEBUG_EMIT_BLOCK_STATISTICS
+    std::vector<ska::flat_hash_map<std::string, std::string>> block2stats(blockset->size());
+#endif
 
     {
         bool produce_maf = !path_output_maf.empty();
@@ -1893,6 +1903,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 }
             }
 
+            uint64_t elapsed_time_ms = 0;
             if (use_abpoa || block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
                 block_graph = smooth_abpoa(graph,
                                            block,
@@ -1904,13 +1915,14 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                            poa_q_to_use,
                                            poa_c_to_use,
                                            poa_padding,
-                                          // abPOA local mode is buggy, so when we use abPOA instead of SPOA, go global
+                                           // abPOA local mode is buggy, so when we use abPOA instead of SPOA, go global
                                            local_alignment && !(!use_abpoa && block.path_ranges.size() > MAX_POA_BLOCK_DEPTH),
                                            (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                            produce_maf,
                                            true, // banded alignment
 										   smoothxg_iter,
                                            write_fasta_blocks,
+                                           elapsed_time_ms,
                                            consensus_name);
             } else {
                 block_graph = smooth_spoa(graph,
@@ -1928,15 +1940,124 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                           produce_maf,
 										  smoothxg_iter,
                                           write_fasta_blocks,
+                                          elapsed_time_ms,
                                           consensus_name);
             }
 
-            if (block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
-                std::string gfa_out = "smoothxg_deep_block_" + to_string(block_id) + ".smoothed.gfa";
-                std::ofstream f(gfa_out);
-                block_graph->to_gfa(f);
-                f.close();
+#ifdef DEBUG_EMIT_BLOCK_STATISTICS
+            block2stats[block_id]["num.sequences"] = to_string(block.path_ranges.size());
+            block2stats[block_id]["poa.padding"] = to_string(poa_padding);
+
+            uint64_t min_seq_len = std::numeric_limits<uint64_t>::max();
+            max_seq_len = 0;
+            float avg_seq_len = 0.0;
+            for (auto &path_range : block.path_ranges) {
+                uint64_t len = 0;
+                const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
+                for (step_handle_t step = path_range.begin;
+                                   step != path_range.end;
+                                   step = graph.get_next_step(step)) {
+                    len += graph.get_length(graph.get_handle_of_step(step));
+                }
+                avg_seq_len += (float)len;
+                if (len < min_seq_len) { min_seq_len = len;}
+                if (len > max_seq_len) { max_seq_len = len;}
+                
             }
+            avg_seq_len /= (float)block.path_ranges.size();
+            block2stats[block_id]["min.seq.len"] = to_string(min_seq_len);
+            block2stats[block_id]["max.seq.len"] = to_string(max_seq_len);
+            block2stats[block_id]["avg.seq.len"] = to_string(avg_seq_len);
+
+            float min_est_identity = -1, max_est_identity = -1, avg_est_identity = -1, median_est_identity = -1;
+            if (block.path_ranges.size() > 1) {
+                // Prepare sequences
+                std::vector<std::string* > seqs; seqs.reserve(block.path_ranges.size());
+                for (const auto& path_range : block.path_ranges) {
+                    auto seq = new std::string();
+                    for (step_handle_t step = path_range.begin; step != path_range.end; step = graph.get_next_step(step)) {
+                        seq->append(graph.get_sequence(graph.get_handle_of_step(step)));
+                    }
+
+                    // We can't compute the hashes for what is shorter than the kmer size
+                    // Skip too short sequences
+                    if (seq->size() >= 8 * kmer_size) {
+                        seqs.push_back(seq);
+                    } else {
+                        delete seq;
+                    }
+                }
+
+                // Check if there are still sequences to compare
+                if (seqs.size() > 1) {
+                    // Compute hashes
+                    std::vector<std::vector<mkmh::hash_t>> seq_hashes;
+                    std::vector<int> seq_hash_lens;
+
+                    seq_hashes.resize(seqs.size());
+                    seq_hash_lens.resize(seqs.size());
+                    rkmh::hash_sequences(seqs, seq_hashes, seq_hash_lens, kmer_size);
+
+                    // All-vs-All comparison
+                    std::vector<float> estimated_distances; //todo on-the-fly percentile computation to avoid a big vector in memory?
+
+                    min_est_identity = 1.0;
+                    max_est_identity = 0.0;
+                    avg_est_identity = 0;
+                    estimated_distances.reserve(seqs.size() * (seqs.size() - 1) / 2); // N * (N - 1) / 2 comparisons
+                    for (uint64_t i = 0; i < seqs.size(); ++i) {
+                        for (uint64_t j = i + 1; j < seqs.size(); ++j) {
+                            const float est_identity = 1.0 - rkmh::compare(seq_hashes[i], seq_hashes[j], kmer_size, true);
+                            estimated_distances.push_back(est_identity);
+
+                            if (est_identity < min_est_identity) { min_est_identity = est_identity; }
+                            if (est_identity > max_est_identity) { max_est_identity = est_identity; }
+
+                            avg_est_identity += est_identity;
+                        }
+                    }
+
+                    avg_est_identity /= float(estimated_distances.size()); // N * (N - 1) / 2 comparisons
+                    std::sort(estimated_distances.begin(), estimated_distances.end());
+                    median_est_identity = estimated_distances[(estimated_distances.size() - 1) * 0.50];
+                }
+
+                for (auto& seq : seqs) {
+                    delete seq;
+                }
+            }
+            block2stats[block_id]["min.est.identity"] = to_string(min_est_identity);
+            block2stats[block_id]["max.est.identity"] = to_string(max_est_identity);
+            block2stats[block_id]["avg.est.identity"] = to_string(avg_est_identity);
+            block2stats[block_id]["median.est.identity"] = to_string(median_est_identity);
+
+            block2stats[block_id]["poa.time.ms"] = to_string(elapsed_time_ms);
+
+            // todo also raw_graph.xxx?
+
+            uint64_t length_in_bp = 0, node_count = 0;
+            block_graph->for_each_handle([&](const handle_t& h) {
+                    length_in_bp += block_graph->get_length(h);
+                    ++node_count;
+                });
+
+            uint64_t step_count = 0;
+            block_graph->for_each_path_handle([&](const path_handle_t& p) {
+                step_count += block_graph->get_step_count(p);
+            });
+            block2stats[block_id]["poa_graph.length"] = to_string(length_in_bp);
+            block2stats[block_id]["poa_graph.nodes"] = to_string(node_count);
+            block2stats[block_id]["poa_graph.edges"] = to_string(block_graph->get_edge_count());
+            block2stats[block_id]["poa_graph.paths"] = to_string(block_graph->get_path_count());
+            block2stats[block_id]["poa_graph.steps"] = to_string(step_count);
+#endif
+
+            //if (block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
+            //    std::string gfa_out = "smoothxg_deep_block_" + to_string(block_id) + ".smoothed.gfa";
+            //    std::ofstream f(gfa_out);
+            //    block_graph->to_gfa(f);
+            //    f.close();
+            //}
 
             // std::cerr << std::endl;
             // std::cerr << "After block graph. Exiting for now....." <<
@@ -1981,6 +2102,26 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
         write_maf_thread.join();
     }
+
+#ifdef DEBUG_EMIT_BLOCK_STATISTICS
+    std::string stats_out = "smoothxg_block2stats.tsv";
+    std::ofstream f(stats_out);
+
+    f << "block_id";
+    for (auto x : block2stats[0]) {
+        f << "\t" << x.first;
+    }
+    f << std::endl;
+
+    for (uint64_t block_id = 0; block_id < block2stats.size(); ++block_id) {
+        f << block_id;
+        for (auto x : block2stats[block_id]) {
+            f << "\t" << x.second;
+        }
+        f << std::endl;
+    }
+    f.close();
+#endif
 
     // Flip graphs
     {
