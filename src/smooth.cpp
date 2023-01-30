@@ -2015,16 +2015,19 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 rkmh::hash_sequences(seqs, seq_hashes, seq_hash_lens, kmer_size);
 
                 // All-vs-All comparison
-                std::vector<float> estimated_distances; //todo on-the-fly percentile computation to avoid a big vector in memory?
+
+                // Commented: too heavy allocating N*(N-1)/2 with very deep blocks
+                //std::vector<float> estimated_distances; //todo on-the-fly percentile computation to avoid a big vector in memory?
+                //estimated_distances.reserve(seqs.size() * (seqs.size() - 1) / 2); // N * (N - 1) / 2 comparisons
 
                 min_est_identity = 1.0;
                 max_est_identity = 0.0;
                 avg_est_identity = 0;
-                estimated_distances.reserve(seqs.size() * (seqs.size() - 1) / 2); // N * (N - 1) / 2 comparisons
+
                 for (uint64_t i = 0; i < seqs.size(); ++i) {
                     for (uint64_t j = i + 1; j < seqs.size(); ++j) {
                         const float est_identity = 1.0 - rkmh::compare(seq_hashes[i], seq_hashes[j], kmer_size, true);
-                        estimated_distances.push_back(est_identity);
+                        //estimated_distances.push_back(est_identity);
 
                         if (est_identity < min_est_identity) { min_est_identity = est_identity; }
                         if (est_identity > max_est_identity) { max_est_identity = est_identity; }
@@ -2033,14 +2036,14 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     }
                 }
 
-                avg_est_identity /= float(estimated_distances.size()); // N * (N - 1) / 2 comparisons
-                std::sort(estimated_distances.begin(), estimated_distances.end());
-                median_est_identity = estimated_distances[(estimated_distances.size() - 1) * 0.50];
+                //avg_est_identity /= float(estimated_distances.size()); // N * (N - 1) / 2 comparisons
+                //std::sort(estimated_distances.begin(), estimated_distances.end());
+                //median_est_identity = estimated_distances[(estimated_distances.size() - 1) * 0.50];
             }
             block2stats[block_id]["min.est.identity"] = to_string(min_est_identity);
             block2stats[block_id]["max.est.identity"] = to_string(max_est_identity);
             block2stats[block_id]["avg.est.identity"] = to_string(avg_est_identity);
-            block2stats[block_id]["median.est.identity"] = to_string(median_est_identity);
+            //block2stats[block_id]["median.est.identity"] = to_string(median_est_identity);
 
             block2stats[block_id]["poa.time.ms"] = to_string(elapsed_time_ms);
 
@@ -2127,7 +2130,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         "min.seq.len.no_pad", "avg.seq.len.no_pad", "max.seq.len.no_pad",
         "poa.padding",
         "min.seq.len", "avg.seq.len", "max.seq.len",
-        "min.est.identity", "median.est.identity", "avg.est.identity", "max.est.identity",
+        "min.est.identity", "avg.est.identity", "max.est.identity",
         "poa.time.ms",
         "poa_graph.length", "poa_graph.nodes", "poa_graph.edges", "poa_graph.paths", "poa_graph.steps"
     };
