@@ -1948,83 +1948,94 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block2stats[block_id]["num.sequences"] = to_string(block.path_ranges.size());
             block2stats[block_id]["poa.padding"] = to_string(poa_padding);
 
-            uint64_t min_seq_len = std::numeric_limits<uint64_t>::max();
-            max_seq_len = 0;
-            float avg_seq_len = 0.0;
+            std::vector<std::string* > seqs; seqs.reserve(block.path_ranges.size());
             for (auto &path_range : block.path_ranges) {
-                uint64_t len = 0;
+                auto seq = new std::string();
+                uint64_t fwd_bp = 0;
+                uint64_t rev_bp = 0;
                 const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
+
+                append_to_sequence(graph,
+                                path_handle, path_range.begin,
+                                *seq, fwd_bp, rev_bp,
+                                poa_padding, true);
+
                 for (step_handle_t step = path_range.begin;
                                    step != path_range.end;
                                    step = graph.get_next_step(step)) {
-                    len += graph.get_length(graph.get_handle_of_step(step));
+                    const auto h = graph.get_handle_of_step(step);
+                    const auto l = graph.get_length(h);
+                    seq->append(graph.get_sequence(h));
                 }
+
+                append_to_sequence(graph,
+                                path_handle, path_range.end,
+                                *seq, fwd_bp, rev_bp,
+                                poa_padding, false);
+
+                seqs.push_back(seq);
+            }
+
+            uint64_t min_seq_len = std::numeric_limits<uint64_t>::max();
+            max_seq_len = 0;
+            float avg_seq_len = 0.0;
+            uint64_t min_seq_len_padded = std::numeric_limits<uint64_t>::max();
+            uint64_t max_seq_len_padded = 0;
+            float avg_seq_len_padded = 0.0;
+            for (auto seq : seqs) {
+                uint64_t len = seq->size() - 2 * poa_padding;
                 avg_seq_len += (float)len;
                 if (len < min_seq_len) { min_seq_len = len;}
                 if (len > max_seq_len) { max_seq_len = len;}
+
+                uint64_t len_padded = seq->size();
+                avg_seq_len_padded += (float)len_padded;
+                if (len < min_seq_len_padded) { min_seq_len_padded = len_padded;}
+                if (len > max_seq_len_padded) { max_seq_len_padded = len_padded;}
                 
             }
             avg_seq_len /= (float)block.path_ranges.size();
-            block2stats[block_id]["min.seq.len"] = to_string(min_seq_len);
-            block2stats[block_id]["max.seq.len"] = to_string(max_seq_len);
-            block2stats[block_id]["avg.seq.len"] = to_string(avg_seq_len);
+            avg_seq_len_padded /= (float)block.path_ranges.size();
+            block2stats[block_id]["min.seq.len"] = to_string(min_seq_len_padded);
+            block2stats[block_id]["max.seq.len"] = to_string(max_seq_len_padded);
+            block2stats[block_id]["avg.seq.len"] = to_string(avg_seq_len_padded);
+            block2stats[block_id]["min.seq.len.no_pad"] = to_string(min_seq_len);
+            block2stats[block_id]["max.seq.len.no_pad"] = to_string(max_seq_len);
+            block2stats[block_id]["avg.seq.len.no_pad"] = to_string(avg_seq_len);
 
             float min_est_identity = -1, max_est_identity = -1, avg_est_identity = -1, median_est_identity = -1;
-            if (block.path_ranges.size() > 1) {
-                // Prepare sequences
-                std::vector<std::string* > seqs; seqs.reserve(block.path_ranges.size());
-                for (const auto& path_range : block.path_ranges) {
-                    auto seq = new std::string();
-                    for (step_handle_t step = path_range.begin; step != path_range.end; step = graph.get_next_step(step)) {
-                        seq->append(graph.get_sequence(graph.get_handle_of_step(step)));
-                    }
+            if (seqs.size() > 1) {
+                // Compute hashes
+                std::vector<std::vector<mkmh::hash_t>> seq_hashes;
+                std::vector<int> seq_hash_lens;
 
-                    // We can't compute the hashes for what is shorter than the kmer size
-                    // Skip too short sequences
-                    if (seq->size() >= 8 * kmer_size) {
-                        seqs.push_back(seq);
-                    } else {
-                        delete seq;
+                seq_hashes.resize(seqs.size());
+                seq_hash_lens.resize(seqs.size());
+                // NOTE: it would break for sequences shorter than kmer_size (this can happen without poa_padding)
+                rkmh::hash_sequences(seqs, seq_hashes, seq_hash_lens, kmer_size);
+
+                // All-vs-All comparison
+                std::vector<float> estimated_distances; //todo on-the-fly percentile computation to avoid a big vector in memory?
+
+                min_est_identity = 1.0;
+                max_est_identity = 0.0;
+                avg_est_identity = 0;
+                estimated_distances.reserve(seqs.size() * (seqs.size() - 1) / 2); // N * (N - 1) / 2 comparisons
+                for (uint64_t i = 0; i < seqs.size(); ++i) {
+                    for (uint64_t j = i + 1; j < seqs.size(); ++j) {
+                        const float est_identity = 1.0 - rkmh::compare(seq_hashes[i], seq_hashes[j], kmer_size, true);
+                        estimated_distances.push_back(est_identity);
+
+                        if (est_identity < min_est_identity) { min_est_identity = est_identity; }
+                        if (est_identity > max_est_identity) { max_est_identity = est_identity; }
+
+                        avg_est_identity += est_identity;
                     }
                 }
 
-                // Check if there are still sequences to compare
-                if (seqs.size() > 1) {
-                    // Compute hashes
-                    std::vector<std::vector<mkmh::hash_t>> seq_hashes;
-                    std::vector<int> seq_hash_lens;
-
-                    seq_hashes.resize(seqs.size());
-                    seq_hash_lens.resize(seqs.size());
-                    rkmh::hash_sequences(seqs, seq_hashes, seq_hash_lens, kmer_size);
-
-                    // All-vs-All comparison
-                    std::vector<float> estimated_distances; //todo on-the-fly percentile computation to avoid a big vector in memory?
-
-                    min_est_identity = 1.0;
-                    max_est_identity = 0.0;
-                    avg_est_identity = 0;
-                    estimated_distances.reserve(seqs.size() * (seqs.size() - 1) / 2); // N * (N - 1) / 2 comparisons
-                    for (uint64_t i = 0; i < seqs.size(); ++i) {
-                        for (uint64_t j = i + 1; j < seqs.size(); ++j) {
-                            const float est_identity = 1.0 - rkmh::compare(seq_hashes[i], seq_hashes[j], kmer_size, true);
-                            estimated_distances.push_back(est_identity);
-
-                            if (est_identity < min_est_identity) { min_est_identity = est_identity; }
-                            if (est_identity > max_est_identity) { max_est_identity = est_identity; }
-
-                            avg_est_identity += est_identity;
-                        }
-                    }
-
-                    avg_est_identity /= float(estimated_distances.size()); // N * (N - 1) / 2 comparisons
-                    std::sort(estimated_distances.begin(), estimated_distances.end());
-                    median_est_identity = estimated_distances[(estimated_distances.size() - 1) * 0.50];
-                }
-
-                for (auto& seq : seqs) {
-                    delete seq;
-                }
+                avg_est_identity /= float(estimated_distances.size()); // N * (N - 1) / 2 comparisons
+                std::sort(estimated_distances.begin(), estimated_distances.end());
+                median_est_identity = estimated_distances[(estimated_distances.size() - 1) * 0.50];
             }
             block2stats[block_id]["min.est.identity"] = to_string(min_est_identity);
             block2stats[block_id]["max.est.identity"] = to_string(max_est_identity);
@@ -2050,6 +2061,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block2stats[block_id]["poa_graph.edges"] = to_string(block_graph->get_edge_count());
             block2stats[block_id]["poa_graph.paths"] = to_string(block_graph->get_path_count());
             block2stats[block_id]["poa_graph.steps"] = to_string(step_count);
+
+            for (auto& seq : seqs) {
+                delete seq;
+            }
 #endif
 
             //if (block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
@@ -2107,16 +2122,26 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
     std::string stats_out = "smoothxg_block2stats.tsv";
     std::ofstream f(stats_out);
 
-    f << "block_id";
-    for (auto x : block2stats[0]) {
-        f << "\t" << x.first;
+    const std::vector<std::string> stats = {
+        "num.sequences",
+        "min.seq.len.no_pad", "avg.seq.len.no_pad", "max.seq.len.no_pad",
+        "poa.padding",
+        "min.seq.len", "avg.seq.len", "max.seq.len",
+        "min.est.identity", "median.est.identity", "avg.est.identity", "max.est.identity",
+        "poa.time.ms",
+        "poa_graph.length", "poa_graph.nodes", "poa_graph.edges", "poa_graph.paths", "poa_graph.steps"
+    };
+
+    f << "block.id";
+    for (auto x : stats) {
+        f << "\t" << x;
     }
     f << std::endl;
 
     for (uint64_t block_id = 0; block_id < block2stats.size(); ++block_id) {
         f << block_id;
-        for (auto x : block2stats[block_id]) {
-            f << "\t" << x.second;
+        for (auto x : stats) {
+            f << "\t" << block2stats[block_id][x];
         }
         f << std::endl;
     }
