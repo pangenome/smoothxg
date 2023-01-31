@@ -539,6 +539,10 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 						   const std::string& smoothxg_iter,
                            uint64_t save_block_fastas,
                            uint64_t &elapsed_time_ms,
+#ifdef POA_DEBUG
+                           uint64_t &xpoa_graph_nodes, uint64_t &xpoa_graph_edges,
+                           uint64_t &msa_len,
+#endif
                            const std::string &consensus_name) {
     auto* output_graph = new odgi::graph_t();
 
@@ -747,6 +751,12 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
             write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_spoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time_ms) + "ms");
         }
 
+#ifdef POA_DEBUG
+        xpoa_graph_nodes = poa_graph.nodes().size();
+        xpoa_graph_edges = poa_graph.edges().size();
+        msa_len = poa_graph.GenerateMultipleSequenceAlignment(true)[0].size();
+#endif
+
         // write the graph, with consensus as a path
         // odgi::graph_t output_graph;
         // convert the poa graph into our output format
@@ -754,7 +764,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         odgi::graph_t block_graph;
         build_odgi_SPOA(poa_graph, &block_graph, names, poa_padding, is_rev, consensus_name, !consensus_name.empty());
 
-            // normalize the representation, allowing for nodes > 1bp
+        // normalize the representation, allowing for nodes > 1bp
         //auto graph_copy = output_graph;
         if (!odgi::algorithms::unchop(block_graph)) {
             std::cerr << smoothxg_iter << "::smooth_abpoa] error: unchop failure, saving before/after graph to disk" << std::endl;
@@ -1340,8 +1350,6 @@ void _write_merged_maf_blocks(
     */
 }
 
-#define DEBUG_EMIT_BLOCK_STATISTICS
-
 odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                blockset_t*& blockset,
                                int poa_m, int poa_n,
@@ -1416,7 +1424,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
     std::vector<bool> is_block_in_a_merged_group((add_consensus && merge_blocks) ? blockset->size() : 0);
 
-#ifdef DEBUG_EMIT_BLOCK_STATISTICS
+#ifdef POA_DEBUG
     std::vector<ska::flat_hash_map<std::string, std::string>> block2stats(blockset->size());
 #endif
 
@@ -1904,6 +1912,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             }
 
             uint64_t elapsed_time_ms = 0;
+#ifdef POA_DEBUG
+            uint64_t xpoa_graph_nodes = 0, xpoa_graph_edges = 0, msa_len = 0;
+#endif
             if (use_abpoa || block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
                 block_graph = smooth_abpoa(graph,
                                            block,
@@ -1941,12 +1952,16 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 										  smoothxg_iter,
                                           write_fasta_blocks,
                                           elapsed_time_ms,
+#ifdef POA_DEBUG
+                                          xpoa_graph_nodes, xpoa_graph_edges,
+                                          msa_len,
+#endif
                                           consensus_name);
             }
 
-#ifdef DEBUG_EMIT_BLOCK_STATISTICS
+#ifdef POA_DEBUG
+            block2stats[block_id]["poa.time.ms"] = to_string(elapsed_time_ms);
             block2stats[block_id]["num.sequences"] = to_string(block.path_ranges.size());
-            block2stats[block_id]["poa.padding"] = to_string(poa_padding);
 
             std::vector<std::string* > seqs; seqs.reserve(block.path_ranges.size());
 
@@ -1988,8 +2003,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                 uint64_t len_padded = seq->size();
                 avg_seq_len_padded += (float)len_padded;
-                if (len < min_seq_len_padded) { min_seq_len_padded = len_padded;}
-                if (len > max_seq_len_padded) { max_seq_len_padded = len_padded;}
+                if (len_padded < min_seq_len_padded) { min_seq_len_padded = len_padded;}
+                if (len_padded > max_seq_len_padded) { max_seq_len_padded = len_padded;}
 
                 // We can't compute the hashes for what is shorter than the kmer size
                 // Skip too short sequences
@@ -2001,12 +2016,13 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             }
             avg_seq_len /= (float)block.path_ranges.size();
             avg_seq_len_padded /= (float)block.path_ranges.size();
-            block2stats[block_id]["min.seq.len"] = to_string(min_seq_len_padded);
-            block2stats[block_id]["max.seq.len"] = to_string(max_seq_len_padded);
-            block2stats[block_id]["avg.seq.len"] = to_string(avg_seq_len_padded);
             block2stats[block_id]["min.seq.len.no_pad"] = to_string(min_seq_len);
             block2stats[block_id]["max.seq.len.no_pad"] = to_string(max_seq_len);
             block2stats[block_id]["avg.seq.len.no_pad"] = to_string(avg_seq_len);
+            block2stats[block_id]["poa.padding"] = to_string(poa_padding);
+            block2stats[block_id]["min.seq.len"] = to_string(min_seq_len_padded);
+            block2stats[block_id]["max.seq.len"] = to_string(max_seq_len_padded);
+            block2stats[block_id]["avg.seq.len"] = to_string(avg_seq_len_padded);
 
             float min_est_identity = -1, max_est_identity = -1, avg_est_identity = -1, median_est_identity = -1;
             if (seqs.size() > 1) {
@@ -2040,7 +2056,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                     }
                 }
 
-                //avg_est_identity /= float(estimated_distances.size()); // N * (N - 1) / 2 comparisons
+                avg_est_identity /= (double)( ( (uint64_t)seqs.size() ) * ( (uint64_t)(seqs.size() - 1) )) / 2.0; // N * (N - 1) / 2 comparisons
                 //std::sort(estimated_distances.begin(), estimated_distances.end());
                 //median_est_identity = estimated_distances[(estimated_distances.size() - 1) * 0.50];
             }
@@ -2053,9 +2069,11 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 delete seq;
             }
 
-            block2stats[block_id]["poa.time.ms"] = to_string(elapsed_time_ms);
-
             // todo also raw_graph.xxx?
+
+            block2stats[block_id]["xpoa.graph.nodes"] = to_string(xpoa_graph_nodes);            
+            block2stats[block_id]["xpoa.graph.edges"] = to_string(xpoa_graph_edges);            
+            block2stats[block_id]["msa.len"] = to_string(msa_len);            
 
             uint64_t length_in_bp = 0, node_count = 0;
             block_graph->for_each_handle([&](const handle_t& h) {
@@ -2067,11 +2085,11 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block_graph->for_each_path_handle([&](const path_handle_t& p) {
                 step_count += block_graph->get_step_count(p);
             });
-            block2stats[block_id]["poa_graph.length"] = to_string(length_in_bp);
-            block2stats[block_id]["poa_graph.nodes"] = to_string(node_count);
-            block2stats[block_id]["poa_graph.edges"] = to_string(block_graph->get_edge_count());
-            block2stats[block_id]["poa_graph.paths"] = to_string(block_graph->get_path_count());
-            block2stats[block_id]["poa_graph.steps"] = to_string(step_count);
+            block2stats[block_id]["smoothed.graph.len.no_pad"] = to_string(length_in_bp);
+            block2stats[block_id]["smoothed.graph.nodes.no_pad"] = to_string(node_count);
+            block2stats[block_id]["smoothed.graph.edges.no_pad"] = to_string(block_graph->get_edge_count());
+            block2stats[block_id]["smoothed.graph.paths.no_pad"] = to_string(block_graph->get_path_count());
+            block2stats[block_id]["smoothed.graph.steps.no_pad"] = to_string(step_count);
 #endif
 
             //if (block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
@@ -2125,18 +2143,20 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         write_maf_thread.join();
     }
 
-#ifdef DEBUG_EMIT_BLOCK_STATISTICS
+#ifdef POA_DEBUG
     std::string stats_out = "smoothxg_block2stats.tsv";
     std::ofstream f(stats_out);
 
     const std::vector<std::string> stats = {
+        "poa.time.ms",
         "num.sequences",
         "min.seq.len.no_pad", "avg.seq.len.no_pad", "max.seq.len.no_pad",
         "poa.padding",
         "min.seq.len", "avg.seq.len", "max.seq.len",
         "min.est.identity", "avg.est.identity", "max.est.identity",
-        "poa.time.ms",
-        "poa_graph.length", "poa_graph.nodes", "poa_graph.edges", "poa_graph.paths", "poa_graph.steps"
+        "xpoa.graph.nodes", "xpoa.graph.edges",
+        "msa.len",
+        "smoothed.graph.len.no_pad", "smoothed.graph.nodes.no_pad", "smoothed.graph.edges.no_pad", "smoothed.graph.paths.no_pad", "smoothed.graph.steps.no_pad",
     };
 
     f << "block.id";

@@ -46,6 +46,11 @@ else()
   set (CMAKE_CXX_FLAGS "${OpenMP_CXX_FLAGS} ${PIC_FLAG} ${EXTRA_FLAGS}")
 endif ()
 
+if(POA_DEBUG)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPOA_DEBUG")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPOA_DEBUG")
+endif ()
+
 #set(THREADS_PREFER_PTHREAD_FLAG ON)
 #find_package(Threads REQUIRED)
 
