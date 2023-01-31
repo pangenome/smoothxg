@@ -1949,6 +1949,14 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block2stats[block_id]["poa.padding"] = to_string(poa_padding);
 
             std::vector<std::string* > seqs; seqs.reserve(block.path_ranges.size());
+
+            uint64_t min_seq_len = std::numeric_limits<uint64_t>::max();
+            max_seq_len = 0;
+            float avg_seq_len = 0.0;
+            uint64_t min_seq_len_padded = std::numeric_limits<uint64_t>::max();
+            uint64_t max_seq_len_padded = 0;
+            float avg_seq_len_padded = 0.0;
+
             for (auto &path_range : block.path_ranges) {
                 auto seq = new std::string();
                 uint64_t fwd_bp = 0;
@@ -1973,16 +1981,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                 *seq, fwd_bp, rev_bp,
                                 poa_padding, false);
 
-                seqs.push_back(seq);
-            }
-
-            uint64_t min_seq_len = std::numeric_limits<uint64_t>::max();
-            max_seq_len = 0;
-            float avg_seq_len = 0.0;
-            uint64_t min_seq_len_padded = std::numeric_limits<uint64_t>::max();
-            uint64_t max_seq_len_padded = 0;
-            float avg_seq_len_padded = 0.0;
-            for (auto seq : seqs) {
                 uint64_t len = seq->size() - 2 * poa_padding;
                 avg_seq_len += (float)len;
                 if (len < min_seq_len) { min_seq_len = len;}
@@ -1992,7 +1990,14 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 avg_seq_len_padded += (float)len_padded;
                 if (len < min_seq_len_padded) { min_seq_len_padded = len_padded;}
                 if (len > max_seq_len_padded) { max_seq_len_padded = len_padded;}
-                
+
+                // We can't compute the hashes for what is shorter than the kmer size
+                // Skip too short sequences
+                if (seq->size() >= 8 * kmer_size) {
+                    seqs.push_back(seq);
+                } else {
+                    delete seq;
+                }
             }
             avg_seq_len /= (float)block.path_ranges.size();
             avg_seq_len_padded /= (float)block.path_ranges.size();
@@ -2011,7 +2016,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 
                 seq_hashes.resize(seqs.size());
                 seq_hash_lens.resize(seqs.size());
-                // NOTE: it would break for sequences shorter than kmer_size (this can happen without poa_padding)
                 rkmh::hash_sequences(seqs, seq_hashes, seq_hash_lens, kmer_size);
 
                 // All-vs-All comparison
@@ -2045,6 +2049,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block2stats[block_id]["avg.est.identity"] = to_string(avg_est_identity);
             //block2stats[block_id]["median.est.identity"] = to_string(median_est_identity);
 
+            for (auto& seq : seqs) {
+                delete seq;
+            }
+
             block2stats[block_id]["poa.time.ms"] = to_string(elapsed_time_ms);
 
             // todo also raw_graph.xxx?
@@ -2064,10 +2072,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block2stats[block_id]["poa_graph.edges"] = to_string(block_graph->get_edge_count());
             block2stats[block_id]["poa_graph.paths"] = to_string(block_graph->get_path_count());
             block2stats[block_id]["poa_graph.steps"] = to_string(step_count);
-
-            for (auto& seq : seqs) {
-                delete seq;
-            }
 #endif
 
             //if (block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
