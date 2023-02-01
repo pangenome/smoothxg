@@ -1964,6 +1964,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block2stats[block_id]["num.sequences"] = to_string(block.path_ranges.size());
 
             std::vector<std::string* > seqs; seqs.reserve(block.path_ranges.size());
+            std::vector<std::string* > allseqs; allseqs.reserve(block.path_ranges.size());
+            uint64_t num_dedup_seqs = 0;
 
             uint64_t min_seq_len = std::numeric_limits<uint64_t>::max();
             max_seq_len = 0;
@@ -2006,20 +2008,36 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 if (len_padded < min_seq_len_padded) { min_seq_len_padded = len_padded;}
                 if (len_padded > max_seq_len_padded) { max_seq_len_padded = len_padded;}
 
+                // Deduplication (IT ASSUMES THAT SEQUENCES ARE SORTED FROM LONGEST TO SHORTEST)
+                bool duplicate = false;
+                for (auto current_seq : allseqs) {
+                    if (seq->size() > current_seq->size()) {
+                        break;
+                    } else if (*seq == *current_seq) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+                if (!duplicate) {
+                    ++num_dedup_seqs;
+                }
+
+                allseqs.push_back(seq);
+
                 // We can't compute the hashes for what is shorter than the kmer size
                 // Skip too short sequences
                 if (seq->size() >= 8 * kmer_size) {
                     seqs.push_back(seq);
-                } else {
-                    delete seq;
                 }
             }
             avg_seq_len /= (float)block.path_ranges.size();
             avg_seq_len_padded /= (float)block.path_ranges.size();
+
             block2stats[block_id]["min.seq.len.no_pad"] = to_string(min_seq_len);
             block2stats[block_id]["max.seq.len.no_pad"] = to_string(max_seq_len);
             block2stats[block_id]["avg.seq.len.no_pad"] = to_string(avg_seq_len);
             block2stats[block_id]["poa.padding"] = to_string(poa_padding);
+            block2stats[block_id]["num.dedup.sequences"] = to_string(num_dedup_seqs);
             block2stats[block_id]["min.seq.len"] = to_string(min_seq_len_padded);
             block2stats[block_id]["max.seq.len"] = to_string(max_seq_len_padded);
             block2stats[block_id]["avg.seq.len"] = to_string(avg_seq_len_padded);
@@ -2065,7 +2083,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block2stats[block_id]["avg.est.identity"] = to_string(avg_est_identity);
             //block2stats[block_id]["median.est.identity"] = to_string(median_est_identity);
 
-            for (auto& seq : seqs) {
+            for (auto& seq : allseqs) {
                 delete seq;
             }
 
@@ -2152,6 +2170,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         "num.sequences",
         "min.seq.len.no_pad", "avg.seq.len.no_pad", "max.seq.len.no_pad",
         "poa.padding",
+        "num.dedup.sequences",
         "min.seq.len", "avg.seq.len", "max.seq.len",
         "min.est.identity", "avg.est.identity", "max.est.identity",
         "xpoa.graph.nodes", "xpoa.graph.edges",
