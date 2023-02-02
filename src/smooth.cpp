@@ -553,10 +553,13 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         // collect unique sequences
         std::vector<std::string> seqs;
         std::vector<uint32_t> weights;
-        std::vector<bool> is_rev;
+        std::vector<std::vector<bool>> dup_is_revs;
         std::vector<std::vector<std::string>> dup_seq_names;
-        // seqs[i] has strand is_rev[i] and name names[i][0].
-        // The names of other sequences identical to seqs[i] are in dup_seq_names[i][1...]
+        // seqs[i] has strand is_rev[i][0] and name names[i][0].
+        // The names and original strands of other sequences identical
+        // to seqs[i] are in dup_seq_names[i][1...] and is_rev[i][1...].
+        // It can happen that TG is reversed to CA and becomes identical
+        // to a seq that is CA in forward
 
         std::vector<std::string> all_names_in_original_order;
 
@@ -608,7 +611,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 
                 seqs.push_back(seq);
                 weights.push_back(1);
-                is_rev.push_back(rev_bp > fwd_bp);
+                dup_is_revs.emplace_back();
+                dup_is_revs.back().push_back(rev_bp > fwd_bp);
                 dup_seq_names.emplace_back(); // Allocate an empty vector of strings
                 dup_seq_names.back().push_back(name.str());
 
@@ -617,6 +621,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 uint64_t rank = seq_to_rank[hash];
 
                 weights[rank] += 1;
+                dup_is_revs[rank].push_back(rev_bp > fwd_bp);
                 dup_seq_names[rank].push_back(name.str());
             }
 
@@ -652,7 +657,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         std::string consensus;
         if (!consensus_name.empty()){
             consensus = poa_graph.GenerateConsensus();
-            is_rev.push_back(false);  // the consensus is considered in forward
+            dup_is_revs.emplace_back();
+            dup_is_revs.back().push_back(false);  // the consensus is considered in forward
         }
 
         if (maf != nullptr) {
@@ -739,7 +745,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                     // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
                     uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
                     auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
-                    record_start = is_rev[seq_rank] ?
+                    record_start = dup_is_revs[seq_rank][0] ?
                                 (path_length - graph.get_position_of_step(last_step) - graph.get_length(graph.get_handle_of_step(last_step))):
                                 path_range_begin;
 
@@ -763,7 +769,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 (*maf)[path_name].push_back({
                         record_start,
                         seq_size,
-                        is_rev[seq_rank],
+                        dup_is_revs[seq_rank][0],
                         path_length,
                         keep_sequence ? msa[seq_rank].substr(start_pos_to_trim, end_pos_to_trim - start_pos_to_trim) : ""
                 });
@@ -795,7 +801,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         // convert the poa graph into our output format
         // poa_graph->print_gfa(std::cout, names, true);
         odgi::graph_t block_graph;
-        build_odgi_SPOA(poa_graph, &block_graph, dup_seq_names, poa_padding, is_rev, consensus_name, !consensus_name.empty());
+        build_odgi_SPOA(poa_graph, &block_graph, dup_seq_names, poa_padding, dup_is_revs, consensus_name, !consensus_name.empty());
 
         // normalize the representation, allowing for nodes > 1bp
         //auto graph_copy = output_graph;
@@ -849,8 +855,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         }
         for (auto &name : all_names_in_original_order) {
             path_handle_t old_path = block_graph.get_path_handle(name);
-
-            path_handle_t new_path = output_graph->create_path_handle(block_graph.get_path_name(old_path));
+            path_handle_t new_path = output_graph->create_path_handle(name);
             block_graph.for_each_step_in_path(old_path, [&](const step_handle_t& step) {
                 handle_t old_handle = block_graph.get_handle_of_step(step);
                 handle_t new_handle = output_graph->get_handle(
@@ -2822,7 +2827,7 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
 void build_odgi_SPOA(spoa::Graph& graph, odgi::graph_t* output,
                      const std::vector<std::vector<std::string>> &dup_seq_names,
                      const int &padding_len,
-                     const std::vector<bool> &aln_is_reverse,
+                     const std::vector<std::vector<bool>> &dup_is_revs,
                      const std::string &consensus_name,
                      bool include_consensus) {
 
@@ -2841,7 +2846,10 @@ void build_odgi_SPOA(spoa::Graph& graph, odgi::graph_t* output,
     }
 
     for (std::uint32_t i = 0; i < graph.sequences().size(); ++i) {
-        for (auto name : dup_seq_names[i]) {
+        for (std::uint32_t j = 0; j < dup_seq_names[i].size(); ++j) {
+            const std::string name = dup_seq_names[i][j];
+            const bool is_rev = dup_is_revs[i][j];
+
             path_handle_t p = output->create_path_handle(name);
             std::vector<handle_t> steps;
             auto curr = graph.sequences()[i];
@@ -2852,7 +2860,7 @@ void build_odgi_SPOA(spoa::Graph& graph, odgi::graph_t* output,
                 }
             }
             steps = std::vector<handle_t>(steps.begin() + padding_len, steps.end() - padding_len);
-            if (aln_is_reverse[i]) {
+            if (is_rev) {
                 for (auto handle_itr = steps.rbegin(); handle_itr != steps.rend(); ++handle_itr) {
                     output->append_step(p, output->flip(*handle_itr));
                 }
