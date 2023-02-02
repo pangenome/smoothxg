@@ -118,7 +118,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 							   const std::string& smoothxg_iter);
 
 void build_odgi_SPOA(spoa::Graph& graph, odgi::graph_t* output,
-                const std::vector<std::string> &sequence_names,
+                const std::vector<std::vector<std::string>> &dup_seq_names,
                 const int &padding_len,
                 const std::vector<bool> &aln_is_reverse,
                 const std::string &consensus_name,

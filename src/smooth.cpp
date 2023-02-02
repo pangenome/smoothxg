@@ -548,15 +548,22 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
     auto* output_graph = new odgi::graph_t();
 
     if (block.path_ranges.size() <= MAX_POA_BLOCK_DEPTH) {
-        // collect sequences
+        ska::flat_hash_map<XXH64_hash_t,uint64_t> seq_to_rank;
+        
+        // collect unique sequences
         std::vector<std::string> seqs;
-        std::vector<std::string> names;
+        std::vector<uint32_t> weights;
         std::vector<bool> is_rev;
+        std::vector<std::vector<std::string>> dup_seq_names;
+        // seqs[i] has strand is_rev[i] and name names[i][0].
+        // The names of other sequences identical to seqs[i] are in dup_seq_names[i][1...]
+
+        std::vector<std::string> all_names_in_original_order;
+
         std::size_t max_sequence_size = 0;
         
         for (auto &path_range : block.path_ranges) {
-            seqs.emplace_back();
-            auto &seq = seqs.back();
+            std::string seq;
             uint64_t fwd_bp = 0;
             uint64_t rev_bp = 0;
             const path_handle_t path_handle = graph.get_path_handle_of_step(path_range.begin);
@@ -566,8 +573,9 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                             seq, fwd_bp, rev_bp,
                             poa_padding, true);
 
-            for (step_handle_t step = path_range.begin; step != path_range.end;
-                step = graph.get_next_step(step)) {
+            for (step_handle_t step = path_range.begin;
+                               step != path_range.end;
+                               step = graph.get_next_step(step)) {
                 const auto h = graph.get_handle_of_step(step);
                 const auto l = graph.get_length(h);
                 seq.append(graph.get_sequence(h));
@@ -583,16 +591,36 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                             seq, fwd_bp, rev_bp,
                             poa_padding, false);
 
-            is_rev.push_back(rev_bp > fwd_bp);
-            if (is_rev.back()) {
-                odgi::reverse_complement_in_place(seqs.back());
+            if (rev_bp > fwd_bp) {
+                odgi::reverse_complement_in_place(seq);
             }
-            std::stringstream namess;
-            namess << graph.get_path_name(path_handle)
-                << "_" << graph.get_position_of_step(path_range.begin);
-            names.push_back(namess.str());
 
-            max_sequence_size = std::max(max_sequence_size, seq.size());
+            std::stringstream name;
+            name << graph.get_path_name(path_handle)
+                 << "_" << graph.get_position_of_step(path_range.begin);
+
+            // Deduplication
+            XXH64_hash_t hash = XXH64(seq.c_str(), seq.size(), 0);
+
+            if (seq_to_rank.count(hash) == 0) {
+                // New sequence
+                seq_to_rank[hash] = seqs.size();
+
+                seqs.push_back(seq);
+                weights.push_back(1);
+                is_rev.push_back(rev_bp > fwd_bp);
+                dup_seq_names.emplace_back(); // Allocate an empty vector of strings
+                dup_seq_names.back().push_back(name.str());
+
+                max_sequence_size = std::max(max_sequence_size, seq.size());
+            } else {
+                uint64_t rank = seq_to_rank[hash];
+
+                weights[rank] += 1;
+                dup_seq_names[rank].push_back(name.str());
+            }
+
+            all_names_in_original_order.push_back(name.str());
         }
 
         auto start_time = std::chrono::steady_clock::now();
@@ -613,8 +641,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         for (auto &seq : seqs) {
             auto alignment = alignment_engine->Align(seq, poa_graph);
             try {
-                // could give weight here to influence consensus
-                poa_graph.AddAlignment(alignment, seq);
+                // give weight here to influence consensus
+                poa_graph.AddAlignment(alignment, seq, weights[i++]);
             } catch (std::invalid_argument &exception) {
                 std::cerr << exception.what() << std::endl;
                 assert(false);
@@ -749,6 +777,10 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 
         elapsed_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
         if (elapsed_time_ms >= save_block_fastas) {
+            std::vector<std::string> names;
+            for (auto &x : dup_seq_names) {
+                names.push_back(x[0]);
+            }
             write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_spoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time_ms) + "ms");
         }
 
@@ -763,7 +795,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         // convert the poa graph into our output format
         // poa_graph->print_gfa(std::cout, names, true);
         odgi::graph_t block_graph;
-        build_odgi_SPOA(poa_graph, &block_graph, names, poa_padding, is_rev, consensus_name, !consensus_name.empty());
+        build_odgi_SPOA(poa_graph, &block_graph, dup_seq_names, poa_padding, is_rev, consensus_name, !consensus_name.empty());
 
         // normalize the representation, allowing for nodes > 1bp
         //auto graph_copy = output_graph;
@@ -811,17 +843,22 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                             });
                 });
 
-        block_graph.for_each_path_handle(
-                [&](const path_handle_t& old_path) {
-                    path_handle_t new_path = output_graph->create_path_handle(block_graph.get_path_name(old_path));
-                    block_graph.for_each_step_in_path(old_path, [&](const step_handle_t& step) {
-                        handle_t old_handle = block_graph.get_handle_of_step(step);
-                        handle_t new_handle = output_graph->get_handle(
-                                block_graph.get_id(old_handle),
-                                block_graph.get_is_reverse(old_handle));
-                        output_graph->append_step(new_path, new_handle);
-                    });
-                });
+        // Put the paths in original order w.r.t. the input block
+        if (!consensus_name.empty()){
+            all_names_in_original_order.push_back(consensus_name); // Consensus path always at the end
+        }
+        for (auto &name : all_names_in_original_order) {
+            path_handle_t old_path = block_graph.get_path_handle(name);
+
+            path_handle_t new_path = output_graph->create_path_handle(block_graph.get_path_name(old_path));
+            block_graph.for_each_step_in_path(old_path, [&](const step_handle_t& step) {
+                handle_t old_handle = block_graph.get_handle_of_step(step);
+                handle_t new_handle = output_graph->get_handle(
+                        block_graph.get_id(old_handle),
+                        block_graph.get_is_reverse(old_handle));
+                output_graph->append_step(new_path, new_handle);
+            });
+        }
     } else {
         // if the block is too deep, just mirror the input graph structure
         for (auto &path_range : block.path_ranges) {
@@ -2783,10 +2820,11 @@ void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
 }
 
 void build_odgi_SPOA(spoa::Graph& graph, odgi::graph_t* output,
-                     const std::vector<std::string> &sequence_names,
+                     const std::vector<std::vector<std::string>> &dup_seq_names,
                      const int &padding_len,
                      const std::vector<bool> &aln_is_reverse,
-                     const std::string &consensus_name, bool include_consensus) {
+                     const std::string &consensus_name,
+                     bool include_consensus) {
 
     auto &nodes = graph.nodes();
 
@@ -2803,23 +2841,25 @@ void build_odgi_SPOA(spoa::Graph& graph, odgi::graph_t* output,
     }
 
     for (std::uint32_t i = 0; i < graph.sequences().size(); ++i) {
-        path_handle_t p = output->create_path_handle(sequence_names[i]);
-        std::vector<handle_t> steps;
-        auto curr = graph.sequences()[i];
-        while (true) {
-            steps.emplace_back(output->get_handle(curr->id + 1));
-            if (!(curr = curr->Successor(i))) {
-                break;
+        for (auto name : dup_seq_names[i]) {
+            path_handle_t p = output->create_path_handle(name);
+            std::vector<handle_t> steps;
+            auto curr = graph.sequences()[i];
+            while (true) {
+                steps.emplace_back(output->get_handle(curr->id + 1));
+                if (!(curr = curr->Successor(i))) {
+                    break;
+                }
             }
-        }
-        steps = std::vector<handle_t>(steps.begin() + padding_len, steps.end() - padding_len);
-        if (aln_is_reverse[i]) {
-            for (auto handle_itr = steps.rbegin(); handle_itr != steps.rend(); ++handle_itr) {
-                output->append_step(p, output->flip(*handle_itr));
-            }
-        } else {
-            for (auto &handle : steps) {
-                output->append_step(p, handle);
+            steps = std::vector<handle_t>(steps.begin() + padding_len, steps.end() - padding_len);
+            if (aln_is_reverse[i]) {
+                for (auto handle_itr = steps.rbegin(); handle_itr != steps.rend(); ++handle_itr) {
+                    output->append_step(p, output->flip(*handle_itr));
+                }
+            } else {
+                for (auto &handle : steps) {
+                    output->append_step(p, handle);
+                }
             }
         }
     }
