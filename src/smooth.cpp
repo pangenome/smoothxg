@@ -528,6 +528,7 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 }
 
 #define MAX_POA_BLOCK_DEPTH 999999999
+#include "xxHash/xxhash.h"
 
 odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            const uint64_t block_id,
@@ -1964,7 +1965,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block2stats[block_id]["num.sequences"] = to_string(block.path_ranges.size());
 
             std::vector<std::string* > seqs; seqs.reserve(block.path_ranges.size());
-            std::vector<std::string* > allseqs; allseqs.reserve(block.path_ranges.size());
             uint64_t num_dedup_seqs = 0;
 
             uint64_t min_seq_len = std::numeric_limits<uint64_t>::max();
@@ -1973,6 +1973,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             uint64_t min_seq_len_padded = std::numeric_limits<uint64_t>::max();
             uint64_t max_seq_len_padded = 0;
             float avg_seq_len_padded = 0.0;
+
+            ska::flat_hash_map<XXH64_hash_t,uint64_t> seq_to_rank;
 
             for (auto &path_range : block.path_ranges) {
                 auto seq = new std::string();
@@ -2008,26 +2010,20 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 if (len_padded < min_seq_len_padded) { min_seq_len_padded = len_padded;}
                 if (len_padded > max_seq_len_padded) { max_seq_len_padded = len_padded;}
 
-                // Deduplication (IT ASSUMES THAT SEQUENCES ARE SORTED FROM LONGEST TO SHORTEST)
-                bool duplicate = false;
-                for (auto current_seq : allseqs) {
-                    if (seq->size() > current_seq->size()) {
-                        break;
-                    } else if (*seq == *current_seq) {
-                        duplicate = true;
-                        break;
-                    }
-                }
-                if (!duplicate) {
+                // Deduplication
+                XXH64_hash_t hash = XXH64(seq->c_str(), seq->size(), 0);
+
+                if (seq_to_rank.count(hash) == 0) {
+                    seq_to_rank[hash] = seqs.size();
                     ++num_dedup_seqs;
                 }
-
-                allseqs.push_back(seq);
 
                 // We can't compute the hashes for what is shorter than the kmer size
                 // Skip too short sequences
                 if (seq->size() >= 8 * kmer_size) {
                     seqs.push_back(seq);
+                } else {
+                    delete seq;
                 }
             }
             avg_seq_len /= (float)block.path_ranges.size();
@@ -2083,7 +2079,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             block2stats[block_id]["avg.est.identity"] = to_string(avg_est_identity);
             //block2stats[block_id]["median.est.identity"] = to_string(median_est_identity);
 
-            for (auto& seq : allseqs) {
+            for (auto& seq : seqs) {
                 delete seq;
             }
 
@@ -2332,6 +2328,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             });
             add_graph_progress.increment(1);
         }
+        add_graph_progress.finish();
 
         std::stringstream add_edges_banner;
         add_edges_banner << smoothxg_iter << "::smooth_and_lace] adding edges from " << block_count << " graphs:";

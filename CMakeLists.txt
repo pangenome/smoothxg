@@ -302,10 +302,21 @@ ExternalProject_Add(edlib
 ExternalProject_Get_property(edlib SOURCE_DIR)
 set(edlib_INCLUDE "${SOURCE_DIR}/edlib/include")
 
+ExternalProject_Add(xxHash
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/xxHash"
+        UPDATE_COMMAND ""
+        INSTALL_COMMAND ""
+        BUILD_COMMAND ""
+	TEST_COMMAND ""
+        CONFIGURE_COMMAND "")
+ExternalProject_Get_property(xxHash SOURCE_DIR)
+set(xxHash_INCLUDE "${SOURCE_DIR}")
+
 add_subdirectory(deps/WFA EXCLUDE_FROM_ALL)
 
 add_library(smoothxg_objs OBJECT
   src/tempfile.cpp
+  deps/xxHash/xxhash.c
   src/xg.cpp
   src/chain.cpp
   src/prep.cpp
