@@ -531,7 +531,9 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     return output_graph;
 }
 
-#define MAX_POA_BLOCK_DEPTH 999999999
+//Disabled feature (for now)
+//#define MAX_POA_BLOCK_DEPTH 4000
+
 #include "xxHash/xxhash.h"
 
 odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
@@ -551,7 +553,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            const std::string &consensus_name) {
     auto* output_graph = new odgi::graph_t();
 
-    if (block.path_ranges.size() <= MAX_POA_BLOCK_DEPTH) {
+    //if (block.path_ranges.size() <= MAX_POA_BLOCK_DEPTH) {
         ska::flat_hash_map<XXH64_hash_t,uint64_t> seq_to_rank;
         
         // collect unique sequences
@@ -889,7 +891,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 output_graph->append_step(new_path, new_handle);
             });
         }
-    } else {
+    /*}else {
         // if the block is too deep, just mirror the input graph structure
         for (auto &path_range : block.path_ranges) {
             auto source_path_handle = graph.get_path_handle_of_step(path_range.begin);
@@ -911,25 +913,25 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 );
             }
         }
-        // it seems not necessary, so we save a bit of computation
-        /*if(false){
-            // add edges
-            ska::flat_hash_set<std::pair<handle_t, handle_t>> edges_to_create;
-            output_graph->for_each_path_handle([&](const path_handle_t& path_handle) {
-                handle_t last;
-                const step_handle_t begin_step = output_graph->path_begin(path_handle);
-                output_graph->for_each_step_in_path(path_handle, [&](const step_handle_t &step) {
-                    handle_t h = output_graph->get_handle_of_step(step);
-                    if (step != begin_step && !output_graph->has_edge(last, h)) {
-                        edges_to_create.insert({last, h});
-                    }
-                    last = h;
-                });
-            });
-            for (auto edge: edges_to_create) {
-                output_graph->create_edge(edge.first, edge.second);
-            }
-        }*/
+
+        // it seems not necessary to add the edges, so we save a bit of computation
+        // add edges
+        //ska::flat_hash_set<std::pair<handle_t, handle_t>> edges_to_create;
+        //output_graph->for_each_path_handle([&](const path_handle_t& path_handle) {
+        //    handle_t last;
+        //    const step_handle_t begin_step = output_graph->path_begin(path_handle);
+        //    output_graph->for_each_step_in_path(path_handle, [&](const step_handle_t &step) {
+        //        handle_t h = output_graph->get_handle_of_step(step);
+        //        if (step != begin_step && !output_graph->has_edge(last, h)) {
+        //            edges_to_create.insert({last, h});
+        //        }
+        //        last = h;
+        //    });
+        //});
+        //for (auto edge: edges_to_create) {
+        //    output_graph->create_edge(edge.first, edge.second);
+        //}
+
         if (!consensus_name.empty()){     
             // As we skipped the POA, we don't formaly have a consensus sequence.
             // For simplicity, we use the longest path as a fake-consensus
@@ -959,7 +961,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 #ifdef POA_DEBUG
         elapsed_time_ms = 0;
 #endif
-    }
+    }*/
 
     // output_graph.to_gfa(out);
     return output_graph;
@@ -1987,7 +1989,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             uint64_t elapsed_time_ms = 0;
             uint64_t xpoa_graph_nodes = 0, xpoa_graph_edges = 0, msa_len = 0;
 #endif
-            if (use_abpoa || block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
+            if (use_abpoa /*|| block.path_ranges.size() > MAX_POA_BLOCK_DEPTH*/) {
                 block_graph = smooth_abpoa(graph,
                                            block,
                                            block_id,
@@ -1999,7 +2001,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                            poa_c_to_use,
                                            poa_padding,
                                            // abPOA local mode is buggy, so when we use abPOA instead of SPOA, go global
-                                           local_alignment && !(!use_abpoa && block.path_ranges.size() > MAX_POA_BLOCK_DEPTH),
+                                           local_alignment /*&& !(!use_abpoa && block.path_ranges.size() > MAX_POA_BLOCK_DEPTH)*/,
                                            (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                            produce_maf,
                                            true, // banded alignment
