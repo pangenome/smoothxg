@@ -162,13 +162,13 @@ int main(int argc, char **argv) {
     args::ValueFlag<uint64_t> _max_merged_groups_in_memory(block_merge_opts, "N",
                                                            "increasing this value, much more blocks that are not immediately contiguous along the graph will be merged [default: 50]",
                                                            {'G', "max-block-groups-in-memory"});
-
+#ifdef POA_DEBUG
     args::Group debugging_opts(parser, "[ Debugging Options ]");
     args::Flag write_block_to_split_fastas(debugging_opts, "bool", "write the FASTA sequences for split blocks",
                                            {'A', "write-split-block-fastas"});
     args::ValueFlag<uint64_t> _write_block_fastas(debugging_opts, "N", "write the FASTA sequences for blocks put into POA. Write blocks whose alignment took at least N milliseconds [default: disabled]",
                                   {'B', "write-poa-block-fastas"});
-
+#endif
     args::Group threading_opts(parser, "[ Threading ]");
     args::ValueFlag<uint64_t> num_threads(threading_opts, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<uint64_t> num_poa_threads(threading_opts, "N", "use this many POA threads (can be used to reduce memory requirements with large --poa-length-target settings) [default: --threads]", {'T', "poa-threads"});
@@ -264,9 +264,9 @@ int main(int argc, char **argv) {
                          " or the maximum seed in block with -w/block-weight-max." << std::endl;
 			return 1;
 		}
-
+#ifdef POA_DEBUG
         const uint64_t write_block_fastas = _write_block_fastas ? args::get(_write_block_fastas) : std::numeric_limits<uint64_t>::max();
-
+#endif
         const double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 		const uint64_t max_block_jump = _max_block_jump ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_jump), 100) : 100;
         const uint64_t max_edge_jump = _max_edge_jump ? (uint64_t)smoothxg::handy_parameter(args::get(_max_edge_jump), 0) : 0;
@@ -428,7 +428,9 @@ int main(int argc, char **argv) {
                                    order_paths_from_longest,
                                    true,
                                    n_threads,
+#ifdef POA_DEBUG
                                    args::get(write_block_to_split_fastas),
+#endif
 								   smoothxg_iter);
 
             // build the path_step_rank_ranges -> index_in_blocks_vector
@@ -512,7 +514,9 @@ int main(int argc, char **argv) {
                                                           // We add consensus paths only during the last iteration
                                                           (current_iter == num_iterations - 1) && add_consensus ? consensus_path_prefix : "",
                                                           consensus_path_names,
+#ifdef POA_DEBUG
                                                           write_block_fastas,
+#endif
                                                           max_merged_groups_in_memory,
 														  smoothxg_iter);
 

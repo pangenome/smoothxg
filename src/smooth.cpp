@@ -135,8 +135,10 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
                             std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
                             bool banded_alignment,
 							const std::string& smoothxg_iter,
+#ifdef POA_DEBUG
                             const uint64_t save_block_fastas,
                             uint64_t &elapsed_time_ms,
+#endif
                             const std::string &consensus_name) {
     // collect sequences
     std::vector<std::string> seqs;
@@ -456,10 +458,12 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     free(seq_lens);
     free(weights);
 
+#ifdef POA_DEBUG
     elapsed_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
     if (elapsed_time_ms >= save_block_fastas) {
         write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_abpoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time_ms) + "ms");
     }
+#endif
 
     odgi::graph_t block_graph;
     build_odgi_abPOA(ab, abpt, &block_graph, names, is_rev, consensus_name, poa_padding, add_consensus);
@@ -538,9 +542,9 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                            bool local_alignment,
                            std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>& maf, bool keep_sequence,
 						   const std::string& smoothxg_iter,
+#ifdef POA_DEBUG
                            uint64_t save_block_fastas,
                            uint64_t &elapsed_time_ms,
-#ifdef POA_DEBUG
                            uint64_t &xpoa_graph_nodes, uint64_t &xpoa_graph_edges,
                            uint64_t &msa_len,
 #endif
@@ -802,6 +806,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
             clear_vector(msa);
         }
 
+#ifdef POA_DEBUG
         elapsed_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
         if (elapsed_time_ms >= save_block_fastas) {
             std::vector<std::string> names;
@@ -811,7 +816,6 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
             write_fasta_for_block(graph, block, block_id, seqs, names, "smoothxg_into_spoa_pad" + std::to_string(poa_padding) + "_", "_in_" +  std::to_string(elapsed_time_ms) + "ms");
         }
 
-#ifdef POA_DEBUG
         xpoa_graph_nodes = poa_graph.nodes().size();
         xpoa_graph_edges = poa_graph.edges().size();
         msa_len = poa_graph.GenerateMultipleSequenceAlignment(true)[0].size();
@@ -952,7 +956,9 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 
         output_graph->optimize();
 
+#ifdef POA_DEBUG
         elapsed_time_ms = 0;
+#endif
     }
 
     // output_graph.to_gfa(out);
@@ -1431,7 +1437,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                bool use_abpoa,
                                const std::string &consensus_base_name,
                                std::vector<std::string>& consensus_path_names,
+#ifdef POA_DEBUG
                                uint64_t write_fasta_blocks,
+#endif
                                uint64_t max_merged_groups_in_memory,
 							   const std::string& smoothxg_iter) {
 
@@ -1975,8 +1983,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 }
             }
 
-            uint64_t elapsed_time_ms = 0;
 #ifdef POA_DEBUG
+            uint64_t elapsed_time_ms = 0;
             uint64_t xpoa_graph_nodes = 0, xpoa_graph_edges = 0, msa_len = 0;
 #endif
             if (use_abpoa || block.path_ranges.size() > MAX_POA_BLOCK_DEPTH) {
@@ -1996,8 +2004,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                            produce_maf,
                                            true, // banded alignment
 										   smoothxg_iter,
+#ifdef POA_DEBUG
                                            write_fasta_blocks,
                                            elapsed_time_ms,
+#endif
                                            consensus_name);
             } else {
                 block_graph = smooth_spoa(graph,
@@ -2014,9 +2024,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                           (produce_maf || (add_consensus && merge_blocks)) ? mafs[block_id] : empty_maf_block,
                                           produce_maf,
 										  smoothxg_iter,
+#ifdef POA_DEBUG
                                           write_fasta_blocks,
                                           elapsed_time_ms,
-#ifdef POA_DEBUG
                                           xpoa_graph_nodes, xpoa_graph_edges,
                                           msa_len,
 #endif
