@@ -561,11 +561,15 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
         // It can happen that TG is reversed to CA and becomes identical
         // to a seq that is CA in forward
 
+        std::vector<std::vector<uint64_t>> dup_rank_in_path_ranges;
+
         std::vector<std::string> all_names_in_original_order;
 
         std::size_t max_sequence_size = 0;
-        
-        for (auto &path_range : block.path_ranges) {
+
+        for (uint64_t i = 0; i < block.path_ranges.size(); ++i) {
+            auto &path_range = block.path_ranges[i];
+
             std::string seq;
             uint64_t fwd_bp = 0;
             uint64_t rev_bp = 0;
@@ -616,6 +620,9 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 dup_seq_names.emplace_back(); // Allocate an empty vector of strings
                 dup_seq_names.back().push_back(name.str());
 
+                dup_rank_in_path_ranges.emplace_back();
+                dup_rank_in_path_ranges.back().push_back(i);
+
                 max_sequence_size = std::max(max_sequence_size, seq.size());
             } else {
                 uint64_t rank = seq_to_rank[hash];
@@ -623,6 +630,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 weights[rank] += 1;
                 dup_is_revs[rank].push_back(rev_bp > fwd_bp);
                 dup_seq_names[rank].push_back(name.str());
+
+                dup_rank_in_path_ranges[rank].push_back(i);
             }
 
             all_names_in_original_order.push_back(name.str());
@@ -659,6 +668,9 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
             consensus = poa_graph.GenerateConsensus();
             dup_is_revs.emplace_back();
             dup_is_revs.back().push_back(false);  // the consensus is considered in forward
+
+            dup_rank_in_path_ranges.emplace_back();
+            dup_rank_in_path_ranges.back().push_back(0); // placeholder, the consensus is not in the path_ranges
         }
 
         if (maf != nullptr) {
@@ -730,51 +742,60 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 
 
             uint64_t num_seqs = msa.size();
-            for(uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++){
-                std::string path_name;
-                uint64_t seq_size;
-                uint64_t path_length;
+            for (uint64_t seq_rank = 0; seq_rank < num_seqs; seq_rank++){
+                for (uint64_t x = 0; x < dup_rank_in_path_ranges[seq_rank].size(); ++x){
+                    std::string path_name;
+                    bool is_rev;
+                    uint64_t seq_size;
+                    uint64_t path_length;
 
-                uint64_t record_start;
-                if (!add_consensus || seq_rank < num_seqs - 1){
-                    auto path_handle = graph.get_path_handle_of_step(block.path_ranges[seq_rank].begin);
+                    uint64_t record_start;
+                    if (!add_consensus || seq_rank < num_seqs - 1){
+                        const uint64_t path_ranges_rank = dup_rank_in_path_ranges[seq_rank][x];
 
-                    path_name = graph.get_path_name(path_handle);
-                    path_length = graph.get_path_length(path_handle);
+                        auto path_handle = graph.get_path_handle_of_step(block.path_ranges[path_ranges_rank].begin);
 
-                    // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
-                    uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[seq_rank].begin);
-                    auto last_step = graph.get_previous_step(block.path_ranges[seq_rank].end);
-                    record_start = dup_is_revs[seq_rank][0] ?
-                                (path_length - graph.get_position_of_step(last_step) - graph.get_length(graph.get_handle_of_step(last_step))):
-                                path_range_begin;
+                        path_name = graph.get_path_name(path_handle);
+                        is_rev = dup_is_revs[seq_rank][x];
+                        path_length = graph.get_path_length(path_handle);
 
-                    seq_size = seqs[seq_rank].size() - 2 * poa_padding;// <==> block.path_ranges[seq_rank].length
-                }else{
-                    // The last sequence is the gapped consensus
+                        // If the strand field is "-" then this is the start relative to the reverse-complemented source sequence
+                        uint64_t path_range_begin = graph.get_position_of_step(block.path_ranges[path_ranges_rank].begin);
+                        auto last_step = graph.get_previous_step(block.path_ranges[path_ranges_rank].end);
+                        record_start = dup_is_revs[seq_rank][x] ?
+                                       (path_length - graph.get_position_of_step(last_step) - graph.get_length(graph.get_handle_of_step(last_step))):
+                                       path_range_begin;
 
-                    path_name = consensus_name;
-                    path_length = consensus.size() - 2 * poa_padding;
-                    record_start = 0;
-                    seq_size = path_length;
+                        seq_size = seqs[seq_rank].size() - 2 * poa_padding;// <==> block.path_ranges[path_ranges_rank].length
+
+                    }else{
+                        // The last sequence is the gapped consensus
+
+                        path_name = consensus_name;
+                        is_rev = dup_is_revs[seq_rank][0];
+                        path_length = consensus.size() - 2 * poa_padding;
+                        record_start = 0;
+                        seq_size = path_length;
+                    }
+
+                    if (maf->count(path_name) == 0) {
+                        maf->insert(std::pair<std::string, std::vector<maf_partial_row_t>>(
+                                path_name,
+                                std::vector<maf_partial_row_t>()
+                        ));
+                    }
+
+                    (*maf)[path_name].push_back({
+                            record_start,
+                            seq_size,
+                            is_rev,
+                            path_length,
+                            keep_sequence ? msa[seq_rank].substr(start_pos_to_trim, end_pos_to_trim - start_pos_to_trim) : ""
+                    });
+
+                    clear_string(path_name);
                 }
 
-                if (maf->count(path_name) == 0) {
-                    maf->insert(std::pair<std::string, std::vector<maf_partial_row_t>>(
-                            path_name,
-                            std::vector<maf_partial_row_t>()
-                    ));
-                }
-
-                (*maf)[path_name].push_back({
-                        record_start,
-                        seq_size,
-                        dup_is_revs[seq_rank][0],
-                        path_length,
-                        keep_sequence ? msa[seq_rank].substr(start_pos_to_trim, end_pos_to_trim - start_pos_to_trim) : ""
-                });
-
-                clear_string(path_name);
                 clear_string(msa[seq_rank]);
             }
 
