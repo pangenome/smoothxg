@@ -93,7 +93,7 @@ void prep(
     std::string path_sgd_seed = "pangenomic!";
 
     uint64_t path_sgd_iter_max_learning_rate = 0; // don't use this max iter stuff
-    std::string snapshot_prefix = "";
+    const std::string snapshot_prefix;
 	const bool target_sorting = false;
 	std::vector<bool> target_nodes;
 
@@ -117,6 +117,8 @@ void prep(
             num_threads,
             true,
             path_sgd_seed,
+            false,
+            snapshot_prefix,
             false,
             snapshot_prefix,
 			target_sorting,
