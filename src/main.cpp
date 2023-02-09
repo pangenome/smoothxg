@@ -115,9 +115,9 @@ int main(int argc, char **argv) {
     args::ValueFlag<std::string> _max_block_depth_for_padding_more(poa_opts, "N",
                                                                    "maximum block depth beyond which a (small) fixed amount of flanking nucleotides is not added (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 1000, 0 to disable it]",
                                                                    {'Y', "max-block-depth-adaptive-poa-padding"});
-    args::Flag use_spoa(poa_opts, "use-spoa",
-                        "run spoa instead of abPOA for smoothing",
-                        {'S', "spoa"});
+    args::Flag use_abpoa(poa_opts, "use-abpoa",
+                        "run abPOA instead of SPOA for smoothing",
+                        {'A', "abpoa"});
     args::Flag change_alignment_mode(poa_opts, "change-alignment-mode",
                                      "change the alignment mode to global [default: local]",
                                      {'Z', "change-alignment-mode"});
@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
 #ifdef POA_DEBUG
     args::Group debugging_opts(parser, "[ Debugging Options ]");
     args::Flag write_block_to_split_fastas(debugging_opts, "bool", "write the FASTA sequences for split blocks",
-                                           {'A', "write-split-block-fastas"});
+                                           {'S', "write-split-block-fastas"});
     args::ValueFlag<uint64_t> _write_block_fastas(debugging_opts, "N", "write the FASTA sequences for blocks put into POA. Write blocks whose alignment took at least N milliseconds [default: disabled]",
                                   {'B', "write-poa-block-fastas"});
 #endif
@@ -338,7 +338,7 @@ int main(int argc, char **argv) {
                 poa_n = params[1];
                 poa_g = params[2];
                 poa_e = params[3];
-                if (args::get(use_spoa)) {
+                if (!args::get(use_abpoa)) {
                     poa_q = poa_g;
                     poa_c = poa_e;
                 } else {
@@ -348,7 +348,7 @@ int main(int argc, char **argv) {
             }
         }
 
-        const bool order_paths_from_longest = true; //args::get(use_spoa);
+        const bool order_paths_from_longest = true; //!args::get(use_abpoa);
         const float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
         const int node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
@@ -463,7 +463,7 @@ int main(int argc, char **argv) {
 
                 // POA
                 maf_header += "# POA=";
-                maf_header += (args::get(use_spoa) ? "SPOA" : "abPOA");
+                maf_header += (args::get(use_abpoa) ? "abPOA" : "SPOA");
                 maf_header += " alignment_mode=";
                 maf_header += (local_alignment ? "local" : "global");
                 maf_header += " order_paths=from_";
@@ -510,7 +510,7 @@ int main(int argc, char **argv) {
                                                           (current_iter == num_iterations - 1) ? args::get(write_msa_in_maf_format) : "", maf_header,
                                                           args::get(merge_blocks), args::get(_preserve_unmerged_consensus),
                                                           contiguous_path_jaccard,
-                                                          !args::get(use_spoa),
+                                                          args::get(use_abpoa),
                                                           // We add consensus paths only during the last iteration
                                                           (current_iter == num_iterations - 1) && add_consensus ? consensus_path_prefix : "",
                                                           consensus_path_names,
