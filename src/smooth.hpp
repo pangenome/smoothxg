@@ -77,7 +77,10 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, uint64_t 
                             std::string *maf,
                             bool banded_alignment,
 							const std::string& smoothxg_iter,
+#ifdef POA_DEBUG
                             const uint64_t save_block_fastas,
+                            uint64_t &elapsed_time_ms,
+#endif
                             const std::string &consensus_name = "");
 
 odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block, uint64_t block_id,
@@ -87,7 +90,12 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block, uint64_t b
                            bool local_alignment,
                            std::string *maf,
 						   const std::string& smoothxg_iter,
+#ifdef POA_DEBUG
                            const uint64_t save_block_fastas,
+                           uint64_t &elapsed_time_ms,
+                           uint64_t &xpoa_graph_nodes, uint64_t &xpoa_graph_edges,
+                           uint64_t &msa_len,
+#endif
                            const std::string &consensus_name = "");
 
 odgi::graph_t* smooth_and_lace(const xg::XG &graph,
@@ -107,21 +115,23 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                                bool use_abpoa,
                                const std::string &consensus_name,
                                std::vector<std::string>& consensus_path_names,
+#ifdef POA_DEBUG
                                uint64_t write_fasta_blocks,
+#endif
                                uint64_t max_merged_groups_in_memory,
 							   const std::string& smoothxg_iter);
 
 void build_odgi_SPOA(spoa::Graph& graph, odgi::graph_t* output,
-                const std::vector<std::string> &sequence_names,
+                const std::vector<std::vector<std::string>> &dup_seq_names,
                 const int &padding_len,
-                const std::vector<bool> &aln_is_reverse,
+                const std::vector<std::vector<bool>> &dup_is_revs,
                 const std::string &consensus_name,
                 bool include_consensus = true);
 
 void build_odgi_abPOA(abpoa_t *ab, abpoa_para_t *abpt, odgi::graph_t* output,
-                      const std::vector<std::string> &sequence_names,
-                      const std::vector<bool>& aln_is_reverse,
-                      const std::string &consensus_name,
+                      const std::vector<std::vector<std::string>> &dup_seq_names,
                       const int &padding_len,
+                      const std::vector<std::vector<bool>> &dup_is_revs,
+                      const std::string &consensus_name,
                       bool include_consensus = true);
 } // namespace smoothxg

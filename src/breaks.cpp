@@ -120,7 +120,9 @@ namespace smoothxg {
                       const bool &order_paths_from_longest,
                       const bool &break_repeats,
                       const uint64_t &thread_count,
+#ifdef POA_DEBUG
                       const bool &write_block_to_split_fastas,
+#endif
 					  const std::string& smoothxg_iter
     ) {
         const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
@@ -548,12 +550,15 @@ namespace smoothxg {
 
                             ready_blocks[block_id].push_back(new_block);
 
+#ifdef POA_DEBUG
                             if (write_block_to_split_fastas) {
                                 _prepare_and_write_fasta_for_block(graph, new_block, block_id, "smoothxg_",
                                                                    "_" + std::to_string(i++));
                             }
+#endif
                         }
 
+#ifdef POA_DEBUG
                         if (write_block_to_split_fastas) {
                             std::chrono::duration<double> elapsed_time = std::chrono::steady_clock::now() - start_time;
 
@@ -562,6 +567,7 @@ namespace smoothxg {
                                                                "_split_in_" + std::to_string(groups.size()) + "_in_" +
                                                                std::to_string(elapsed_time.count()) + "s");
                         }
+#endif
                     }
                 } else {
                     // the blocks is too small to be split

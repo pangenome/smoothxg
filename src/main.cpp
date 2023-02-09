@@ -115,9 +115,9 @@ int main(int argc, char **argv) {
     args::ValueFlag<std::string> _max_block_depth_for_padding_more(poa_opts, "N",
                                                                    "maximum block depth beyond which a (small) fixed amount of flanking nucleotides is not added (1k = 1K = 1000, 1m = 1M = 10^6, 1g = 1G = 10^9) [default: 1000, 0 to disable it]",
                                                                    {'Y', "max-block-depth-adaptive-poa-padding"});
-    args::Flag use_spoa(poa_opts, "use-spoa",
-                        "run spoa instead of abPOA for smoothing",
-                        {'S', "spoa"});
+    args::Flag use_abpoa(poa_opts, "use-abpoa",
+                        "run abPOA instead of SPOA for smoothing",
+                        {'A', "abpoa"});
     args::Flag change_alignment_mode(poa_opts, "change-alignment-mode",
                                      "change the alignment mode to global [default: local]",
                                      {'Z', "change-alignment-mode"});
@@ -162,13 +162,13 @@ int main(int argc, char **argv) {
     args::ValueFlag<uint64_t> _max_merged_groups_in_memory(block_merge_opts, "N",
                                                            "increasing this value, much more blocks that are not immediately contiguous along the graph will be merged [default: 50]",
                                                            {'G', "max-block-groups-in-memory"});
-
+#ifdef POA_DEBUG
     args::Group debugging_opts(parser, "[ Debugging Options ]");
     args::Flag write_block_to_split_fastas(debugging_opts, "bool", "write the FASTA sequences for split blocks",
-                                           {'A', "write-split-block-fastas"});
+                                           {'S', "write-split-block-fastas"});
     args::ValueFlag<uint64_t> _write_block_fastas(debugging_opts, "N", "write the FASTA sequences for blocks put into POA. Write blocks whose alignment took at least N milliseconds [default: disabled]",
                                   {'B', "write-poa-block-fastas"});
-
+#endif
     args::Group threading_opts(parser, "[ Threading ]");
     args::ValueFlag<uint64_t> num_threads(threading_opts, "N", "use this many threads during parallel steps", {'t', "threads"});
     args::ValueFlag<uint64_t> num_poa_threads(threading_opts, "N", "use this many POA threads (can be used to reduce memory requirements with large --poa-length-target settings) [default: --threads]", {'T', "poa-threads"});
@@ -264,9 +264,9 @@ int main(int argc, char **argv) {
                          " or the maximum seed in block with -w/block-weight-max." << std::endl;
 			return 1;
 		}
-
+#ifdef POA_DEBUG
         const uint64_t write_block_fastas = _write_block_fastas ? args::get(_write_block_fastas) : std::numeric_limits<uint64_t>::max();
-
+#endif
         const double contiguous_path_jaccard = _contiguous_path_jaccard ? min(args::get(_contiguous_path_jaccard), 1.0) : 1.0;
 		const uint64_t max_block_jump = _max_block_jump ? (uint64_t)smoothxg::handy_parameter(args::get(_max_block_jump), 100) : 100;
         const uint64_t max_edge_jump = _max_edge_jump ? (uint64_t)smoothxg::handy_parameter(args::get(_max_edge_jump), 0) : 0;
@@ -338,7 +338,7 @@ int main(int argc, char **argv) {
                 poa_n = params[1];
                 poa_g = params[2];
                 poa_e = params[3];
-                if (args::get(use_spoa)) {
+                if (!args::get(use_abpoa)) {
                     poa_q = poa_g;
                     poa_c = poa_e;
                 } else {
@@ -348,7 +348,7 @@ int main(int argc, char **argv) {
             }
         }
 
-        const bool order_paths_from_longest = true; //args::get(use_spoa);
+        const bool order_paths_from_longest = true; //!args::get(use_abpoa);
         const float term_updates = (_prep_sgd_min_term_updates ? args::get(_prep_sgd_min_term_updates) : 1);
         const int node_chop = (_prep_node_chop ? args::get(_prep_node_chop) : 100);
 
@@ -428,7 +428,9 @@ int main(int argc, char **argv) {
                                    order_paths_from_longest,
                                    true,
                                    n_threads,
+#ifdef POA_DEBUG
                                    args::get(write_block_to_split_fastas),
+#endif
 								   smoothxg_iter);
 
             // build the path_step_rank_ranges -> index_in_blocks_vector
@@ -461,7 +463,7 @@ int main(int argc, char **argv) {
 
                 // POA
                 maf_header += "# POA=";
-                maf_header += (args::get(use_spoa) ? "SPOA" : "abPOA");
+                maf_header += (args::get(use_abpoa) ? "abPOA" : "SPOA");
                 maf_header += " alignment_mode=";
                 maf_header += (local_alignment ? "local" : "global");
                 maf_header += " order_paths=from_";
@@ -508,11 +510,13 @@ int main(int argc, char **argv) {
                                                           (current_iter == num_iterations - 1) ? args::get(write_msa_in_maf_format) : "", maf_header,
                                                           args::get(merge_blocks), args::get(_preserve_unmerged_consensus),
                                                           contiguous_path_jaccard,
-                                                          !args::get(use_spoa),
+                                                          args::get(use_abpoa),
                                                           // We add consensus paths only during the last iteration
                                                           (current_iter == num_iterations - 1) && add_consensus ? consensus_path_prefix : "",
                                                           consensus_path_names,
+#ifdef POA_DEBUG
                                                           write_block_fastas,
+#endif
                                                           max_merged_groups_in_memory,
 														  smoothxg_iter);
 

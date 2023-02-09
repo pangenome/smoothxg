@@ -115,3 +115,13 @@ guix environment --ad-hoc smoothxg
 
 For more details about how to handle Guix channels, go to https://git.genenetwork.org/guix-bioinformatics/guix-bioinformatics.git.
 
+
+
+#### Notes for debugging
+
+To enable the `-A/--write-split-block-fastas` and `--write-poa-block-fastas` options and emit a table 
+with POA block statistics, add the `-DPOA_DEBUG=ON` option:
+
+```shell
+cmake -H. -Bbuild -D CMAKE_BUILD_TYPE=Release -DPOA_DEBUG=ON && cmake --build build -- -j 3
+```

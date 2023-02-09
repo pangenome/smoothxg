@@ -46,6 +46,11 @@ else()
   set (CMAKE_CXX_FLAGS "${OpenMP_CXX_FLAGS} ${PIC_FLAG} ${EXTRA_FLAGS}")
 endif ()
 
+if(POA_DEBUG)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPOA_DEBUG")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPOA_DEBUG")
+endif ()
+
 #set(THREADS_PREFER_PTHREAD_FLAG ON)
 #find_package(Threads REQUIRED)
 
@@ -269,38 +274,49 @@ add_library(abpoa STATIC
 
 #add_subdirectory(deps/mmmulti/deps/mio)
 ExternalProject_Add(mio
-        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mmmulti/deps/mio"
-        UPDATE_COMMAND ""
-        INSTALL_COMMAND ""
-        BUILD_COMMAND ""
-        CONFIGURE_COMMAND "")
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mmmulti/deps/mio"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
 ExternalProject_Get_property(mio SOURCE_DIR)
 set(mio_INCLUDE "${SOURCE_DIR}/include")
 
 # mkmh
 ExternalProject_Add(mkmh
-        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mkmh"
-        UPDATE_COMMAND ""
-        INSTALL_COMMAND ""
-        BUILD_COMMAND ""
-        CONFIGURE_COMMAND "")
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mkmh"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
 ExternalProject_Get_property(mkmh SOURCE_DIR)
 set(mkmh_INCLUDE "${SOURCE_DIR}")
 
 ExternalProject_Add(edlib
-        SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/edlib"
-        UPDATE_COMMAND ""
-        INSTALL_COMMAND ""
-        BUILD_COMMAND ""
-	TEST_COMMAND ""
-        CONFIGURE_COMMAND "")
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/edlib"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  TEST_COMMAND ""
+  CONFIGURE_COMMAND "")
 ExternalProject_Get_property(edlib SOURCE_DIR)
 set(edlib_INCLUDE "${SOURCE_DIR}/edlib/include")
+
+ExternalProject_Add(xxHash
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/xxHash"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  TEST_COMMAND ""
+  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(xxHash SOURCE_DIR)
+set(xxHash_INCLUDE "${SOURCE_DIR}")
 
 add_subdirectory(deps/WFA EXCLUDE_FROM_ALL)
 
 add_library(smoothxg_objs OBJECT
   src/tempfile.cpp
+  deps/xxHash/xxhash.c
   src/xg.cpp
   src/chain.cpp
   src/prep.cpp
@@ -312,7 +328,6 @@ add_library(smoothxg_objs OBJECT
   src/utils.cpp
   src/zstdutil.cpp
   ${sautocorr_INCLUDE}/sautocorr.cpp
-  src/maf.hpp
   src/consensus_graph.cpp)
 
 add_dependencies(smoothxg_objs handlegraph)
