@@ -140,9 +140,6 @@ set(sparsepp_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/sparsepp/sparsepp)
 set(flathashmap_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/flat_hash_map)
 set(random_dist_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/cpp_random_distributions)
 
-file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/odgi/include)
-execute_process(COMMAND bash scripts/generate_git_version.sh include WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/deps/odgi)
-
 # mmmulti (memory mapped multimap)
 ExternalProject_Add(mmmulti
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mmmulti"
