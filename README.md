@@ -119,7 +119,7 @@ For more details about how to handle Guix channels, go to https://git.genenetwor
 
 #### Notes for debugging
 
-To enable the `-A/--write-split-block-fastas` and `--write-poa-block-fastas` options and emit a table 
+To make the `-S/--write-split-block-fastas` and `--write-poa-block-fastas` options available, and emit a table 
 with POA block statistics, add the `-DPOA_DEBUG=ON` option:
 
 ```shell
