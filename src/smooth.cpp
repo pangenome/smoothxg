@@ -2371,7 +2371,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
 #endif
 
     // Flip graphs
-    {
+    if (num_flipped_graphs > 0){
         std::stringstream flip_graphs_banner;
         flip_graphs_banner << smoothxg_iter << "::smooth_and_lace] flipping " << num_flipped_graphs << " block graphs:";
         progress_meter::ProgressMeter flip_graphs_progress(block_count, flip_graphs_banner.str());
@@ -2454,6 +2454,8 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             }
         }
         flip_graphs_progress.finish();
+    } else {
+        std::cerr << smoothxg_iter << "::smooth_and_lace] flipping 0 block graphs:";
     }
 
     std::cerr << smoothxg_iter << "::smooth_and_lace] sorting path_mappings" << std::endl;
