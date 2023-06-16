@@ -917,27 +917,44 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                             block_graph.get_id(old_handle));
                 });
 
-        block_graph.for_each_handle(
-                [&](const handle_t& curr) {
-                    block_graph.follow_edges(
-                            curr, false,
-                            [&](const handle_t& next) {
-                                output_graph->create_edge(
-                                        output_graph->get_handle(block_graph.get_id(curr),
-                                                                block_graph.get_is_reverse(curr)),
-                                        output_graph->get_handle(block_graph.get_id(next),
-                                                                block_graph.get_is_reverse(next)));
-                            });
-                    block_graph.follow_edges(
-                            curr, true,
-                            [&](const handle_t& prev) {
-                                output_graph->create_edge(
-                                        output_graph->get_handle(block_graph.get_id(prev),
-                                                                block_graph.get_is_reverse(prev)),
-                                        output_graph->get_handle(block_graph.get_id(curr),
-                                                                block_graph.get_is_reverse(curr)));
-                            });
-                });
+        // Previous way to copy edges: there were edges not supported by any path!
+        //block_graph.for_each_handle(
+        //        [&](const handle_t& curr) {
+        //            block_graph.follow_edges(
+        //                    curr, false,
+        //                    [&](const handle_t& next) {
+        //                        output_graph->create_edge(
+        //                                output_graph->get_handle(block_graph.get_id(curr),
+        //                                                        block_graph.get_is_reverse(curr)),
+        //                                output_graph->get_handle(block_graph.get_id(next),
+        //                                                        block_graph.get_is_reverse(next)));
+        //                    });
+        //            block_graph.follow_edges(
+        //                    curr, true,
+        //                    [&](const handle_t& prev) {
+        //                        output_graph->create_edge(
+        //                                output_graph->get_handle(block_graph.get_id(prev),
+        //                                                        block_graph.get_is_reverse(prev)),
+        //                                output_graph->get_handle(block_graph.get_id(curr),
+        //                                                        block_graph.get_is_reverse(curr)));
+        //                    });
+        //        });
+        // Put edges supported by the paths
+        ska::flat_hash_set<edge_t> edges_to_create;
+        block_graph.for_each_path_handle([&](const path_handle_t &path) {
+            handle_t last;
+            const step_handle_t begin_step = block_graph.path_begin(path);
+            block_graph.for_each_step_in_path(path, [&](const step_handle_t &step) {
+                handle_t h = block_graph.get_handle_of_step(step);
+                if (step != begin_step) {
+                    edges_to_create.insert({last, h});
+                }
+                last = h;
+            });
+        });
+        for (auto& edge : edges_to_create) {
+            output_graph->create_edge(edge);
+        }
 
         // Put the paths in original order w.r.t. the input block
         if (!consensus_name.empty()){
@@ -954,6 +971,10 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 output_graph->append_step(new_path, new_handle);
             });
         }
+
+        ///std::ofstream a("smoothxg_block_" + std::to_string(block_id) + ".gfa");
+        ///output_graph->to_gfa(a);
+        ///a.close();
     /*}else {
         // if the block is too deep, just mirror the input graph structure
         for (auto &path_range : block.path_ranges) {
