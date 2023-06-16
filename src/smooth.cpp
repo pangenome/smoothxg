@@ -2455,7 +2455,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         }
         flip_graphs_progress.finish();
     } else {
-        std::cerr << smoothxg_iter << "::smooth_and_lace] flipping 0 block graphs:";
+        std::cerr << smoothxg_iter << "::smooth_and_lace] flipping 0 block graphs";
     }
 
     std::cerr << smoothxg_iter << "::smooth_and_lace] sorting path_mappings" << std::endl;
