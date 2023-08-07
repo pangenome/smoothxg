@@ -22,7 +22,6 @@ void smoothable_blocks(
 
     // cast to vectorizable graph for determining the sort position of nodes
     const VectorizableHandleGraph& vec_graph = dynamic_cast<const VectorizableHandleGraph&>(graph);
-    std::cerr << smoothxg_iter << "::smoothable_blocks] computing blocks" << std::endl;
 
     uint64_t rank = 0;
     graph.for_each_path_handle([&](const path_handle_t& path) {
@@ -53,8 +52,7 @@ void smoothable_blocks(
                      step = graph.get_next_step(step)) {
                     auto h = graph.get_handle_of_step(step);
                     auto id = graph.get_id(h);
-                    auto f = id_to_entry.find(id);
-                    if (f == id_to_entry.end()) {
+                    if (id_to_entry.find(id) == id_to_entry.end()) {
                         id_to_entry[id] = node_count++;
                         nodes.push_back(id);
                     }
@@ -127,10 +125,11 @@ void smoothable_blocks(
                 [&](const step_handle_t& a, const step_handle_t& b) {
                     return path_rank(a) < path_rank(b) || path_rank(a) == path_rank(b) && step_rank(a) < step_rank(b);
                 });
+
             // determine the path ranges in the block
             // break them when we pass some threshold for how much block-external sequence to include
             // (this parameter is meant to allow us to reduce dispersed collapses in the graph)
-            // break them when they jump more than max_edge_jump in our graph sort order
+            // break them when they jump more than max_path_jump in our graph sort order
             // TODO explore breaking when we have a significant change in coverage relative to the average in the region
             std::vector<path_range_t> path_ranges;
             for (auto& step : traversals) {
@@ -151,9 +150,9 @@ void smoothable_blocks(
                     }
                 }
             }
+
             // break the path ranges on seen steps
             for (auto& path_range : path_ranges) {
-                uint64_t included_path_length = 0;
                 // update the path range end to point to the one-past element
                 path_range.end = graph.get_next_step(path_range.end);
                 path_range_t* curr_path_range = nullptr;
@@ -178,7 +177,6 @@ void smoothable_blocks(
             }
 
             // erase any empty path ranges that we picked up
-            // and any path ranges that are shorter than our minimum subpath size
             block.path_ranges.erase(
                 std::remove_if(
                     block.path_ranges.begin(), block.path_ranges.end(),
@@ -188,8 +186,7 @@ void smoothable_blocks(
                 block.path_ranges.end());
 
             // finally, mark which steps we've kept and record the total length
-            uint64_t _total_path_length = 0; // recalculate how much sequence we have
-            //block.max_path_length = 0; // and the longest path range
+            uint64_t _total_path_length = 0; // recalculate how much sequence we have in the block
             for (auto& path_range : block.path_ranges) {
                 auto& included_path_length = path_range.length;
                 included_path_length = 0;
@@ -220,6 +217,7 @@ void smoothable_blocks(
                             return a.length < b.length;
                         }
                 );
+
                 // split blocks by graph topology
                 // here weakly connected components of the graph are split apart
                 // so that we do not compress disparate parts of the graph in one POA block
@@ -230,7 +228,7 @@ void smoothable_blocks(
 
             std::vector<path_range_t>().swap(block.path_ranges);
         };
-    //uint64_t id = 0;
+
     std::stringstream blocks_banner;
     blocks_banner << smoothxg_iter << "::smoothable_blocks] computing blocks for "
                     << graph.get_node_count() << " handles:";
@@ -243,6 +241,7 @@ void smoothable_blocks(
         [&](const handle_t& handle) {
             // how much sequence would we be adding to the block?
             int64_t handle_length = graph.get_length(handle);
+
             uint64_t sequence_to_add = 0;
             graph.for_each_step_on_handle(
                 handle,
@@ -251,6 +250,7 @@ void smoothable_blocks(
                         sequence_to_add += handle_length;
                     }
                 });
+
             // nb. this doesn't count duplicate traversals, but doing so would require running a full block traversal at every handle
             uint64_t max_path_length = 0;
             for (auto& p : path_coverage) {
@@ -260,10 +260,10 @@ void smoothable_blocks(
                                                       : (double) p.second.second / (double) block_handles.size()));
                 max_path_length = std::max(path_len_est + handle_length, max_path_length);
             }
+
             // for each edge, find the jump length
             int64_t longest_edge_jump = 0;
             int64_t handle_vec_offset = vec_graph.node_vector_offset(graph.get_id(handle));
-            //int64_t handle_length = graph.get_length(handle);
             graph.follow_edges(
                 handle, false,
                 [&](const handle_t& o) {
@@ -291,22 +291,14 @@ void smoothable_blocks(
                      || (max_edge_jump && longest_edge_jump > max_edge_jump)
                      || max_path_length > max_block_path_length)
             ) {
-                /*
-                std::cerr << "block over weight "
-                          << block.total_path_length << " " << sequence_to_add << " " << max_block_weight << std::endl;
-                */
-
-                // if so, finalize the last block and add the new one
+                // finalize the previous block and start a new one
                 finalize_block(block, block_handles);
 
-                total_path_length = sequence_to_add;
+                total_path_length = 0;
                 path_coverage.clear();
-
-            } else {
-                // if not, add and update
-
-                total_path_length += sequence_to_add;
             }
+
+            total_path_length += sequence_to_add;
 
             graph.for_each_step_on_handle(
                 handle,
