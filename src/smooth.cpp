@@ -1952,19 +1952,6 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
                 mafs[block_id] = std::make_unique<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>();
             }
 
-            uint64_t max_seq_len = 0;
-            for (auto &path_range : block.path_ranges) {
-                uint64_t seq_length = 0;
-                for (step_handle_t step = path_range.begin; step != path_range.end;
-                     step = graph.get_next_step(step)) {
-                    const auto h = graph.get_handle_of_step(step);
-                    const auto l = graph.get_length(h);
-                    seq_length += l;
-                }
-
-                max_seq_len = std::max(max_seq_len, seq_length);
-            }
-
             int poa_padding = 0;
             if (poa_padding_fraction > 0) {
                 if (block.path_ranges.size() <= max_block_depth_for_padding_more) {
@@ -2148,7 +2135,7 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             uint64_t num_dedup_seqs = 0;
 
             uint64_t min_seq_len = std::numeric_limits<uint64_t>::max();
-            max_seq_len = 0;
+            uint64_t max_seq_len = 0;
             float avg_seq_len = 0.0;
             uint64_t min_seq_len_padded = std::numeric_limits<uint64_t>::max();
             uint64_t max_seq_len_padded = 0;
@@ -2455,10 +2442,10 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         }
         flip_graphs_progress.finish();
     } else {
-        std::cerr << smoothxg_iter << "::smooth_and_lace] flipping 0 block graphs";
+        std::cerr << smoothxg_iter << "::smooth_and_lace] flipping 0 block graphs" << std::endl;
     }
 
-    std::cerr << smoothxg_iter << "::smooth_and_lace] sorting path_mappings" << std::endl;
+    std::cerr << smoothxg_iter << "::smooth_and_lace] sorting path fragments" << std::endl;
     // sort the path range mappings by path handle id, then start position
     // this will allow us to walk through them in order
     /*
@@ -2471,14 +2458,19 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
         });
     */
     path_mapping.index(n_threads);
+    std::cerr << smoothxg_iter << "::smooth_and_lace] sorted " << path_mapping.size() << " path fragments" << std::endl;
 
     // build the sequence and edges into the output graph
     auto* smoothed = new odgi::graph_t();
     std::vector<path_handle_t> paths; // for parallel iteration
 
     // add the nodes and edges to the graph
-    std::vector<uint64_t> id_mapping;
     {
+        std::vector<uint64_t> id_mapping;
+
+        std::stringstream load_graphs_banner;
+        load_graphs_banner << smoothxg_iter << "::smooth_and_lace] loading " << block_count << " graph blocks:";
+        progress_meter::ProgressMeter load_graphs_progress(block_count, load_graphs_banner.str());
         std::vector<std::unique_ptr<odgi::graph_t>> graphs(block_count);
 #pragma omp parallel for schedule(dynamic,1)
         for (uint64_t idx = 0; idx < block_count; ++idx) {
@@ -2490,7 +2482,9 @@ odgi::graph_t* smooth_and_lace(const xg::XG &graph,
             graphs[idx] = std::make_unique<odgi::graph_t>();
             graphs[idx]->deserialize_members(ss);
             delete block_graphs[idx];
+            load_graphs_progress.increment(1);
         }
+        load_graphs_progress.finish();
         _block_graphs.reset(nullptr); // we've decompressed these, now clear our block graphs
 
         std::stringstream add_graph_banner;
