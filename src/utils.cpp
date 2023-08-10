@@ -75,4 +75,27 @@ double handy_parameter(const std::string& value, const double default_value) {
     return is_a_number(tmp) ? (stod(tmp) * pow(10, exp)) : default_value;
 }
 
+std::unique_ptr<odgi::graph_t> get_block_graph(std::vector<std::string *> &block_graphs, const uint64_t &block_id) {
+    std::string data;
+    zstdutil::DecompressString(*block_graphs[block_id], data);
+    stringstream ss;
+    ss << data;
+    ss.seekg(0,std::ios_base::beg);
+    auto block_graph = std::make_unique<odgi::graph_t>();
+    block_graph->deserialize_members(ss);
+    return block_graph;
+}
+
+void save_block_graph(std::vector<std::string *> &block_graphs, const uint64_t &block_id, const odgi::graph_t *block_graph){
+    std::stringstream ss;
+    block_graph->serialize_members(ss);
+    std::string*& s = block_graphs[block_id];
+    if (s == nullptr) {
+        s = new std::string;
+    } else {
+        s->clear();
+    }
+    zstdutil::CompressString(ss.str(), *s);
+}
+
 }
