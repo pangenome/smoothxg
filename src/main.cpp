@@ -569,21 +569,18 @@ int main(int argc, char **argv) {
                                             max_merged_groups_in_memory,
                                             smoothxg_iter);
 
-                // Save information from the input graph that we will need later
-
+                // Save path names, lengths and sequences from the input graph as we will need them later
                 graph->for_each_path_handle([&](const path_handle_t& path) {
                     path_handle_2_name_and_length[path] = std::make_pair(graph->get_path_name(path), graph->get_path_length(path));
                 });
-                // // 1) index the queries (Q) to provide sequence name to position and position to sequence name mapping, generating a CSA and a sequence file
-                // if (args::get(show_progress)) std::cerr << "[seqwish::seqidx] " << std::fixed << std::showpoint << std::setprecision(3) << seconds_since(start_time) << " indexing sequences" << std::endl;
 
+                std::cerr << smoothxg_iter << "::smooth_and_lace] indexing sequences" << std::endl;
                 seqidx.build_index(*graph);
                 seqidx.save();
-                // if (args::get(show_progress)) std::cerr << "[seqwish::seqidx] " << std::fixed << std::showpoint << std::setprecision(3) << seconds_since(start_time) << " index built" << std::endl;
 
                 delete blockset;
-
-            }// graph.~XG();
+            }
+            // Here "graph" is deallocated, avoiding keeping it in memory together with the smoothed graph we are going to create
             
             std::cerr << smoothxg_iter << "::smooth_and_lace] sorting path fragments" << std::endl;
             // sort the path range mappings by path handle id, then start position
@@ -602,8 +599,6 @@ int main(int argc, char **argv) {
 
             // build the sequence and edges into the output graph
             auto* smoothed = new odgi::graph_t();
-
-
 
             // add the nodes and edges to the graph
             {
