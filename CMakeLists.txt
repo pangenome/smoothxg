@@ -15,10 +15,10 @@ enable_testing()
 # Preload the following libraries before running tests
 set(PRELOAD "libasan.so:libjemalloc.so.2")
 
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release CACHE STRING
-          "Choose the type of build, options are: Release Debug Generic." FORCE)
-endif()
+# if(NOT CMAKE_BUILD_TYPE)
+#   set(CMAKE_BUILD_TYPE Release CACHE STRING
+#           "Choose the type of build, options are: Release Debug Generic." FORCE)
+# endif()
 
 # set(CMAKE_BUILD_TYPE Debug) -- don't uncomment this, instead run
 #   cmake -DCMAKE_BUILD_TYPE=Debug ..
