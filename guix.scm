@@ -2,7 +2,7 @@
 ;;
 ;;   guix build -f guix.scm
 ;;
-;; (make sure you are running a recent guix)
+;; (make sure you are running a recent guix and checked out all submodules)
 ;;
 ;; To do a cross compilation build for ARM64
 ;;
@@ -21,7 +21,7 @@
 ;;
 ;; Or for a release, something like
 ;;
-;;   cd build && rm -rf * ; cmake -DCMAKE_BUILD_TYPE=Release .. && make -j 16 VERBOSE=1 && ctest . --verbose
+;;   cd build && rm -rf ../build/* ; cmake -DCMAKE_BUILD_TYPE=Release .. && make -j 16 VERBOSE=1 && ctest . --verbose
 ;;
 ;; For the tests you may need /usr/bin/env. In a container create it with
 ;;
@@ -83,8 +83,9 @@
        ("sdsl-lite" ,sdsl-lite)
        ("libdivsufsort" ,libdivsufsort)
        ("zlib-static" ,zlib "static")
-       ("zlib" ,zlib)
+       ("zlib" ,zlib) ; also for the static build we need the includes
        ("zstd-lib" ,zstd "static")
+       ("zstd" ,zstd "lib") ; same
        ))
     (native-inputs
      `(("pkg-config" ,pkg-config)

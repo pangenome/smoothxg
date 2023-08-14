@@ -18,13 +18,9 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
-# find_package(ZLIB REQUIRED)
-# FindZLIB()
-
 find_package(PkgConfig REQUIRED)
 find_package(ZLIB REQUIRED)
-# set_package_properties(ZLIB PROPERTIES TYPE REQUIRED)
-
+find_package(ZSTD)
 
 # Preload the following libraries before running tests
 set(PRELOAD "libasan.so:libjemalloc.so.2")
