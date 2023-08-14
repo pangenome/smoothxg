@@ -21,7 +21,7 @@ set(CMAKE_EXE_LINKER_FLAGS "-static")
 
 find_package(PkgConfig REQUIRED)
 find_package(ZLIB REQUIRED)
-find_package(ZSTD)
+# find_package(ZSTD REQUIRED) - needs recent versions of cmake
 
 # Preload the following libraries before running tests
 set(PRELOAD "libasan.so:libjemalloc.so.2")
