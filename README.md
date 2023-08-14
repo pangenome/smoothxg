@@ -83,6 +83,12 @@ If you need to avoid machine-specific optimizations, use the `CMAKE_BUILD_TYPE=G
 cmake -H. -Bbuild -DCMAKE_BUILD_TYPE=Generic && cmake --build build -- -j 3
 ```
 
+To build for a specific architecture you can use EXTRA_FLAGS
+
+```shell
+cmake -DCMAKE_BUILD_TYPE=Release -DEXTRA_FLAGS="-Ofast -march=znver1" .. && make -j 16 VERBOSE=1
+```
+
 ### Bioconda
 
 `smoothxg` recipes for Bioconda are available at https://anaconda.org/bioconda/smoothxg.

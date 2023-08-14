@@ -14,6 +14,7 @@ include(CheckIPOSupported) # adds lto
 check_ipo_supported(RESULT ipo_supported OUTPUT output)
 SET(CMAKE_RANLIB "gcc-ranlib") # too try lto with older runtimes
 
+# This builds a static version of ./bin/smoothxg
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_EXE_LINKER_FLAGS "-static")
@@ -33,7 +34,9 @@ endif()
 #   cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 if (${CMAKE_BUILD_TYPE} MATCHES Release)
-  set(EXTRA_FLAGS "-Ofast -march=native -flto -fno-fat-lto-objects")
+  if(NOT EXTRA_FLAGS)
+    set(EXTRA_FLAGS "-Ofast -march=native -flto -fno-fat-lto-objects")
+  endif()
   set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG") # reset CXX_FLAGS to replace -O3 with -Ofast
 
   # Increase SPOA's performance
