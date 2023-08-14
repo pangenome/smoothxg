@@ -2,6 +2,8 @@
 ;;
 ;;   guix build -f guix.scm
 ;;
+;; (make sure you are running a recent guix and checked out all submodules)
+;;
 ;; To do a cross compilation build for ARM64
 ;;
 ;;   guix build -f guix.scm --target=aarch64-linux
@@ -16,6 +18,10 @@
 ;;   cd build
 ;;   cmake -DCMAKE_BUILD_TYPE=Debug ..
 ;;   cmake --build . --verbose -- -j 14 && ctest . --verbose
+;;
+;; Or for a release, something like
+;;
+;;   cd build && rm -rf ../build/* ; cmake -DCMAKE_BUILD_TYPE=Release .. && make -j 16 VERBOSE=1 && ctest . --verbose
 ;;
 ;; For the tests you may need /usr/bin/env. In a container create it with
 ;;
@@ -65,22 +71,21 @@
     (inputs
      `(
        ("coreutils" ,coreutils)
-       ; ("cpp-httplib" ,cpp-httplib) later!
        ("pybind11" ,pybind11) ;; see libstd++ note in remarks above
-       ; ("intervaltree" ,intervaltree) later!
        ("jemalloc" ,jemalloc)
        ("gcc" ,gcc-11)
        ("gcc-lib" ,gcc-11 "lib")
-       ("gcc-toolchain" ,gcc-toolchain)
+       ("gcc-toolchain" , gcc-toolchain)
        ("gdb" ,gdb)
        ("git" ,git) ; pulls in perl which does not do RISV-V cross builds yet
-       ; ("lodepng" ,lodepng) later!
        ("openmpi" ,openmpi)
        ("python" ,python)
        ("sdsl-lite" ,sdsl-lite)
        ("libdivsufsort" ,libdivsufsort)
-       ("zlib" ,zlib)
-       ("zstd-lib" ,zstd "lib")
+       ("zlib-static" ,zlib "static")
+       ("zlib" ,zlib) ; also for the static build we need the includes
+       ("zstd-lib" ,zstd "static")
+       ("zstd" ,zstd "lib") ; same
        ))
     (native-inputs
      `(("pkg-config" ,pkg-config)

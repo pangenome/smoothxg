@@ -1,6 +1,6 @@
 # Specify the minimum version for CMake
 
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.16 FATAL_ERROR)
 
 # Project's name
 project(smoothxg)
@@ -8,23 +8,43 @@ project(smoothxg)
 # We build using c++17
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(ZLIB REQUIRED)
-
 enable_testing()
+
+include(CheckIPOSupported) # adds lto
+check_ipo_supported(RESULT ipo_supported OUTPUT output)
+SET(CMAKE_RANLIB "gcc-ranlib") # too try lto with older runtimes
+
+# This builds a static version of ./bin/smoothxg
+option(BUILD_STATIC "Build static binary" OFF)
+if (BUILD_STATIC)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+  set(BUILD_SHARED_LIBS OFF)
+  set(CMAKE_EXE_LINKER_FLAGS "-static")
+endif()
+
+find_package(OpenMP)
+# if(OpenMP_CXX_FOUND)
+#     target_link_libraries(MyTarget PUBLIC OpenMP::OpenMP_CXX)
+# endif()
+
+find_package(PkgConfig REQUIRED)
+find_package(ZLIB REQUIRED)
+# find_package(ZSTD REQUIRED) - needs recent versions of cmake
 
 # Preload the following libraries before running tests
 set(PRELOAD "libasan.so:libjemalloc.so.2")
 
 if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release CACHE STRING
-          "Choose the type of build, options are: Release Debug Generic." FORCE)
+  message(STATUS "Choose the type of build, options are: Release Debug Generic!")
 endif()
 
 # set(CMAKE_BUILD_TYPE Debug) -- don't uncomment this, instead run
 #   cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 if (${CMAKE_BUILD_TYPE} MATCHES Release)
-  set(EXTRA_FLAGS "-Ofast -march=native")
+  if(NOT EXTRA_FLAGS)
+    set(EXTRA_FLAGS "-Ofast -march=native -flto -fno-fat-lto-objects")
+  endif()
   set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG") # reset CXX_FLAGS to replace -O3 with -Ofast
 
   # Increase SPOA's performance
@@ -418,7 +438,7 @@ add_executable(smoothxg
 target_link_libraries(smoothxg spoa abpoa)
 target_link_libraries(smoothxg ${smoothxg_LIBS})
 
-target_link_libraries(smoothxg ZLIB::ZLIB zstd jemalloc)
+target_link_libraries(smoothxg z zstd jemalloc)
 
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
@@ -442,9 +462,10 @@ file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/include)
 execute_process(COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/generate_git_version.sh ${CMAKE_SOURCE_DIR}/include)
 
 add_test(
-    NAME smoothxg-test
-    COMMAND bin/smoothxg -t 2 -g test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.seqwish.gfa -j 5k -e 5k -l 700,900,1100 -m test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.maf -C "consensus,10,100:test/data/gi_568815592_32578768-32589835.txt:y,1000:test/data/gi_568815592_32578768-32589835.txt:n,10000" -o test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.gfa -r 12
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  NAME smoothxg-test
+  # 2 cores because of CI limitations
+  COMMAND bin/smoothxg -t 2 -g test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.seqwish.gfa -j 5k -e 5k -l 700,900,1100 -m test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.maf -C "consensus,10,100:test/data/gi_568815592_32578768-32589835.txt:y,1000:test/data/gi_568815592_32578768-32589835.txt:n,10000" -o test/data/DRB1-3123.fa.gz.pggb-s3000-p70-n10-a70-K16-k8-w10000-j5000-e5000.smooth.gfa -r 12
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 set_tests_properties(smoothxg-test PROPERTIES ENVIRONMENT "ASAN_OPTIONS=detect_leaks=1:symbolize=1;LSAN_OPTIONS=verbosity=0:log_threads=1")
 
 if (APPLE)
