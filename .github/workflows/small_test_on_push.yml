@@ -16,7 +16,7 @@ jobs:
           g++
           python3-dev
           libatomic-ops-dev
-          openmp
+          gcc-multilib
           autoconf
           libgsl-dev
           zlib1g-dev
