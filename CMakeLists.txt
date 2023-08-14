@@ -19,6 +19,11 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_EXE_LINKER_FLAGS "-static")
 
+find_package(OpenMP)
+# if(OpenMP_CXX_FOUND)
+#     target_link_libraries(MyTarget PUBLIC OpenMP::OpenMP_CXX)
+# endif()
+
 find_package(PkgConfig REQUIRED)
 find_package(ZLIB REQUIRED)
 # find_package(ZSTD REQUIRED) - needs recent versions of cmake
