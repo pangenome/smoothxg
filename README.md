@@ -89,6 +89,8 @@ To build for a specific architecture you can use EXTRA_FLAGS
 cmake -DCMAKE_BUILD_TYPE=Release -DEXTRA_FLAGS="-Ofast -march=znver1" .. && make -j 16 VERBOSE=1
 ```
 
+And to make a static build add the `-DBUILD_STATIC=ON` switch.
+
 ### Bioconda
 
 `smoothxg` recipes for Bioconda are available at https://anaconda.org/bioconda/smoothxg.

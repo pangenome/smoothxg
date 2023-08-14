@@ -14,6 +14,8 @@ On a `AMD Ryzen 7 3700X 8-Core Processor`:
         Elapsed (wall clock) time (h:mm:ss or m:ss): 0:25.45
 ```
 
+Note the debug version is about 35s.
+
 8 cores does not make much difference:
 
 ```
