@@ -8,13 +8,23 @@ project(smoothxg)
 # We build using c++17
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(ZLIB REQUIRED)
-
 enable_testing()
 
 include(CheckIPOSupported) # adds lto
 check_ipo_supported(RESULT ipo_supported OUTPUT output)
 SET(CMAKE_RANLIB "gcc-ranlib") # too try lto with older runtimes
+
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+set(BUILD_SHARED_LIBS OFF)
+set(CMAKE_EXE_LINKER_FLAGS "-static")
+
+# find_package(ZLIB REQUIRED)
+# FindZLIB()
+
+find_package(PkgConfig REQUIRED)
+find_package(ZLIB REQUIRED)
+# set_package_properties(ZLIB PROPERTIES TYPE REQUIRED)
+
 
 # Preload the following libraries before running tests
 set(PRELOAD "libasan.so:libjemalloc.so.2")
@@ -421,7 +431,7 @@ add_executable(smoothxg
 target_link_libraries(smoothxg spoa abpoa)
 target_link_libraries(smoothxg ${smoothxg_LIBS})
 
-target_link_libraries(smoothxg ZLIB::ZLIB zstd jemalloc)
+target_link_libraries(smoothxg z zstd jemalloc)
 
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})

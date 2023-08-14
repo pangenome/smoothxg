@@ -19,6 +19,10 @@
 ;;   cmake -DCMAKE_BUILD_TYPE=Debug ..
 ;;   cmake --build . --verbose -- -j 14 && ctest . --verbose
 ;;
+;; Or for a release, something like
+;;
+;;   cd build && rm -rf * ; cmake -DCMAKE_BUILD_TYPE=Release .. && make -j 16 VERBOSE=1 && ctest . --verbose
+;;
 ;; For the tests you may need /usr/bin/env. In a container create it with
 ;;
 ;;   mkdir -p /usr/bin ; ln -s $GUIX_ENVIRONMENT/bin/env /usr/bin/env
@@ -71,15 +75,16 @@
        ("jemalloc" ,jemalloc)
        ("gcc" ,gcc-11)
        ("gcc-lib" ,gcc-11 "lib")
-       ("gcc-toolchain" ,gcc-toolchain)
+       ("gcc-toolchain" , gcc-toolchain)
        ("gdb" ,gdb)
        ("git" ,git) ; pulls in perl which does not do RISV-V cross builds yet
        ("openmpi" ,openmpi)
        ("python" ,python)
        ("sdsl-lite" ,sdsl-lite)
        ("libdivsufsort" ,libdivsufsort)
+       ("zlib-static" ,zlib "static")
        ("zlib" ,zlib)
-       ("zstd-lib" ,zstd "lib")
+       ("zstd-lib" ,zstd "static")
        ))
     (native-inputs
      `(("pkg-config" ,pkg-config)
