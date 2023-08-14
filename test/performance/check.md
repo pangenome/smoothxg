@@ -43,3 +43,12 @@ Honoring -Ofast gives some speedup
         Percent of CPU this job got: 26%
         Elapsed (wall clock) time (h:mm:ss or m:ss): 0:24.40
 ```
+
+The static build with GNU Guix is same
+
+```
+        User time (seconds): 5.35
+        System time (seconds): 1.12
+        Percent of CPU this job got: 26%
+        Elapsed (wall clock) time (h:mm:ss or m:ss): 0:24.46
+```
