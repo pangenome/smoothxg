@@ -2,6 +2,8 @@
 ;;
 ;;   guix build -f guix.scm
 ;;
+;; (make sure you are running a recent guix)
+;;
 ;; To do a cross compilation build for ARM64
 ;;
 ;;   guix build -f guix.scm --target=aarch64-linux
@@ -65,16 +67,13 @@
     (inputs
      `(
        ("coreutils" ,coreutils)
-       ; ("cpp-httplib" ,cpp-httplib) later!
        ("pybind11" ,pybind11) ;; see libstd++ note in remarks above
-       ; ("intervaltree" ,intervaltree) later!
        ("jemalloc" ,jemalloc)
        ("gcc" ,gcc-11)
        ("gcc-lib" ,gcc-11 "lib")
        ("gcc-toolchain" ,gcc-toolchain)
        ("gdb" ,gdb)
        ("git" ,git) ; pulls in perl which does not do RISV-V cross builds yet
-       ; ("lodepng" ,lodepng) later!
        ("openmpi" ,openmpi)
        ("python" ,python)
        ("sdsl-lite" ,sdsl-lite)

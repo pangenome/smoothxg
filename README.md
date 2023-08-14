@@ -32,7 +32,7 @@ Path names should be unique.
 
 ### building from source
 
-`smoothxg` uses cmake to build itself and its dependencies. At least GCC version 9.3.0 is required for compilation. 
+`smoothxg` uses cmake to build itself and its dependencies. At least GCC version 9.3.0 is required for compilation.
 You can check your version via:
 
 ```
@@ -50,7 +50,30 @@ cd smoothxg
 cmake -H. -Bbuild && cmake --build build -- -j 4
 ```
 
+To optimize for architecture
+
+```
+cmake -DCMAKE_BUILD_TYPE=Release .. && make -j 16 VERBOSE=1 && ctest . --verbose
+```
+
+
 `libzstd-dev` must be of version 1.4 or higher.
+
+Run tests:
+
+```
+ctest . --verbose
+```
+
+Note that smoothxg depends on git submodules:
+
+```
+git submodule update --init --recursive
+```
+
+### Using Guix for building
+
+In your source dir make sure git submodules are up-to-date and follow the instructions in [guix.scm](guix.scm).
 
 #### Notes for distribution
 
@@ -119,7 +142,7 @@ For more details about how to handle Guix channels, go to https://git.genenetwor
 
 #### Notes for debugging
 
-To make the `-S/--write-split-block-fastas` and `-B/--write-poa-block-fastas` options available, and emit a table 
+To make the `-S/--write-split-block-fastas` and `-B/--write-poa-block-fastas` options available, and emit a table
 with POA block statistics, add the `-DPOA_DEBUG=ON` option:
 
 ```shell
