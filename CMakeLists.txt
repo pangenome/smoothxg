@@ -15,9 +15,12 @@ check_ipo_supported(RESULT ipo_supported OUTPUT output)
 SET(CMAKE_RANLIB "gcc-ranlib") # too try lto with older runtimes
 
 # This builds a static version of ./bin/smoothxg
-set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-set(BUILD_SHARED_LIBS OFF)
-set(CMAKE_EXE_LINKER_FLAGS "-static")
+option(BUILD_STATIC "Build static binary" OFF)
+if (BUILD_STATIC)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+  set(BUILD_SHARED_LIBS OFF)
+  set(CMAKE_EXE_LINKER_FLAGS "-static")
+endif()
 
 find_package(OpenMP)
 # if(OpenMP_CXX_FOUND)
