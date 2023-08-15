@@ -36,6 +36,18 @@
 using namespace std;
 using namespace xg;
 
+std::unique_ptr<odgi::graph_t> load_block(
+        std::vector<std::string *> &block_graphs,
+        uint64_t idx) {
+    std::string data;
+    zstdutil::DecompressString(*block_graphs[idx], data);
+    stringstream ss;
+    ss << data;
+    ss.seekg(0,std::ios_base::beg);
+    auto x = std::make_unique<odgi::graph_t>();
+    x->deserialize_members(ss);
+    return x;
+}
 
 int main(int argc, char **argv) {
     args::ArgumentParser parser("smoothxg: collinear block finder and graph consensus generator\n" + std::string(SMOOTHXG_GIT_VERSION));
@@ -599,7 +611,7 @@ int main(int argc, char **argv) {
 
             // build the sequence and edges into the output graph
             auto* smoothed = new odgi::graph_t();
-
+            const uint64_t sample_rate = block_count > 1000000 ? 8 : 0;
             // add the nodes and edges to the graph
             {
                 std::vector<uint64_t> id_mapping;
@@ -610,18 +622,19 @@ int main(int argc, char **argv) {
                 std::vector<std::unique_ptr<odgi::graph_t>> graphs(block_count);
         #pragma omp parallel for schedule(dynamic,1)
                 for (uint64_t idx = 0; idx < block_count; ++idx) {
-                    std::string data;
-                    zstdutil::DecompressString(*block_graphs[idx], data);
-                    stringstream ss;
-                    ss << data;
-                    ss.seekg(0,std::ios_base::beg);
-                    graphs[idx] = std::make_unique<odgi::graph_t>();
-                    graphs[idx]->deserialize_members(ss);
-                    delete block_graphs[idx];
+                    if (sample_rate == 0 || 0 == smoothxg::modulo(idx, sample_rate)) {
+                        std::string data;
+                        zstdutil::DecompressString(*block_graphs[idx], data);
+                        stringstream ss;
+                        ss << data;
+                        ss.seekg(0,std::ios_base::beg);
+                        graphs[idx] = std::make_unique<odgi::graph_t>();
+                        graphs[idx]->deserialize_members(ss);
+                        delete block_graphs[idx];
+                    }
                     load_graphs_progress.increment(1);
                 }
                 load_graphs_progress.finish();
-                _block_graphs.reset(nullptr); // we've decompressed these, now clear our block graphs
 
                 std::stringstream add_graph_banner;
                 add_graph_banner << smoothxg_iter << "::smooth_and_lace] adding nodes from " << block_count << " graphs:";
@@ -629,9 +642,13 @@ int main(int argc, char **argv) {
 
                 for (uint64_t idx = 0; idx < block_count; ++idx) {
                     uint64_t id_trans = smoothed->get_node_count();
-                    // record the id translation
-                    auto& block = graphs[idx];
-                    id_mapping.push_back(id_trans);
+                    id_mapping.push_back(id_trans); // record the id translation
+
+                    std::unique_ptr<odgi::graph_t> temp_block;
+                    // temp_block unique pointer to ensure we don't lose ownership if we load a block using the load_block function.
+                    // The , (comma) operator in the ternary condition ensures the temporary loaded block gets assigned to temp_block before being used.
+                    // This approach keeps the block in scope and properly managed during the loop iteration.
+                    auto& block = (sample_rate == 0 || 0 == smoothxg::modulo(idx, sample_rate)) ? graphs[idx] : (temp_block = load_block(block_graphs, idx), temp_block);
                     if (block->get_node_count() == 0) {
                         continue;
                     }
@@ -647,7 +664,8 @@ int main(int argc, char **argv) {
                 progress_meter::ProgressMeter add_edges_progress(block_count, add_edges_banner.str());
                 for (uint64_t idx = 0; idx < block_count; ++idx) {
                     auto& id_trans = id_mapping[idx];
-                    auto& block = graphs[idx];
+                    std::unique_ptr<odgi::graph_t> temp_block;
+                    auto& block = (sample_rate == 0 || 0 == smoothxg::modulo(idx, sample_rate)) ? graphs[idx] : (temp_block = load_block(block_graphs, idx), temp_block);
                     block->for_each_edge([&](const edge_t &e) {
                         smoothed->create_edge(
                                 smoothed->get_handle(id_trans + block->get_id(e.first)),
@@ -683,7 +701,8 @@ int main(int argc, char **argv) {
                         }
                         // write the path steps into the graph using the id translation
                         auto block_id = smoothxg::get_block_id(pos_range);
-                        auto& block = graphs[block_id];
+                        std::unique_ptr<odgi::graph_t> temp_block;
+                        auto& block = (sample_rate == 0 || 0 == smoothxg::modulo(block_id, sample_rate)) ? graphs[block_id] : (temp_block = load_block(block_graphs, block_id), temp_block);
                         auto id_trans = id_mapping.at(block_id);
                         block->for_each_step_in_path(
                             smoothxg::get_target_path(pos_range), [&](const step_handle_t &step) {
@@ -797,7 +816,8 @@ int main(int argc, char **argv) {
                     for (uint64_t id = 0; id < consensus_mapping.size(); ++id) {               
                         //for (auto &pos_range : consensus_mapping) {
                         if (!exclude_unmerged_consensus.test(id)) {
-                            auto& block = graphs[id];
+                            std::unique_ptr<odgi::graph_t> temp_block;
+                            auto& block = (sample_rate == 0 || 0 == smoothxg::modulo(id, sample_rate)) ? graphs[id] : (temp_block = load_block(block_graphs, id), temp_block);
                             consensus_paths[id] = smoothed->create_path_handle(block->get_path_name(consensus_mapping[id]));
                         } // else skip the embedding of the single consensus sequences
                     }
@@ -810,7 +830,8 @@ int main(int argc, char **argv) {
                         if (exclude_unmerged_consensus.test(id)) {
                             continue; // skip the embedding for the single consensus sequence
                         }
-                        auto& block = graphs[id];
+                        std::unique_ptr<odgi::graph_t> temp_block;
+                        auto& block = (sample_rate == 0 || 0 == smoothxg::modulo(id, sample_rate)) ? graphs[id] : (temp_block = load_block(block_graphs, id), temp_block);
                         path_handle_t smoothed_path = consensus_paths[id];
                         auto &id_trans = id_mapping[id];
                         block->for_each_step_in_path(consensus_mapping[id], [&](const step_handle_t &step) {
@@ -886,7 +907,8 @@ int main(int argc, char **argv) {
                                         consensus_path_is_merged.insert(as_integer(consensus_paths[block_id]));
                                     }
 
-                                    auto& block = graphs[block_id];
+                                    std::unique_ptr<odgi::graph_t> temp_block;
+                                    auto& block = (sample_rate == 0 || 0 == smoothxg::modulo(block_id, sample_rate)) ? graphs[block_id] : (temp_block = load_block(block_graphs, block_id), temp_block);
                                     auto& id_trans = id_mapping[block_id];
                                     block->for_each_step_in_path(
                                         consensus_mapping[block_id],
@@ -931,6 +953,13 @@ int main(int argc, char **argv) {
                     }
                 }
             }
+            // clear blocks that were not loaded and cleared before
+            for (uint64_t idx = 0; idx < block_count; ++idx) {
+                if (!(sample_rate == 0 || 0 == smoothxg::modulo(idx, sample_rate))) {
+                    delete block_graphs[idx];
+                }
+            }
+            _block_graphs.reset(nullptr);
 
             {
                 std::stringstream embed_banner;

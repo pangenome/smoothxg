@@ -31,4 +31,6 @@ std::unique_ptr<odgi::graph_t> get_block_graph(std::vector<std::string *> &block
 
 void save_block_graph(std::vector<std::string *> &block_graphs, const uint64_t &block_id, const odgi::graph_t *block_graph);
 
+uint64_t modulo(const uint64_t n, const uint64_t d);
+
 }

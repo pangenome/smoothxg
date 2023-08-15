@@ -98,4 +98,8 @@ void save_block_graph(std::vector<std::string *> &block_graphs, const uint64_t &
     zstdutil::CompressString(ss.str(), *s);
 }
 
+uint64_t modulo(const uint64_t n, const uint64_t d) {
+    return (n & (d - 1));
+}
+
 }
