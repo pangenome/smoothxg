@@ -637,7 +637,7 @@ int main(int argc, char **argv) {
                 load_graphs_progress.finish();
 
                 std::stringstream add_graph_banner;
-                add_graph_banner << smoothxg_iter << "::smooth_and_lace] adding nodes from " << block_count << " graphs:";
+                add_graph_banner << smoothxg_iter << "::smooth_and_lace] adding nodes and edges from " << block_count << " graphs:";
                 progress_meter::ProgressMeter add_graph_progress(block_count, add_graph_banner.str());
 
                 for (uint64_t idx = 0; idx < block_count; ++idx) {
@@ -655,25 +655,14 @@ int main(int argc, char **argv) {
                     block->for_each_handle([&](const handle_t &h) {
                         smoothed->create_handle(block->get_sequence(h));
                     });
-                    add_graph_progress.increment(1);
-                }
-                add_graph_progress.finish();
-
-                std::stringstream add_edges_banner;
-                add_edges_banner << smoothxg_iter << "::smooth_and_lace] adding edges from " << block_count << " graphs:";
-                progress_meter::ProgressMeter add_edges_progress(block_count, add_edges_banner.str());
-                for (uint64_t idx = 0; idx < block_count; ++idx) {
-                    auto& id_trans = id_mapping[idx];
-                    std::unique_ptr<odgi::graph_t> temp_block;
-                    auto& block = (sample_rate == 0 || 0 == smoothxg::modulo(idx, sample_rate)) ? graphs[idx] : (temp_block = load_block(block_graphs, idx), temp_block);
                     block->for_each_edge([&](const edge_t &e) {
                         smoothed->create_edge(
                                 smoothed->get_handle(id_trans + block->get_id(e.first)),
                                 smoothed->get_handle(id_trans + block->get_id(e.second)));
                     });
-                    add_edges_progress.increment(1);
+                    add_graph_progress.increment(1);
                 }
-                add_edges_progress.finish();
+                add_graph_progress.finish();
 
                 // then for each path, ensure that it's embedded in the graph by walking through
                 // its block segments in order and linking them up in the output graph
