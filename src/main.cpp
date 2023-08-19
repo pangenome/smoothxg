@@ -611,7 +611,7 @@ int main(int argc, char **argv) {
 
             // build the sequence and edges into the output graph
             auto* smoothed = new odgi::graph_t();
-            const uint64_t sample_rate = block_count > 1000000 ? 8 : 0;
+            const uint64_t sample_rate = block_count > 1000000 ? 4 : 0;
             // add the nodes and edges to the graph
             {
                 std::vector<uint64_t> id_mapping;
