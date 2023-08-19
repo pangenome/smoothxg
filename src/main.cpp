@@ -539,10 +539,10 @@ int main(int argc, char **argv) {
 
                 if ((current_iter == num_iterations - 1) && add_consensus) {
                     consensus_mapping.resize(block_count);
-                }
 
-                if ((current_iter == num_iterations - 1) && add_consensus && merge_blocks) {
-                    is_block_in_a_merged_group.resize(block_count);
+                    if (merge_blocks) {
+                        is_block_in_a_merged_group.resize(block_count);
+                    }
                 }
 
                 _block_graphs->resize(block_count, nullptr);
@@ -612,10 +612,7 @@ int main(int argc, char **argv) {
             // build the sequence and edges into the output graph
             auto* smoothed = new odgi::graph_t();
             const uint64_t sample_rate = block_count > 1000000 ? 4 : 0;
-            // add the nodes and edges to the graph
             {
-                std::vector<uint64_t> id_mapping;
-
                 std::stringstream load_graphs_banner;
                 load_graphs_banner << smoothxg_iter << "::smooth_and_lace] loading " << block_count << " graph blocks:";
                 progress_meter::ProgressMeter load_graphs_progress(block_count, load_graphs_banner.str());
@@ -640,6 +637,7 @@ int main(int argc, char **argv) {
                 add_graph_banner << smoothxg_iter << "::smooth_and_lace] adding nodes and edges from " << block_count << " graphs:";
                 progress_meter::ProgressMeter add_graph_progress(block_count, add_graph_banner.str());
 
+                std::vector<uint64_t> id_mapping;
                 for (uint64_t idx = 0; idx < block_count; ++idx) {
                     uint64_t id_trans = smoothed->get_node_count();
                     id_mapping.push_back(id_trans); // record the id translation
@@ -664,23 +662,54 @@ int main(int argc, char **argv) {
                 }
                 add_graph_progress.finish();
 
+                // Prepare the data needed to embed the paths in parallel
+                ska::flat_hash_map<path_handle_t, std::pair<uint64_t, uint64_t>> path_handle_2_start_and_end_in_path_mapping;
+                path_handle_t prec_path = smoothxg::get_base_path(path_mapping.read_value(0));
+                uint64_t prec_i = 0;
+                for (uint64_t i = 1; i < path_mapping.size(); ++i) {
+                    path_handle_t current_path = smoothxg::get_base_path(path_mapping.read_value(i));
+                    if (current_path != prec_path) {
+                         // Create path handles in the output graph not in parallel to preserve their order
+                        smoothed->create_path_handle(path_handle_2_name_and_length[prec_path].first);
+
+                        // Record the start and end of the path in the path_mapping
+                        path_handle_2_start_and_end_in_path_mapping[prec_path] = std::make_pair(prec_i, i-1);
+
+                        prec_path = current_path;
+                        prec_i = i;
+                    }
+                }
+                if (prec_i != path_mapping.size() - 1) {
+                    smoothed->create_path_handle(path_handle_2_name_and_length[prec_path].first);
+                    path_handle_2_start_and_end_in_path_mapping[prec_path] = std::make_pair(prec_i, path_mapping.size() - 1);
+                }
+
                 // then for each path, ensure that it's embedded in the graph by walking through
                 // its block segments in order and linking them up in the output graph
+                // do it in parallel
                 std::stringstream lace_banner;
                 lace_banner << smoothxg_iter << "::smooth_and_lace] embedding " << path_mapping.size() << " path fragments:";
                 progress_meter::ProgressMeter lace_progress(path_mapping.size(), lace_banner.str());
-                for (uint64_t i = 0; i < path_mapping.size(); ++i) {
-                    smoothxg::path_position_range_t pos_range = path_mapping.read_value(i);
+                auto it = path_handle_2_start_and_end_in_path_mapping.begin();
+        #pragma omp parallel for schedule(dynamic,1)
+                for (uint64_t i = 0; i < path_handle_2_start_and_end_in_path_mapping.size(); ++i) {
+                    auto local_it = std::next(it, i);
+
+                    //int thread_num = omp_get_thread_num();
+                    //#pragma omp critical 
+                    //std::cout << "Thread " << thread_num << " handling: " << local_it->second.first << " - " << local_it->second.second << "\n";
+                    
+                    smoothxg::path_position_range_t pos_range = path_mapping.read_value(local_it->second.first);
                     step_handle_t last_step = {0, 0};
                     bool first = true;
                     uint64_t last_end_pos = 0;
-                    // add the path to the graph
 
-                    path_handle_t smoothed_path = smoothed->create_path_handle(
-                        path_handle_2_name_and_length[smoothxg::get_base_path(pos_range)].first
-                    );
+                    const path_handle_t smoothed_path = smoothed->get_path_handle(path_handle_2_name_and_length[smoothxg::get_base_path(pos_range)].first);
+                    
                     // walk the path from start to end
-                    while (true) {
+                    for (uint64_t j = local_it->second.first; j <= local_it->second.second; ++j) {
+                        pos_range = path_mapping.read_value(j);
+
                         // if we find a segment that's not included in any block, we'll add
                         // it to the final graph and link it in to do so, we detect a gap in
                         // length, collect the sequence in the gap and add it to the graph
@@ -710,15 +739,10 @@ int main(int argc, char **argv) {
                             });
                         last_step = smoothed->path_back(smoothed_path);
                         last_end_pos = smoothxg::get_end_pos(pos_range);
-                        if (i + 1 == path_mapping.size() ||
-                            smoothxg::get_base_path(path_mapping.read_value(i + 1)) != smoothxg::get_base_path(pos_range)) {
-                            break;
-                        } else {
-                            ++i;
-                            pos_range = path_mapping.read_value(i);
-                        }
+
                         lace_progress.increment(1);
                     }
+
                     // now add in any final sequence in the path
                     // and add it to the path, add the edge
                     if (path_handle_2_name_and_length[smoothxg::get_base_path(pos_range)].second > last_end_pos) {
