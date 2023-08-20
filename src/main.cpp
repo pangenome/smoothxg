@@ -664,24 +664,26 @@ int main(int argc, char **argv) {
 
                 // Prepare the data needed to embed the paths in parallel
                 ska::flat_hash_map<path_handle_t, std::pair<uint64_t, uint64_t>> path_handle_2_start_and_end_in_path_mapping;
-                path_handle_t prec_path = smoothxg::get_base_path(path_mapping.read_value(0));
-                uint64_t prec_i = 0;
-                for (uint64_t i = 1; i < path_mapping.size(); ++i) {
-                    path_handle_t current_path = smoothxg::get_base_path(path_mapping.read_value(i));
-                    if (current_path != prec_path) {
-                         // Create path handles in the output graph not in parallel to preserve their order
-                        smoothed->create_path_handle(path_handle_2_name_and_length[prec_path].first);
+                {
+                    path_handle_t prec_path = smoothxg::get_base_path(path_mapping.read_value(0));
+                    uint64_t prec_i = 0;
+                    for (uint64_t i = 1; i < path_mapping.size(); ++i) {
+                        path_handle_t current_path = smoothxg::get_base_path(path_mapping.read_value(i));
+                        if (current_path != prec_path) {
+                            // Create path handles in the output graph not in parallel to preserve their order
+                            smoothed->create_path_handle(path_handle_2_name_and_length[prec_path].first);
 
-                        // Record the start and end of the path in the path_mapping
-                        path_handle_2_start_and_end_in_path_mapping[prec_path] = std::make_pair(prec_i, i-1);
+                            // Record the start and end of the path in the path_mapping
+                            path_handle_2_start_and_end_in_path_mapping[prec_path] = std::make_pair(prec_i, i-1);
 
-                        prec_path = current_path;
-                        prec_i = i;
+                            prec_path = current_path;
+                            prec_i = i;
+                        }
                     }
-                }
-                if (prec_i != path_mapping.size() - 1) {
-                    smoothed->create_path_handle(path_handle_2_name_and_length[prec_path].first);
-                    path_handle_2_start_and_end_in_path_mapping[prec_path] = std::make_pair(prec_i, path_mapping.size() - 1);
+                    if (prec_i != path_mapping.size() - 1) {
+                        smoothed->create_path_handle(path_handle_2_name_and_length[prec_path].first);
+                        path_handle_2_start_and_end_in_path_mapping[prec_path] = std::make_pair(prec_i, path_mapping.size() - 1);
+                    }
                 }
 
                 // then for each path, ensure that it's embedded in the graph by walking through
