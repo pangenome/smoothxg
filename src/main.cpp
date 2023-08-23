@@ -611,7 +611,7 @@ int main(int argc, char **argv) {
 
             // build the sequence and edges into the output graph
             auto* smoothed = new odgi::graph_t();
-            const uint64_t sample_rate = block_count > 1000000 ? 4 : 0;
+            const uint64_t sample_rate = block_count > 12000000 ? 4 : (block_count > 6000000 ? 2 : 0);
             {
                 std::stringstream load_graphs_banner;
                 load_graphs_banner << smoothxg_iter << "::smooth_and_lace] loading " << block_count << " graph blocks:";
