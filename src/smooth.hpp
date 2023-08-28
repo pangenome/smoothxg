@@ -13,7 +13,6 @@
 #include "spoa/spoa.hpp"
 #include "xg.hpp"
 #include "utils.hpp"
-#include "zstdutil.hpp"
 //#include "patchmap.hpp"
 #include "flat_hash_map.hpp"
 #include <algorithm>
@@ -98,8 +97,15 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block, uint64_t b
 #endif
                            const std::string &consensus_name = "");
 
-odgi::graph_t* smooth_and_lace(const xg::XG &graph,
+void smooth_and_lace(const xg::XG &graph,
                                blockset_t*& blockset,
+                               mmmulti::set<smoothxg::path_position_range_t> &path_mapping,
+                               std::vector<std::string *> &block_graphs,
+                               std::vector<path_handle_t> &consensus_mapping,
+                               std::vector<IITree<uint64_t, uint64_t>> &merged_block_id_intervals_tree_vector,
+                               std::vector<std::string> &block_id_ranges_vector,
+                               ska::flat_hash_set<uint64_t> &inverted_merged_block_id_intervals_ranks,
+                               std::vector<bool> &is_block_in_a_merged_group,
                                int poa_m, int poa_n,
                                int poa_g, int poa_e,
                                int poa_q, int poa_c,

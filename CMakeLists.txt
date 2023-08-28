@@ -336,6 +336,9 @@ add_library(smoothxg_objs OBJECT
   src/tempfile.cpp
   deps/xxHash/xxhash.c
   src/xg.cpp
+  src/dna.cpp
+  src/pos.cpp
+  src/seqindex.cpp
   src/chain.cpp
   src/prep.cpp
   src/cleanup.cpp
