@@ -244,11 +244,11 @@ namespace smoothxg {
                     }
                     // if there is, set the cut length to some fraction of it
                     std::vector<double> lengths;
-                    double max_z = 0;
+                    //double max_z = 0;
                     for (auto& repeat : repeats) {
                         if (repeat.length > 0) {
                             lengths.push_back(repeat.length);
-                            max_z = std::max(repeat.z_score, max_z);
+                            //max_z = std::max(repeat.z_score, max_z);
                         }
                     }
                     found_repeat = !lengths.empty();
