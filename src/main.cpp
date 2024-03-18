@@ -683,10 +683,8 @@ int main(int argc, char **argv) {
                             prec_i = i;
                         }
                     }
-                    if (path_mapping.size() == 1 || prec_i != path_mapping.size() - 1) {
-                        smoothed->create_path_handle(path_handle_2_name_and_length[prec_path].first);
-                        path_handle_2_start_and_end_in_path_mapping[prec_path] = std::make_pair(prec_i, path_mapping.size() - 1);
-                    }
+                    smoothed->create_path_handle(path_handle_2_name_and_length[prec_path].first);
+                    path_handle_2_start_and_end_in_path_mapping[prec_path] = std::make_pair(prec_i, path_mapping.size() - 1);
                 }
 
                 // then for each path, ensure that it's embedded in the graph by walking through
