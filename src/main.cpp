@@ -411,6 +411,7 @@ int main(int argc, char **argv) {
 
             uint64_t block_count;
 
+            uint64_t number_of_paths_in_the_original_graph;
             {
                 auto graph = std::make_unique<XG>();
 
@@ -440,6 +441,8 @@ int main(int argc, char **argv) {
                         std::remove(gfa_in_name.c_str());
                     }
                 }
+
+                number_of_paths_in_the_original_graph = graph->get_path_count();
 
                 auto *blockset = new smoothxg::blockset_t();
                 smoothxg::smoothable_blocks(*graph,
@@ -680,10 +683,8 @@ int main(int argc, char **argv) {
                             prec_i = i;
                         }
                     }
-                    if (path_mapping.size() == 1 || prec_i != path_mapping.size() - 1) {
-                        smoothed->create_path_handle(path_handle_2_name_and_length[prec_path].first);
-                        path_handle_2_start_and_end_in_path_mapping[prec_path] = std::make_pair(prec_i, path_mapping.size() - 1);
-                    }
+                    smoothed->create_path_handle(path_handle_2_name_and_length[prec_path].first);
+                    path_handle_2_start_and_end_in_path_mapping[prec_path] = std::make_pair(prec_i, path_mapping.size() - 1);
                 }
 
                 // then for each path, ensure that it's embedded in the graph by walking through
@@ -790,6 +791,13 @@ int main(int argc, char **argv) {
                         validate_progress.increment(1);
                     }
                     validate_progress.finish();
+                }
+
+                if (number_of_paths_in_the_original_graph != smoothed->get_path_count()) {
+                    std::cerr << smoothxg_iter << "] error! path count mismatch between input (" 
+                            << number_of_paths_in_the_original_graph << ") and smoothed graph (" 
+                            << smoothed->get_path_count() << ")" << std::endl;
+                    exit(1);
                 }
 
                 if (!consensus_mapping.empty()) {
