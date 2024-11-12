@@ -1024,13 +1024,13 @@ int main(int argc, char **argv) {
             std::string path_smoothed_gfa;
             if (current_iter < num_iterations - 1) {
                 consensus_path_names.clear(); // We need this only at the last iteration
-                const std::string patent_dir = args::get(tmp_base).empty() ?
+                const std::string parent_dir = args::get(tmp_base).empty() ?
                         filesystem::path(path_input_gfa).parent_path().string() :
                         args::get(tmp_base);
-                if (patent_dir == "") {
+                if (parent_dir == "") {
                     path_smoothed_gfa = prefix + ".smooth." + std::to_string(current_iter) + ".og";
                 } else {
-                    path_smoothed_gfa = patent_dir + "/" + prefix + ".smooth." + std::to_string(current_iter) + ".og";
+                    path_smoothed_gfa = parent_dir + "/" + prefix + ".smooth." + std::to_string(current_iter) + ".og";
                 }
             } else {
                 path_smoothed_gfa = smoothed_out_gfa;
