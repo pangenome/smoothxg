@@ -429,7 +429,7 @@ int main(int argc, char **argv) {
                             gfa_in_name = args::get(tmp_base) + '/' + filename + ".prep." + std::to_string(current_iter) + ".gfa";
                         }
                         std::cerr << smoothxg_iter << "::main] prepping graph for smoothing" << std::endl;
-                        smoothxg::prep(args::get(gfa_in), gfa_in_name, node_chop,
+                        smoothxg::prep(path_input_gfa, gfa_in_name, node_chop,
                                     term_updates, true, temp_file::get_dir() + '/', n_threads,
                                     smoothxg_iter);
                     } else {
