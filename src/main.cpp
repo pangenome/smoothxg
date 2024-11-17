@@ -216,6 +216,7 @@ int main(int argc, char **argv) {
     size_t n_poa_threads = num_poa_threads ? args::get(num_poa_threads) : n_threads;
 
     std::string smoothed_out_gfa = args::get(smoothed_out);
+    std::filesystem::path smoothed_out_gfa_path = smoothed_out_gfa;
     std::vector<std::string> consensus_path_names;
     std::vector<smoothxg::consensus_spec_t> consensus_specs;
     bool requires_consensus = !args::get(vanish_consensus);
@@ -1039,7 +1040,7 @@ int main(int argc, char **argv) {
             std::cerr << smoothxg_iter << "::main] writing smoothed graph to " << path_smoothed_gfa << std::endl;
             ofstream out(path_smoothed_gfa.c_str());
             // can write to gfa on the final iteration
-            if (current_iter == num_iterations - 1) {
+            if (current_iter == num_iterations - 1 && smoothed_out_gfa_path.extension() == ".gfa") {
                 smoothed->to_gfa(out);
             }
             else {
