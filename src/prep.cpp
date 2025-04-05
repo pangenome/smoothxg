@@ -1,4 +1,5 @@
 #include "prep.hpp"
+#include <filesystem>
 
 namespace smoothxg {
 
@@ -19,7 +20,17 @@ void prep(
 
     // load it into an odgi
     odgi::graph_t graph;
-    odgi::gfa_to_handle(gfa_in, &graph, true, num_threads, true);
+
+    std::filesystem::path graph_path = gfa_in;
+    std::cerr << smoothxg_iter << "::prep] Loading graph for prep " << gfa_in << std::endl;
+
+    if (graph_path.extension() == ".gfa") {
+        odgi::gfa_to_handle(gfa_in, &graph, true, num_threads, true);
+    } else {
+        ifstream f(gfa_in.c_str());
+        graph.deserialize(f);
+        f.close();
+    }
     graph.set_number_of_threads(num_threads);
 
     // sort it using a short sorting pipeline equivalent to `odgi sort -p Ygs`
@@ -144,10 +155,15 @@ void prep(
     odgi::algorithms::chop(graph, max_node_length, num_threads, true);
 
     std::cerr << smoothxg_iter << "::prep] writing graph " << gfa_out << std::endl;
-    std::ofstream f(gfa_out);
-    graph.to_gfa(f);
-    f.close();
 
+    graph_path = gfa_out;
+    std::ofstream f(gfa_out);
+    if (graph_path.extension() == ".gfa") {
+        graph.to_gfa(f);
+    } else {
+        graph.serialize(f);
+    }
+    f.close();
 }
 
 }
