@@ -286,7 +286,8 @@ add_library(abpoa STATIC
     ${abpoa_SOURCE_DIR}/src/abpoa_seq.c
     ${abpoa_SOURCE_DIR}/src/kalloc.c
     ${abpoa_SOURCE_DIR}/src/kstring.c
-    ${abpoa_SOURCE_DIR}/src/simd_abpoa_align.c
+    ${abpoa_SOURCE_DIR}/src/abpoa_align_simd.c
+    ${abpoa_SOURCE_DIR}/src/abpoa_simd.c
     ${abpoa_SOURCE_DIR}/src/simd_check.c
     ${abpoa_SOURCE_DIR}/src/utils.c)
 
