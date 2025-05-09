@@ -216,6 +216,7 @@ int main(int argc, char **argv) {
     size_t n_poa_threads = num_poa_threads ? args::get(num_poa_threads) : n_threads;
 
     std::string smoothed_out_gfa = args::get(smoothed_out);
+    std::filesystem::path smoothed_out_gfa_path = smoothed_out_gfa;
     std::vector<std::string> consensus_path_names;
     std::vector<smoothxg::consensus_spec_t> consensus_specs;
     bool requires_consensus = !args::get(vanish_consensus);
@@ -1024,13 +1025,13 @@ int main(int argc, char **argv) {
             std::string path_smoothed_gfa;
             if (current_iter < num_iterations - 1) {
                 consensus_path_names.clear(); // We need this only at the last iteration
-                const std::string patent_dir = args::get(tmp_base).empty() ?
+                const std::string parent_dir = args::get(tmp_base).empty() ?
                         filesystem::path(path_input_gfa).parent_path().string() :
                         args::get(tmp_base);
-                if (patent_dir == "") {
-                    path_smoothed_gfa = prefix + ".smooth." + std::to_string(current_iter) + ".gfa";
+                if (parent_dir == "") {
+                    path_smoothed_gfa = prefix + ".smooth." + std::to_string(current_iter) + ".og";
                 } else {
-                    path_smoothed_gfa = patent_dir + "/" + prefix + ".smooth." + std::to_string(current_iter) + ".gfa";
+                    path_smoothed_gfa = parent_dir + "/" + prefix + ".smooth." + std::to_string(current_iter) + ".og";
                 }
             } else {
                 path_smoothed_gfa = smoothed_out_gfa;
@@ -1038,7 +1039,13 @@ int main(int argc, char **argv) {
 
             std::cerr << smoothxg_iter << "::main] writing smoothed graph to " << path_smoothed_gfa << std::endl;
             ofstream out(path_smoothed_gfa.c_str());
-            smoothed->to_gfa(out);
+            // can write to gfa on the final iteration
+            if (current_iter == num_iterations - 1 && smoothed_out_gfa_path.extension() == ".gfa") {
+                smoothed->to_gfa(out);
+            }
+            else {
+                smoothed->serialize(out);
+            }
             out.close();
             delete smoothed;
 
