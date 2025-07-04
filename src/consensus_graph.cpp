@@ -1,4 +1,4 @@
-#include <deps/odgi/src/odgi.hpp>
+#include "odgi/odgi.hpp"
 #include "consensus_graph.hpp"
 
 namespace smoothxg {
