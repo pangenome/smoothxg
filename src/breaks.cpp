@@ -1,4 +1,4 @@
-#include <deps/odgi/src/odgi.hpp>
+#include "odgi/odgi.hpp"
 #include "breaks.hpp"
 #include "progress.hpp"
 #include "atomic_bitvector.hpp"

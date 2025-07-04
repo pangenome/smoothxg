@@ -22,14 +22,53 @@ if (BUILD_STATIC)
   set(CMAKE_EXE_LINKER_FLAGS "-static")
 endif()
 
-find_package(OpenMP)
-# if(OpenMP_CXX_FOUND)
-#     target_link_libraries(MyTarget PUBLIC OpenMP::OpenMP_CXX)
-# endif()
-
 find_package(PkgConfig REQUIRED)
-find_package(ZLIB REQUIRED)
-# find_package(ZSTD REQUIRED) - needs recent versions of cmake
+
+# --- Start: Logic for using Homebrew ZLIB, ZSTD, and jemalloc on Apple Silicon ---
+set(JEMALLOC_LINK_LIBRARIES "jemalloc")
+set(SMOOTHXG_USE_HOMEBREW_ZLIB_ON_APPLE_SILICON FALSE)
+set(SMOOTHXG_USE_HOMEBREW_ZSTD_ON_APPLE_SILICON FALSE)
+
+if (APPLE AND (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"))
+  # For pkg_check_modules (pkg-config) to find zlib, you make need to set the following: export PKG_CONFIG_PATH="/opt/homebrew/opt/zstd/lib/pkgconfig:$PKG_CONFIG_PATH"
+  # export PKG_CONFIG_PATH="/opt/homebrew/opt/zlib/lib/pkgconfig:$PKG_CONFIG_PATH"
+  pkg_check_modules(HOMEBREW_ZLIB QUIET zlib)
+  if (HOMEBREW_ZLIB_FOUND)
+    set(SMOOTHXG_USE_HOMEBREW_ZLIB_ON_APPLE_SILICON TRUE)
+    message(STATUS "Apple Silicon: Found Homebrew zlib. Will use it.")
+    message(STATUS "  Homebrew zlib Includes: ${HOMEBREW_ZLIB_INCLUDE_DIRS}")
+    message(STATUS "  Homebrew zlib Link Libraries: ${HOMEBREW_ZLIB_LINK_LIBRARIES}")
+  else()
+    message(FATAL_ERROR "zlib not found")
+  endif ()
+
+  # For pkg_check_modules (pkg-config) to find zstd, you make need to set the following: export PKG_CONFIG_PATH="/opt/homebrew/opt/zstd/lib/pkgconfig:$PKG_CONFIG_PATH"
+  # export PKG_CONFIG_PATH="/opt/homebrew/opt/zstd/lib/pkgconfig:$PKG_CONFIG_PATH"
+  pkg_check_modules(HOMEBREW_ZSTD QUIET libzstd)
+  if (HOMEBREW_ZSTD_FOUND)
+    set(SMOOTHXG_USE_HOMEBREW_ZSTD_ON_APPLE_SILICON TRUE)
+    message(STATUS "Apple Silicon: Found Homebrew ZSTD. Will use it.")
+    message(STATUS "  Homebrew ZSTD Includes: ${HOMEBREW_ZSTD_INCLUDE_DIRS}")
+    message(STATUS "  Homebrew ZSTD Link Libraries: ${HOMEBREW_ZSTD_LINK_LIBRARIES}")
+  else()
+    message(FATAL_ERROR "ZSTD not found")
+  endif ()
+
+  pkg_check_modules(HOMEBREW_JEMALLOC QUIET jemalloc)
+  if (HOMEBREW_JEMALLOC_FOUND)
+    set(JEMALLOC_LINK_LIBRARIES ${HOMEBREW_JEMALLOC_LINK_LIBRARIES})
+    message(STATUS "Apple Silicon: Found Homebrew Jemalloc. Will use it.")
+    message(STATUS "  Homebrew jemalloc Includes: ${HOMEBREW_JEMALLOC_INCLUDE_DIRS}")
+    message(STATUS "  Homebrew jemalloc Link Libraries: ${HOMEBREW_JEMALLOC_LINK_LIBRARIES}")
+  else()
+    message(WARNING "Apple Silicon: Homebrew jemalloc not found via pkg-config. Will try using default jemalloc.")
+  endif ()
+  message(STATUS "jemalloc Link Library: ${JEMALLOC_LINK_LIBRARIES}")
+else()
+  find_package(ZLIB REQUIRED)
+  find_package(ZSTD REQUIRED) # - needs recent versions of cmake
+endif ()
+
 
 # Preload the following libraries before running tests
 set(PRELOAD "libasan.so:libjemalloc.so.2")
@@ -112,6 +151,7 @@ message(STATUS "SMOOTHXG CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 message(STATUS "SMOOTHXG CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 message(STATUS "SMOOTHXG CMAKE_C_FLAGS: ${CMAKE_C_FLAGS}")
 message(STATUS "SMOOTHXG CMAKE_EXE_LINKER_FLAGS: ${CMAKE_EXE_LINKER_FLAGS}")
+message(STATUS "SMOOTHXG CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 
 # Set the output folder
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
@@ -124,6 +164,7 @@ include_directories("${PROJECT_SOURCE_DIR}")
 # Add external projects
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
+set(CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
 # libhandlegraph (full build using its cmake config)
 ExternalProject_Add(handlegraph
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/libhandlegraph"
@@ -164,6 +205,7 @@ set(random_dist_INCLUDE ${CMAKE_SOURCE_DIR}/deps/odgi/deps/cpp_random_distributi
 # mmmulti (memory mapped multimap)
 ExternalProject_Add(mmmulti
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mmmulti"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   BUILD_COMMAND ""
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
@@ -174,6 +216,7 @@ set(mmmulti_INCLUDE "${SOURCE_DIR}/src")
 # In-place Parallel Super Scalar Samplesort (IPS⁴o), header only
 ExternalProject_Add(ips4o
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/ips4o"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
   CONFIGURE_COMMAND "")
@@ -183,6 +226,7 @@ set(ips4o_INCLUDE "${SOURCE_DIR}")
 # atomic queue library
 ExternalProject_Add(atomicqueue
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/atomic_queue"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
@@ -193,6 +237,7 @@ set(atomicqueue_INCLUDE "${SOURCE_DIR}/include/atomic_queue")
 # atomic bitvector class
 ExternalProject_Add(atomicbitvector
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/atomicbitvector"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
@@ -203,6 +248,7 @@ set(atomicbitvector_INCLUDE "${SOURCE_DIR}/include")
 # taywee's C++ args library, header only
 ExternalProject_Add(tayweeargs
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/args"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   UPDATE_COMMAND ""
   INSTALL_COMMAND "")
 ExternalProject_Get_property(tayweeargs SOURCE_DIR)
@@ -225,6 +271,7 @@ set(gfakluge_LIB "${INSTALL_DIR}/src/gfakluge")
 # cgranges, header only
 ExternalProject_Add(cgranges
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/cgranges"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
@@ -243,6 +290,7 @@ set(libbf_LIB "${INSTALL_DIR}/lib")
 # dirtyzipf pow-approximate Zipf distribution
 ExternalProject_Add(dirtyzipf
         SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/odgi/deps/dirtyzipf"
+        CMAKE_ARGS "${CMAKE_ARGS}"
         UPDATE_COMMAND ""
         INSTALL_COMMAND ""
         BUILD_COMMAND ""
@@ -253,6 +301,7 @@ set(dirtyzipf_INCLUDE "${SOURCE_DIR}")
 # header-only pseudorandom number generator library
 ExternalProject_Add(xoshiro
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/odgi/deps/Xoshiro-cpp"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
@@ -262,6 +311,7 @@ set(xoshiro_INCLUDE "${SOURCE_DIR}")
 
 ExternalProject_Add(sautocorr
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/sautocorr"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
@@ -290,10 +340,12 @@ add_library(abpoa STATIC
     ${abpoa_SOURCE_DIR}/src/abpoa_simd.c
     ${abpoa_SOURCE_DIR}/src/simd_check.c
     ${abpoa_SOURCE_DIR}/src/utils.c)
+set(abPOA_INCLUDE "${CMAKE_SOURCE_DIR}/deps/abPOA/include")
 
 #add_subdirectory(deps/mmmulti/deps/mio)
 ExternalProject_Add(mio
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mmmulti/deps/mio"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
@@ -304,6 +356,7 @@ set(mio_INCLUDE "${SOURCE_DIR}/include")
 # mkmh
 ExternalProject_Add(mkmh
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/mkmh"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
@@ -313,6 +366,7 @@ set(mkmh_INCLUDE "${SOURCE_DIR}")
 
 ExternalProject_Add(edlib
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/edlib"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
@@ -323,6 +377,7 @@ set(edlib_INCLUDE "${SOURCE_DIR}/edlib/include")
 
 ExternalProject_Add(xxHash
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/xxHash"
+  CMAKE_ARGS "${CMAKE_ARGS}"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
@@ -425,25 +480,49 @@ set(smoothxg_INCLUDES
   "deps/WFA"
   "deps/patchmap")
 
+if (SMOOTHXG_USE_HOMEBREW_ZSTD_ON_APPLE_SILICON)
+  list(APPEND smoothxg_INCLUDES "${HOMEBREW_ZSTD_INCLUDE_DIRS}")
+endif()
+
 set(smoothxg_LIBS
   "${sdsl-lite_LIB}/libsdsl.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
   "${odgi_LIB}/libodgi.a"
   "${handlegraph_LIB}/libhandlegraph.a"
-  "-latomic"
-  wfa
+  wfa                                   # comment this line if manually linking wfa
+  "${JEMALLOC_LINK_LIBRARIES}"
   )
+
+# macOS does not need `-latomic` to use atomics.
+if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+  list(APPEND smoothxg_LIBS "-latomic")
+endif()
 
 target_include_directories(smoothxg_objs PUBLIC ${smoothxg_INCLUDES})
 
 add_executable(smoothxg
   $<TARGET_OBJECTS:smoothxg_objs>
   ${CMAKE_SOURCE_DIR}/src/main.cpp)
-target_link_libraries(smoothxg spoa abpoa)
+target_link_libraries(smoothxg spoa abpoa)        # comment this line if manually linking spoa and abpoa
 target_link_libraries(smoothxg ${smoothxg_LIBS})
 
-target_link_libraries(smoothxg z zstd jemalloc)
+if (SMOOTHXG_USE_HOMEBREW_ZSTD_ON_APPLE_SILICON)
+  target_include_directories(smoothxg PRIVATE ${HOMEBREW_ZSTD_INCLUDE_DIRS})
+  target_link_libraries(smoothxg -lz ${HOMEBREW_ZSTD_LINK_LIBRARIES})
+else()
+  target_link_libraries(smoothxg z zstd)
+endif()
+
+# Uncomment the below lines to manually link the deps that weren't explicitly installed in the above steps
+## Build abPOA and manually link lib; cd deps/abpoa &&  make
+#target_link_libraries(smoothxg "${CMAKE_SOURCE_DIR}/deps/abPOA/lib/libabpoa.a")
+#
+## Build SPOA and manually link lib; cd deps/spoa &&  cmake -B build -DCMAKE_BUILD_TYPE=Release &&  make -C build
+#target_link_libraries(smoothxg "${CMAKE_SOURCE_DIR}/deps/spoa/build/lib/libspoa.a")
+#
+## Build WFA and manually link Lib: cd deps/wfa && cmake -H. -Bbuild -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && cmake --build build
+#target_link_libraries(smoothxg "${CMAKE_SOURCE_DIR}/deps/WFA/build/lib/libwfa.a")
 
 set_target_properties(smoothxg PROPERTIES OUTPUT_NAME "smoothxg")
 target_include_directories(smoothxg PUBLIC ${smoothxg_INCLUDES})
