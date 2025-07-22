@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <fstream>
-#include <deps/odgi/src/odgi.hpp>
+#include "odgi/odgi.hpp"
 #include "args.hxx"
 #include "sdsl/bit_vectors.hpp"
 #include "chain.hpp"
@@ -19,8 +19,7 @@
 #include "cleanup.hpp"
 #include "breaks.hpp"
 #include "utils.hpp"
-#include "deps/odgi/src/odgi.hpp"
-#include "deps/odgi/src/algorithms/xp.hpp"
+#include "odgi/xp.hpp"
 #include "consensus_graph.hpp"
 #include "rkmh.hpp"
 #include <chrono>
@@ -231,10 +230,10 @@ int main(int argc, char **argv) {
         xp::temp_file::set_dir(args::get(tmp_base));
         temp_file::set_dir(args::get(tmp_base));
     } else {
-        char* cwd = get_current_dir_name();
+        char cwd[512];
+        getcwd(cwd, sizeof(cwd));
         xp::temp_file::set_dir(std::string(cwd));
         temp_file::set_dir(std::string(cwd));
-        free(cwd);
     }
 
     if (!_read_consensus_path_names) {

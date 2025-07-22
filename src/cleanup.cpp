@@ -41,7 +41,7 @@ void cleanup(
         = [&](const std::vector<handlegraph::path_handle_t> &path_sgd_use_paths, const xp::XP &path_index) {
               uint64_t max_path_step_count = 0;
               for (auto& path : path_sgd_use_paths) {
-                  max_path_step_count = std::max(max_path_step_count, path_index.get_path_step_count(path));
+                  max_path_step_count = std::max(max_path_step_count, static_cast<uint64_t>(path_index.get_path_step_count(path)));
               }
               return max_path_step_count;
           };
