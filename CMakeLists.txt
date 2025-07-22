@@ -66,7 +66,11 @@ if (APPLE AND (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64" OR CMAKE_SYSTEM_PROCESSOR 
   message(STATUS "jemalloc Link Library: ${JEMALLOC_LINK_LIBRARIES}")
 else()
   find_package(ZLIB REQUIRED)
-  find_package(ZSTD REQUIRED) # - needs recent versions of cmake
+
+  # Use pkg-config for ZSTD on Linux too
+  pkg_check_modules(PC_ZSTD REQUIRED libzstd) # - needs recent versions of cmake
+  set(ZSTD_LIBRARIES ${PC_ZSTD_LIBRARIES})
+  set(ZSTD_INCLUDE_DIRS ${PC_ZSTD_INCLUDE_DIRS})
 endif ()
 
 
