@@ -137,7 +137,7 @@ odgi::graph_t* create_consensus_graph(const xg::XG &smoothed,
                     uint64_t depth = 0;
                     smoothed.for_each_step_on_handle(
                         handle, [&](const step_handle_t& s) { ++depth; });
-                    coverage += length * depth;
+                    coverage += handle_length * depth;
                 });
             consensus_mean_coverage[i] = (double)coverage / (double)length;
         }
