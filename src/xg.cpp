@@ -4,6 +4,7 @@
 #include "mmmultimap.hpp"
 
 #include <bitset>
+#include <set>
 #include <arpa/inet.h>
 #include <mutex>
 
@@ -713,6 +714,7 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
             lambda(from_id, from_rev, to_id, to_rev);
         });
     };
+    std::set<std::string> empty_path_warned; // warn once across construction passes
     auto for_each_path_element = [&](const std::function<void(const std::string& path_name,
                                                               const nid_t& node_id, const bool& is_rev,
                                                               const std::string& cigar,
@@ -720,9 +722,16 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
         gfa.for_each_path_element_in_file(filename, [&](const std::string& path_name_raw, const std::string& node_id_str,
                                                         bool is_rev, const std::string& cigar,
                                                         bool is_empty, bool is_circular) {
-            nid_t node_id = std::stol(node_id_str);
             std::string path_name = path_name_raw;
             path_name.erase(std::remove_if(path_name.begin(), path_name.end(), [](char c) { return std::isspace(c); }), path_name.end());
+            // drop stepless paths: smoothxg can't smooth them and they corrupt lacing
+            if (is_empty) {
+                if (empty_path_warned.insert(path_name).second) {
+                    std::cerr << "warning:[XG] dropping empty (stepless) path '" << path_name << "'" << std::endl;
+                }
+                return;
+            }
+            nid_t node_id = std::stol(node_id_str);
             lambda(path_name, node_id, is_rev, cigar, is_empty, is_circular);
         });
     };

@@ -493,6 +493,8 @@ set(smoothxg_LIBS
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
   "${odgi_LIB}/libodgi.a"
+  "${CMAKE_SOURCE_DIR}/deps/odgi/lib/libgfa_compression_core.a" # odgi master's GFAz codec
+  "${CMAKE_SOURCE_DIR}/deps/odgi/lib/libgfaz_zstd.a"            # GFAz's vendored zstd
   "${handlegraph_LIB}/libhandlegraph.a"
   wfa                                   # comment this line if manually linking wfa
   "${JEMALLOC_LINK_LIBRARIES}"
