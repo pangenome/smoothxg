@@ -1106,6 +1106,14 @@ int main(int argc, char **argv) {
             while (std::getline(file, path_name)) {
                 consensus_path_names.push_back(path_name);
             }
+        } else if (filesystem::path(smoothed_out_gfa).extension() == ".og") {
+            // the smoothed graph was serialized as odgi binary; load it that way
+            // (from_gfa would choke on the binary) and build the xg from it.
+            odgi::graph_t g;
+            std::ifstream f(smoothed_out_gfa.c_str());
+            g.deserialize(f);
+            f.close();
+            smoothed_xg.from_path_handle_graph(g);
         } else {
             smoothed_xg.from_gfa(smoothed_out_gfa, false,
                                  args::get(tmp_base).empty() ? smoothed_out_gfa : args::get(tmp_base));
