@@ -1023,13 +1023,17 @@ int main(int argc, char **argv) {
             std::string path_smoothed_gfa;
             if (current_iter < num_iterations - 1) {
                 consensus_path_names.clear(); // We need this only at the last iteration
-                const std::string patent_dir = args::get(tmp_base).empty() ?
+                const std::string parent_dir = args::get(tmp_base).empty() ?
                         filesystem::path(path_input_gfa).parent_path().string() :
                         args::get(tmp_base);
-                if (patent_dir == "") {
-                    path_smoothed_gfa = prefix + ".smooth." + std::to_string(current_iter) + ".gfa";
+                // The next iteration re-reads this graph: prep loads odgi binary
+                // (.og, fast), but no-prep loads GFA via from_gfa. Emit whichever
+                // format the next iteration's loader can actually read.
+                const std::string ext = args::get(no_prep) ? ".gfa" : ".og";
+                if (parent_dir == "") {
+                    path_smoothed_gfa = prefix + ".smooth." + std::to_string(current_iter) + ext;
                 } else {
-                    path_smoothed_gfa = patent_dir + "/" + prefix + ".smooth." + std::to_string(current_iter) + ".gfa";
+                    path_smoothed_gfa = parent_dir + "/" + prefix + ".smooth." + std::to_string(current_iter) + ext;
                 }
             } else {
                 path_smoothed_gfa = smoothed_out_gfa;
@@ -1037,7 +1041,13 @@ int main(int argc, char **argv) {
 
             std::cerr << smoothxg_iter << "::main] writing smoothed graph to " << path_smoothed_gfa << std::endl;
             ofstream out(path_smoothed_gfa.c_str());
-            smoothed->to_gfa(out);
+            // Write odgi binary only for an explicit .og target; otherwise GFA.
+            // This keeps the final output GFA unless the user asked for .og.
+            if (filesystem::path(path_smoothed_gfa).extension() == ".og") {
+                smoothed->serialize(out);
+            } else {
+                smoothed->to_gfa(out);
+            }
             out.close();
             delete smoothed;
 
@@ -1095,6 +1105,14 @@ int main(int argc, char **argv) {
             while (std::getline(file, path_name)) {
                 consensus_path_names.push_back(path_name);
             }
+        } else if (filesystem::path(smoothed_out_gfa).extension() == ".og") {
+            // the smoothed graph was serialized as odgi binary; load it that way
+            // (from_gfa would choke on the binary) and build the xg from it.
+            odgi::graph_t g;
+            std::ifstream f(smoothed_out_gfa.c_str());
+            g.deserialize(f);
+            f.close();
+            smoothed_xg.from_path_handle_graph(g);
         } else {
             smoothed_xg.from_gfa(smoothed_out_gfa, false,
                                  args::get(tmp_base).empty() ? smoothed_out_gfa : args::get(tmp_base));
