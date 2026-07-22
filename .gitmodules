@@ -15,7 +15,7 @@
 	url = https://github.com/Taywee/args.git
 [submodule "deps/gfakluge"]
 	path = deps/gfakluge
-	url = https://github.com/vgteam/gfakluge.git
+	url = https://github.com/AndreaGuarracino/gfakluge.git
 [submodule "deps/mmmulti"]
 	path = deps/mmmulti
 	url = https://github.com/ekg/mmmulti
