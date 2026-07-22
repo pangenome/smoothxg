@@ -24,12 +24,12 @@ void prep(
     std::filesystem::path graph_path = gfa_in;
     std::cerr << smoothxg_iter << "::prep] Loading graph for prep " << gfa_in << std::endl;
 
-    if (graph_path.extension() == ".gfa") {
-        odgi::gfa_to_handle(gfa_in, &graph, true, num_threads, true);
-    } else {
-        ifstream f(gfa_in.c_str());
+    if (graph_path.extension() == ".og") {
+        std::ifstream f(gfa_in.c_str());
         graph.deserialize(f);
         f.close();
+    } else {
+        odgi::gfa_to_handle(gfa_in, &graph, true, num_threads, true);
     }
     graph.set_number_of_threads(num_threads);
 
@@ -156,13 +156,9 @@ void prep(
 
     std::cerr << smoothxg_iter << "::prep] writing graph " << gfa_out << std::endl;
 
-    graph_path = gfa_out;
+    // prep output is always re-read as GFA by from_gfa, so write GFA.
     std::ofstream f(gfa_out);
-    if (graph_path.extension() == ".gfa") {
-        graph.to_gfa(f);
-    } else {
-        graph.serialize(f);
-    }
+    graph.to_gfa(f);
     f.close();
 }
 

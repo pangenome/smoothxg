@@ -216,7 +216,6 @@ int main(int argc, char **argv) {
     size_t n_poa_threads = num_poa_threads ? args::get(num_poa_threads) : n_threads;
 
     std::string smoothed_out_gfa = args::get(smoothed_out);
-    std::filesystem::path smoothed_out_gfa_path = smoothed_out_gfa;
     std::vector<std::string> consensus_path_names;
     std::vector<smoothxg::consensus_spec_t> consensus_specs;
     bool requires_consensus = !args::get(vanish_consensus);
@@ -1028,10 +1027,14 @@ int main(int argc, char **argv) {
                 const std::string parent_dir = args::get(tmp_base).empty() ?
                         filesystem::path(path_input_gfa).parent_path().string() :
                         args::get(tmp_base);
+                // The next iteration re-reads this graph: prep loads odgi binary
+                // (.og, fast), but no-prep loads GFA via from_gfa. Emit whichever
+                // format the next iteration's loader can actually read.
+                const std::string ext = args::get(no_prep) ? ".gfa" : ".og";
                 if (parent_dir == "") {
-                    path_smoothed_gfa = prefix + ".smooth." + std::to_string(current_iter) + ".og";
+                    path_smoothed_gfa = prefix + ".smooth." + std::to_string(current_iter) + ext;
                 } else {
-                    path_smoothed_gfa = parent_dir + "/" + prefix + ".smooth." + std::to_string(current_iter) + ".og";
+                    path_smoothed_gfa = parent_dir + "/" + prefix + ".smooth." + std::to_string(current_iter) + ext;
                 }
             } else {
                 path_smoothed_gfa = smoothed_out_gfa;
@@ -1039,12 +1042,12 @@ int main(int argc, char **argv) {
 
             std::cerr << smoothxg_iter << "::main] writing smoothed graph to " << path_smoothed_gfa << std::endl;
             ofstream out(path_smoothed_gfa.c_str());
-            // can write to gfa on the final iteration
-            if (current_iter == num_iterations - 1 && smoothed_out_gfa_path.extension() == ".gfa") {
-                smoothed->to_gfa(out);
-            }
-            else {
+            // Write odgi binary only for an explicit .og target; otherwise GFA.
+            // This keeps the final output GFA unless the user asked for .og.
+            if (filesystem::path(path_smoothed_gfa).extension() == ".og") {
                 smoothed->serialize(out);
+            } else {
+                smoothed->to_gfa(out);
             }
             out.close();
             delete smoothed;
