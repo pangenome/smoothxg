@@ -81,18 +81,17 @@ void append_to_sequence(const xg::XG &graph,
     while (step != final_step && characters_to_add > 0){
         const auto h = graph.get_handle_of_step(step);
         const auto l = graph.get_length(h);
+        // decode the node sequence once (get_sequence returns by value)
+        const std::string s = graph.get_sequence(h);
 
         uint64_t characters_added;
         if (l <= characters_to_add) {
             // Take the full seq
-            tmp.append(graph.get_sequence(h));
+            tmp.append(s);
             characters_added = l;
         }else {
             // Take only the characters needed
-            graph.get_sequence(h).substr(graph.get_sequence(h).size() - characters_to_add);
-            tmp.append(
-                    graph.get_sequence(h).substr(graph.get_sequence(h).size() - characters_to_add)
-            );
+            tmp.append(s.substr(s.size() - characters_to_add));
             characters_added = characters_to_add;
         }
         if (graph.get_is_reverse(h)) {
@@ -107,22 +106,16 @@ void append_to_sequence(const xg::XG &graph,
 
     if (on_the_left){
         //std::cerr << graph.get_path_name(path_handle) << " - HEAD: ";
-        while (characters_to_add > 0) {
-            seq.append("N");
-            //std::cerr << "N";
-            --characters_to_add;
-        }
+        seq.append(characters_to_add, 'N');
+        characters_to_add = 0;
         //std::cerr << tmp << std::endl;
         seq.append(tmp);
     } else {
         //std::cerr << graph.get_path_name(path_handle) << " - TAIL: " << tmp;
         seq.append(tmp);
 
-        while (characters_to_add > 0) {
-            seq.append("N");
-            //std::cerr << "N";
-            --characters_to_add;
-        }
+        seq.append(characters_to_add, 'N');
+        characters_to_add = 0;
         //std::cerr << "\n";
     }
 }
@@ -163,6 +156,16 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
     std::vector<std::vector<uint64_t>> dup_rank_in_path_ranges;
 
     std::vector<std::string> all_names_in_original_order;
+
+    // block.path_ranges.size() is an O(1) upper bound on the number of
+    // (unique) sequences; reserve to avoid geometric reallocation churn.
+    const uint64_t n_path_ranges = block.path_ranges.size();
+    seqs.reserve(n_path_ranges);
+    weights.reserve(n_path_ranges);
+    dup_is_revs.reserve(n_path_ranges);
+    dup_seq_names.reserve(n_path_ranges);
+    dup_rank_in_path_ranges.reserve(n_path_ranges);
+    all_names_in_original_order.reserve(n_path_ranges);
 
     std::size_t max_sequence_size = 0;
 
@@ -212,7 +215,8 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
             // New sequence
             seq_to_rank[hash] = seqs.size();
 
-            seqs.push_back(seq);
+            max_sequence_size = std::max(max_sequence_size, seq.size());
+            seqs.push_back(std::move(seq)); // seq is not read again this iteration
             weights.push_back(1);
             dup_is_revs.emplace_back();
             dup_is_revs.back().push_back(rev_bp > fwd_bp);
@@ -221,8 +225,6 @@ odgi::graph_t* smooth_abpoa(const xg::XG &graph, const block_t &block, const uin
 
             dup_rank_in_path_ranges.emplace_back();
             dup_rank_in_path_ranges.back().push_back(i);
-
-            max_sequence_size = std::max(max_sequence_size, seq.size());
         } else {
             uint64_t rank = seq_to_rank[hash];
 
@@ -654,6 +656,16 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 
         std::vector<std::string> all_names_in_original_order;
 
+        // block.path_ranges.size() is an O(1) upper bound on the number of
+        // (unique) sequences; reserve to avoid geometric reallocation churn.
+        const uint64_t n_path_ranges = block.path_ranges.size();
+        seqs.reserve(n_path_ranges);
+        weights.reserve(n_path_ranges);
+        dup_is_revs.reserve(n_path_ranges);
+        dup_seq_names.reserve(n_path_ranges);
+        dup_rank_in_path_ranges.reserve(n_path_ranges);
+        all_names_in_original_order.reserve(n_path_ranges);
+
         std::size_t max_sequence_size = 0;
 
         for (uint64_t i = 0; i < block.path_ranges.size(); ++i) {
@@ -702,7 +714,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 // New sequence
                 seq_to_rank[hash] = seqs.size();
 
-                seqs.push_back(seq);
+                max_sequence_size = std::max(max_sequence_size, seq.size());
+                seqs.push_back(std::move(seq)); // seq is not read again this iteration
                 weights.push_back(1);
                 dup_is_revs.emplace_back();
                 dup_is_revs.back().push_back(rev_bp > fwd_bp);
@@ -711,8 +724,6 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
 
                 dup_rank_in_path_ranges.emplace_back();
                 dup_rank_in_path_ranges.back().push_back(i);
-
-                max_sequence_size = std::max(max_sequence_size, seq.size());
             } else {
                 uint64_t rank = seq_to_rank[hash];
 
@@ -1578,6 +1589,8 @@ void smooth_and_lace(const xg::XG &graph,
         // but the sequences will be considered (and kept in memory) only if a MAF has to be produced
         std::vector<std::unique_ptr<ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>>>> mafs(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
         atomicbitvector::atomic_bv_t mafs_ready(produce_maf || (add_consensus && merge_blocks) ? blockset->size() : 0);
+        std::mutex mafs_ready_mtx;
+        std::condition_variable mafs_ready_cv;
 
         auto write_maf_lambda = [&]() {
             if (produce_maf || (add_consensus && merge_blocks)) {
@@ -1862,7 +1875,16 @@ void smooth_and_lace(const xg::XG &graph,
                         }*/
                     }
 
-                    std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+                    // park until a producer signals the next in-order block is
+                    // ready; predicate returns immediately when the block is
+                    // already available (back-to-back consumption). Guard the
+                    // bounds since block_id may equal num_blocks here. The
+                    // timeout backstops a missed notify (bit set without lock).
+                    {
+                        std::unique_lock<std::mutex> lk(mafs_ready_mtx);
+                        mafs_ready_cv.wait_for(lk, std::chrono::milliseconds(10),
+                                               [&]{ return block_id >= num_blocks || mafs_ready.test(block_id); });
+                    }
                 }
 
                 while (!merged_maf_blocks_queue.empty()) {
@@ -2280,6 +2302,7 @@ void smooth_and_lace(const xg::XG &graph,
             poa_progress.increment(1);
             if (produce_maf || (add_consensus && merge_blocks)){
                 mafs_ready.set(block_id);
+                mafs_ready_cv.notify_one();
             }
         }
 
