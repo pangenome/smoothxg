@@ -150,6 +150,8 @@ namespace smoothxg {
         split_blocks.store(0);
 
         atomicbitvector::atomic_bv_t block_is_ready(blockset->size());
+        std::mutex block_ready_mtx;
+        std::condition_variable block_ready_cv;
         std::vector<std::vector<block_t>> ready_blocks(blockset->size());
 
         auto *broken_blockset = new smoothxg::blockset_t();
@@ -176,7 +178,12 @@ namespace smoothxg {
 
                     ++old_block_id;
                 } else {
-                    std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+                    // park until a producer signals a newly-ready block; the
+                    // timeout is a backstop against a missed notify (the ready
+                    // bit is set without the mutex), never a busy-poll.
+                    std::unique_lock<std::mutex> lk(block_ready_mtx);
+                    block_ready_cv.wait_for(lk, std::chrono::milliseconds(10),
+                                            [&]{ return block_is_ready.test(old_block_id); });
                 }
             }
         };
@@ -579,6 +586,7 @@ namespace smoothxg {
             }
 
             block_is_ready.set(block_id);
+            block_ready_cv.notify_one();
 
             breaks_and_splits_progress.increment(1);
         }

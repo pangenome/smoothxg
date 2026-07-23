@@ -692,10 +692,20 @@ int main(int argc, char **argv) {
                 std::stringstream lace_banner;
                 lace_banner << smoothxg_iter << "::smooth_and_lace] embedding " << path_mapping.size() << " path fragments:";
                 progress_meter::ProgressMeter lace_progress(path_mapping.size(), lace_banner.str());
-                auto it = path_handle_2_start_and_end_in_path_mapping.begin();
+                // Materialize the map iterators once. ska::flat_hash_map has a
+                // forward iterator, so std::next(it, i) is O(i); calling it for
+                // every i in the loop below is O(n^2) in the number of paths.
+                std::vector<
+                    ska::flat_hash_map<path_handle_t, std::pair<uint64_t, uint64_t>>::iterator
+                    > path_iters;
+                path_iters.reserve(path_handle_2_start_and_end_in_path_mapping.size());
+                for (auto pit = path_handle_2_start_and_end_in_path_mapping.begin();
+                     pit != path_handle_2_start_and_end_in_path_mapping.end(); ++pit) {
+                    path_iters.push_back(pit);
+                }
         #pragma omp parallel for schedule(dynamic,1)
-                for (uint64_t i = 0; i < path_handle_2_start_and_end_in_path_mapping.size(); ++i) {
-                    auto local_it = std::next(it, i);
+                for (uint64_t i = 0; i < path_iters.size(); ++i) {
+                    auto local_it = path_iters[i];
 
                     //int thread_num = omp_get_thread_num();
                     //#pragma omp critical 
