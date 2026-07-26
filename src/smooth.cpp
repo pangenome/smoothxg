@@ -5,6 +5,11 @@
 
 namespace smoothxg {
 
+// spoa's GenerateMultipleSequenceAlignment returns ASCII rows gapped with '-',
+// unlike abPOA's msa_base, which is numerically encoded with 5 for a gap. The
+// padding removal below runs on the spoa rows, so it has to test for '-'.
+static const char GAP_CHAR = '-';
+
 /*
 void _clear_maf_block(ska::flat_hash_map<std::string, std::vector<maf_partial_row_t>> &maf){
     for (const auto &path_to_maf_rows : maf){
@@ -787,8 +792,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 int j = 0;
                 uint64_t characters_to_remove = poa_padding;
                 while (characters_to_remove > 0) {
-                    if (msa[i][j] != 5){
-                        msa[i][j] = 5;
+                    if (msa[i][j] != GAP_CHAR){
+                        msa[i][j] = GAP_CHAR;
                         --characters_to_remove;
                     }
 
@@ -799,8 +804,8 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 characters_to_remove = poa_padding;
                 while (characters_to_remove > 0) {
                     --j;
-                    if (msa[i][j] != 5){
-                        msa[i][j] = 5;
+                    if (msa[i][j] != GAP_CHAR){
+                        msa[i][j] = GAP_CHAR;
                         --characters_to_remove;
                     }
                 }
@@ -812,7 +817,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 int i = 0;
                 // Find a non-gap character in the current MSA-column
                 for (; i < msa.size(); ++i) {
-                    if (msa[i][start_pos_to_trim] != 5){
+                    if (msa[i][start_pos_to_trim] != GAP_CHAR){
                         break;
                     }
                 }
@@ -829,7 +834,7 @@ odgi::graph_t* smooth_spoa(const xg::XG &graph, const block_t &block,
                 int i = 0;
                 // Find a non-gap character in the current MSA-column
                 for (; i < msa.size(); ++i) {
-                    if (msa[i][end_pos_to_trim] != 5){
+                    if (msa[i][end_pos_to_trim] != GAP_CHAR){
                         break;
                     }
                 }
