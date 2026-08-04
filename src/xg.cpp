@@ -705,11 +705,17 @@ void XG::from_gfa(const std::string& gfa_filename, bool validate, std::string ba
     };
     auto for_each_edge = [&](const std::function<void(const nid_t& from_id, const bool& from_rev,
                                                       const nid_t& to_id, const bool& to_rev)>& lambda) {
-        gfa.for_each_edge_line_in_file(filename, [&](const gfak::edge_elem& e) {
+        // lean scan: only extracts source/sink id + orientation, skipping the
+        // CIGAR alignment/tags/offset allocation for_each_edge_line_in_file
+        // does per line but this callback never reads. Single-threaded only --
+        // lambda below feeds mmmulti::map::append() via a single writer, which
+        // isn't safe to call concurrently, so the parallel scan variant isn't
+        // used here.
+        gfa.for_each_edge_endpoints_in_file(filename, [&](const gfak::edge_endpoints_t& e) {
             if (e.source_name.empty()) return;
-            nid_t from_id = std::stol(e.source_name);
+            nid_t from_id = std::stol(std::string(e.source_name));
             bool from_rev = !e.source_orientation_forward;
-            nid_t to_id = std::stol(e.sink_name);
+            nid_t to_id = std::stol(std::string(e.sink_name));
             bool to_rev = !e.sink_orientation_forward;
             lambda(from_id, from_rev, to_id, to_rev);
         });
