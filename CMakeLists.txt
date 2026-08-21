@@ -8,6 +8,14 @@ project(smoothxg)
 # We build using c++17
 set(CMAKE_CXX_STANDARD 17)
 
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-Wno-template-body" HAS_WNO_TEMPLATE_BODY)
+if (HAS_WNO_TEMPLATE_BODY)
+  set(DEPS_EXTRA_CXX_FLAGS "-Wno-template-body")
+endif ()
+
 enable_testing()
 
 include(CheckIPOSupported) # adds lto
@@ -180,7 +188,7 @@ set(handlegraph_LIB "${INSTALL_DIR}/lib")
 # sdsl-lite (full build using its cmake config)
 ExternalProject_Add(sdsl-lite
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/sdsl-lite"
-  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
+  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_CXX_FLAGS=${DEPS_EXTRA_CXX_FLAGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
   UPDATE_COMMAND ""
   INSTALL_COMMAND "")
 ExternalProject_Get_property(sdsl-lite INSTALL_DIR)
